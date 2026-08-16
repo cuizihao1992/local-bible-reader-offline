@@ -1,3 +1,5 @@
+import { fallbackBooks } from "../lib/books.js";
+
 const base = process.env.BIBLE_READER_URL || "http://127.0.0.1:8766";
 
 async function getJson(path) {
@@ -88,6 +90,61 @@ assert(appJs.includes("function runBibleStudy"), "Bible study agent missing");
 assert(appJs.includes("function getAiProvider"), "AI provider abstraction missing");
 assert(appJs.includes("function beginJob"), "Command job cancel token missing");
 assert(appJs.includes("function finishJob"), "Command finish status missing");
+assert(appJs.includes("spokenAliasIndex"), "Spoken short-name guard missing");
+assert(indexHtml.includes("spoken-books.js"), "Spoken book helper script missing");
+
+const spokenJs = await getText("/spoken-books.js");
+assert(spokenJs.includes("伊斯拉"), "Ezra ASR variant missing");
+assert(spokenJs.includes("以斯贴"), "Esther ASR variant missing");
+assert(spokenJs.includes("哈巴古"), "Habakkuk ASR variant missing");
+const spokenBooks = new Function(`${spokenJs}\nreturn globalThis.SpokenBooks;`)();
+assert(spokenBooks, "SpokenBooks helper missing");
+assert(spokenBooks.canonicalizeSpokenBooks("跳到伊斯拉记第三章").includes("以斯拉记"), "Ezra homophone not canonicalized");
+assert(spokenBooks.canonicalizeSpokenBooks("打开以斯贴记").includes("以斯帖记"), "Esther homophone not canonicalized");
+assert(spokenBooks.canonicalizeSpokenBooks("以斯拉记") === "以斯拉记", "Official Ezra name must stay intact");
+assert(spokenBooks.spokenAliasIndex("以斯拉记", "斯") < 0, "Esther short name must not match inside Ezra");
+assert(spokenBooks.spokenAliasIndex("以斯帖记", "拉") < 0, "Ezra short name must not match inside Esther");
+assert(spokenBooks.spokenAliasIndex("斯4", "斯") === 0, "Esther abbreviation 斯4 must still work");
+assert(spokenBooks.spokenAliasIndex("诗23", "诗") === 0, "Psalm abbreviation 诗23 must still work");
+assert(spokenBooks.spokenAliasIndex("约3:16", "约") === 0, "John abbreviation 约3:16 must still work");
+
+function mockFindSpokenBook(input) {
+  const books = fallbackBooks();
+  const aliases = new Map();
+  books.forEach((book) => {
+    [book.shortName, book.longName, book.longName.replace(/记$/, ""), book.longName.replace(/书$/, ""), book.longName.replace(/福音$/, "")].forEach((name) => {
+      if (name) aliases.set(name, book);
+    });
+  });
+  Object.entries(spokenBooks.extras).forEach(([alias, longName]) => {
+    const book = books.find((item) => item.longName === longName);
+    if (book) aliases.set(alias, book);
+  });
+  const value = spokenBooks.canonicalizeSpokenBooks(spokenBooks.normalizeTraditional(String(input || "").replace(/\s+/g, "")));
+  let best = null;
+  for (const [alias, book] of [...aliases.entries()].sort((left, right) => right[0].length - left[0].length)) {
+    const index = spokenBooks.spokenAliasIndex(value, alias);
+    if (index < 0) continue;
+    if (best && (index > best.index || (index === best.index && alias.length <= best.alias.length))) continue;
+    best = { alias, book, index };
+  }
+  return best?.book.longName || null;
+}
+
+assert(mockFindSpokenBook("以斯拉记") === "以斯拉记", "Ezra official name failed");
+assert(mockFindSpokenBook("以斯帖记") === "以斯帖记", "Esther official name failed");
+assert(mockFindSpokenBook("伊斯拉记") === "以斯拉记", "Ezra homophone 伊斯拉记 jumped to the wrong book");
+assert(mockFindSpokenBook("以斯啦记") === "以斯拉记", "Ezra homophone 以斯啦记 jumped to the wrong book");
+assert(mockFindSpokenBook("以司拉") === "以斯拉记", "Ezra homophone 以司拉 jumped to the wrong book");
+assert(mockFindSpokenBook("以斯贴记") === "以斯帖记", "Esther homophone 以斯贴记 failed");
+assert(mockFindSpokenBook("伊斯特") === "以斯帖记", "Esther homophone 伊斯特 failed");
+assert(mockFindSpokenBook("以司帖") === "以斯帖记", "Esther homophone 以司帖 failed");
+assert(mockFindSpokenBook("哈巴古") === "哈巴谷书", "Habakkuk homophone failed");
+assert(mockFindSpokenBook("哈该书") === "哈该书", "Haggai official name failed");
+assert(mockFindSpokenBook("腓力比") === "腓立比书", "Philippians homophone failed");
+assert(mockFindSpokenBook("菲利门") === "腓利门书", "Philemon homophone failed");
+assert(mockFindSpokenBook("马泰福音") === "马太福音", "Matthew homophone failed");
+assert(mockFindSpokenBook("约书亚记") === "约书亚记", "Joshua must not collapse to John");
 assert(appJs.includes("function startVoiceInput"), "Voice hold-to-talk missing");
 assert(indexHtml.includes("id=\"voiceBtn\""), "Voice button missing");
 assert(appJs.includes("function loadChapter"), "Chapter loader missing");

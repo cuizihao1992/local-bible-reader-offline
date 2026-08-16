@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.12.1";
+const APP_VERSION = "1.12.2";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -511,9 +511,16 @@ function rememberCurrentBook() {
   state.recentBooks = [state.book, ...state.recentBooks.filter((id) => id !== state.book)].slice(0, 8);
 }
 
+function bookSpeechNames(book) {
+  const spoken = typeof SpokenBooks !== "undefined" && SpokenBooks.namesForBook
+    ? SpokenBooks.namesForBook(book.longName)
+    : [book.longName];
+  return [book.shortName, book.longName, ...spoken];
+}
+
 function bookMatchesFilter(book) {
   const query = bookSearchInput.value.trim();
-  if (query && ![book.shortName, book.longName].some((name) => String(name).includes(query))) return false;
+  if (query && !bookSpeechNames(book).some((name) => String(name).includes(query))) return false;
   if (bookFilter === "ot") return book.id <= 39;
   if (bookFilter === "nt") return book.id >= 40;
   if (bookFilter === "recent") return state.recentBooks.includes(book.id);
@@ -1015,7 +1022,8 @@ function bookAliases() {
     启示: "启示录",
     默示录: "启示录",
   };
-  Object.entries(extras).forEach(([alias, longName]) => {
+  const spokenExtras = typeof SpokenBooks !== "undefined" && SpokenBooks.extras ? SpokenBooks.extras : {};
+  Object.entries({ ...extras, ...spokenExtras }).forEach(([alias, longName]) => {
     const book = state.books.find((item) => item.longName === longName);
     if (book && alias) aliases.set(alias, book);
   });
@@ -1037,8 +1045,15 @@ function parseReference(input) {
   };
 }
 
+function spokenAliasIndex(value, alias) {
+  if (typeof SpokenBooks !== "undefined" && SpokenBooks.spokenAliasIndex) {
+    return SpokenBooks.spokenAliasIndex(value, alias);
+  }
+  return String(value || "").indexOf(String(alias || ""));
+}
+
 function normalizeVoiceText(input) {
-  return String(input || "")
+  let value = String(input || "")
     .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 65248))
     .replace(/[“”‘’「」『』]/g, "")
     .replace(/[，。？！,.?!、…~～]/g, "")
@@ -1051,6 +1066,11 @@ function normalizeVoiceText(input) {
     .replace(/篇/g, "章")
     .replace(/\u0000诗篇\u0000/g, "诗篇")
     .replace(/\s+/g, "");
+  if (typeof SpokenBooks !== "undefined") {
+    if (SpokenBooks.normalizeTraditional) value = SpokenBooks.normalizeTraditional(value);
+    if (SpokenBooks.canonicalizeSpokenBooks) value = SpokenBooks.canonicalizeSpokenBooks(value);
+  }
+  return value;
 }
 
 function lightNormalizeVoice(input) {
@@ -1064,7 +1084,7 @@ function lightNormalizeVoice(input) {
 function findSpokenBook(value) {
   let best = null;
   for (const [alias, book] of bookAliases()) {
-    const index = value.indexOf(alias);
+    const index = spokenAliasIndex(value, alias);
     if (index < 0) continue;
     if (best && (index > best.index || (index === best.index && alias.length <= best.alias.length))) continue;
     best = { alias, book, index, rest: value.slice(index + alias.length).replace(/^的/, "") };
@@ -1232,7 +1252,7 @@ function parseSpokenReference(input) {
   const aliases = bookAliases();
   let best = null;
   for (const [alias, book] of aliases) {
-    const index = value.indexOf(alias);
+    const index = spokenAliasIndex(value, alias);
     if (index < 0) continue;
     if (best && (index > best.index || (index === best.index && alias.length <= best.alias.length))) continue;
     const restText = value.slice(index + alias.length);
@@ -1457,6 +1477,8 @@ function voiceIntentPrompt(spoken) {
     "诗篇的倒数第二篇 → book=诗篇 chapter=last-2",
     "创世纪的下一卷书 / 创世记下一本 → book=出埃及记 chapter=1",
     "只说下一章 → moveChapter delta=1；只说上一卷 → moveBook delta=-1",
+    "易混书卷必须分开：以斯拉记(Ezra/拉)≠以斯帖记(Esther/斯)；哈巴谷书≠哈该书；腓立比书≠腓利门书；马太福音≠马可福音；路得记≠路加福音；雅歌≠雅各书；约书亚记≠约翰福音≠约伯记≠约珥书≠约拿书。",
+    "语音常把以斯拉听成伊斯拉/以司拉/以斯啦，把以斯帖听成以斯贴/伊斯特/以司帖。听到这些就按正确书卷跳转。",
     "无法判断跳转时用 search。",
     `用户说：${spoken}`,
   ].join("\n");
