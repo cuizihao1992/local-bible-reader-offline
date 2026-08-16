@@ -12,16 +12,22 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class OfflineApi {
     private final Context context;
     private final File bibleDir;
+    private final File commentaryDir;
     private final SQLiteDatabase userDb;
+    private volatile JSONObject downloadStatus = new JSONObject();
 
     private static final Object[][] BOOKS = new Object[][]{
             {"创", "创世记", 50}, {"出", "出埃及记", 40}, {"利", "利未记", 27}, {"民", "民数记", 36},
@@ -46,6 +52,8 @@ public class OfflineApi {
     public OfflineApi(Context context) {
         this.context = context.getApplicationContext();
         this.bibleDir = new File(context.getFilesDir(), "bibles");
+        this.commentaryDir = new File(context.getFilesDir(), "commentaries");
+        this.commentaryDir.mkdirs();
         copyBundledBibles();
         this.userDb = SQLiteDatabase.openOrCreateDatabase(new File(context.getFilesDir(), "user.sqlite"), null);
         initUserDb();
@@ -65,8 +73,9 @@ public class OfflineApi {
             if ("/api/user/progress".equals(path) && "GET".equalsIgnoreCase(method)) return progress(query(uri, "version")).toString();
             if ("/api/user/history".equals(path) && "GET".equalsIgnoreCase(method)) return new JSONObject().put("history", getHistory()).toString();
             if ("/api/user/export".equals(path) && "GET".equalsIgnoreCase(method)) return exportUserData().toString();
-            if ("/api/commentaries".equals(path)) return new JSONObject().put("commentaries", new JSONArray()).toString();
-            if ("/api/commentary".equals(path)) return new JSONObject().put("source", "").put("title", "").put("readable", true).put("entries", new JSONArray()).toString();
+            if ("/api/packages".equals(path)) return new JSONObject().put("packages", packages()).toString();
+            if ("/api/commentaries".equals(path)) return new JSONObject().put("commentaries", commentaries()).toString();
+            if ("/api/commentary".equals(path)) return commentary(uri).toString();
             if ("/api/dictionaries".equals(path)) return new JSONObject().put("dictionaries", new JSONArray()).toString();
             if ("/api/dictionary/search".equals(path)) return new JSONObject().put("results", new JSONArray()).put("query", query(uri, "q")).put("title", "").toString();
             if ("/api/audio".equals(path)) return new JSONObject().put("audio", new JSONArray()).toString();
@@ -86,6 +95,7 @@ public class OfflineApi {
             if ("/api/user/progress".equals(path)) return saveProgress(body).toString();
             if ("/api/user/export".equals(path)) return exportUserData().toString();
             if ("/api/user/import".equals(path)) return importUserData(body).toString();
+            if ("/api/package/install".equals(path)) return installPackage(body.optString("id"), body.optString("url"));
             return new JSONObject().put("error", "Android 离线版暂未支持此 POST 接口：" + path).toString();
         } catch (Exception error) {
             return "{\"error\":\"" + escapeJson(error.getMessage()) + "\"}";
@@ -119,6 +129,197 @@ public class OfflineApi {
             userDb.execSQL("alter table verse_marks add column highlight_color text not null default ''");
         } catch (Exception ignored) {
         }
+    }
+
+    public String installPackage(String packageId, String downloadUrl) {
+        try {
+            return installDataPackage(packageId, downloadUrl).toString();
+        } catch (Exception error) {
+            setDownloadStatus(packageId == null ? "package" : packageId, "error", 0, 0, error.getMessage());
+            return "{\"error\":\"" + escapeJson(error.getMessage()) + "\"}";
+        }
+    }
+
+    public String downloadStatus() {
+        return downloadStatus.toString();
+    }
+
+    public String clearDownloadCache() {
+        long bytes = deleteChildren(new File(context.getCacheDir(), "downloads"));
+        setDownloadStatus("cache", "cleared", 0, 0, "已清理下载缓存");
+        try {
+            return new JSONObject().put("ok", true).put("bytes", bytes).put("message", "已清理下载缓存").toString();
+        } catch (Exception error) {
+            return "{\"ok\":true,\"bytes\":" + bytes + "}";
+        }
+    }
+
+    private JSONArray packages() throws Exception {
+        JSONArray array = new JSONArray();
+        array.put(packageInfo("extra-bibles", "更多译本", "下载补充经文译本", "bibles-extra-v1.3.0.zip", bibleDir, 26));
+        array.put(packageInfo("commentaries", "基础注释库", "下载常用注释（不含超大图解库）", "commentaries-v1.3.0.zip", commentaryDir, 14));
+        return array;
+    }
+
+    private JSONObject packageInfo(String id, String title, String description, String fileName, File targetDir, int fullCount) throws Exception {
+        int installed = countDbFiles(targetDir);
+        return new JSONObject()
+                .put("id", id)
+                .put("title", title)
+                .put("description", description)
+                .put("fileName", fileName)
+                .put("url", "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.3.0/" + fileName)
+                .put("installedCount", installed)
+                .put("fullCount", fullCount)
+                .put("installed", "extra-bibles".equals(id) ? installed >= 8 : installed >= 3);
+    }
+
+    private JSONObject installDataPackage(String packageId, String downloadUrl) throws Exception {
+        String fileName;
+        File targetDir;
+        if ("extra-bibles".equals(packageId)) {
+            fileName = "bibles-extra-v1.3.0.zip";
+            targetDir = bibleDir;
+        } else if ("commentaries".equals(packageId)) {
+            fileName = "commentaries-v1.3.0.zip";
+            targetDir = commentaryDir;
+        } else {
+            throw new Exception("未知资源包：" + packageId);
+        }
+        String urlText = downloadUrl != null && downloadUrl.startsWith("https://github.com/") ? downloadUrl : "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.3.0/" + fileName;
+        targetDir.mkdirs();
+        File downloadDir = new File(context.getCacheDir(), "downloads");
+        downloadDir.mkdirs();
+        File temp = new File(downloadDir, fileName + ".part");
+        HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
+        connection.setConnectTimeout(20000);
+        connection.setReadTimeout(120000);
+        connection.setRequestProperty("User-Agent", "LocalBibleReader/1.3.0");
+        int status = connection.getResponseCode();
+        if (status < 200 || status >= 300) throw new Exception("下载失败：" + status);
+        long total = connection.getContentLengthLong();
+        long downloaded = 0;
+        setDownloadStatus(packageId, "downloading", 0, total, "正在下载资源包");
+        try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
+            byte[] buffer = new byte[1024 * 64];
+            int read;
+            while ((read = in.read(buffer)) > 0) {
+                out.write(buffer, 0, read);
+                downloaded += read;
+                setDownloadStatus(packageId, "downloading", downloaded, total, "正在下载资源包");
+            }
+        } finally {
+            connection.disconnect();
+        }
+        setDownloadStatus(packageId, "installing", downloaded, total, "正在安装资源包");
+        int installed = 0;
+        try (ZipInputStream zip = new ZipInputStream(new java.io.FileInputStream(temp))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (entry.isDirectory() || !entry.getName().toLowerCase().endsWith(".db")) continue;
+                String name = safeName(new File(entry.getName()).getName());
+                if (name.isEmpty()) continue;
+                File target = new File(targetDir, name);
+                try (FileOutputStream out = new FileOutputStream(target)) {
+                    byte[] buffer = new byte[1024 * 64];
+                    int read;
+                    while ((read = zip.read(buffer)) > 0) out.write(buffer, 0, read);
+                }
+                installed++;
+            }
+        } finally {
+            if (!temp.delete()) temp.deleteOnExit();
+        }
+        setDownloadStatus(packageId, "done", downloaded, total, "资源包安装完成");
+        return new JSONObject().put("id", packageId).put("installed", installed).put("packages", packages());
+    }
+
+    private void setDownloadStatus(String id, String state, long downloaded, long total, String message) {
+        try {
+            int percent = total > 0 ? (int) Math.min(100, Math.round(downloaded * 100.0 / total)) : 0;
+            downloadStatus = new JSONObject()
+                    .put("id", id)
+                    .put("state", state)
+                    .put("downloaded", downloaded)
+                    .put("total", total)
+                    .put("percent", percent)
+                    .put("message", message == null ? "" : message);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private long deleteChildren(File dir) {
+        if (dir == null || !dir.exists()) return 0;
+        long bytes = 0;
+        File[] files = dir.listFiles();
+        if (files == null) return 0;
+        for (File file : files) {
+            bytes += file.isFile() ? file.length() : deleteChildren(file);
+            if (!file.delete()) file.deleteOnExit();
+        }
+        return bytes;
+    }
+
+    private int countDbFiles(File dir) {
+        File[] files = dir.listFiles((file, name) -> name.endsWith(".db"));
+        return files == null ? 0 : files.length;
+    }
+
+    private JSONArray commentaries() throws Exception {
+        JSONArray array = new JSONArray();
+        File[] files = commentaryDir.listFiles((dir, name) -> name.endsWith(".db"));
+        if (files == null) return array;
+        List<File> sorted = new ArrayList<>();
+        for (File file : files) sorted.add(file);
+        sorted.sort(Comparator.comparing(File::getName));
+        for (File file : sorted) {
+            String name = file.getName();
+            int count = 0;
+            SQLiteDatabase db = SQLiteDatabase.openDatabase(file.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
+            try (Cursor cursor = db.rawQuery("select count(*) from commentary", null)) {
+                if (cursor.moveToNext()) count = cursor.getInt(0);
+            } catch (Exception ignored) {
+            } finally {
+                db.close();
+            }
+            array.put(new JSONObject()
+                    .put("id", name)
+                    .put("title", name.replace(".db", ""))
+                    .put("fileName", name)
+                    .put("count", count)
+                    .put("readable", count > 0));
+        }
+        return array;
+    }
+
+    private JSONObject commentary(Uri uri) throws Exception {
+        String source = query(uri, "source");
+        int book = intQuery(uri, "book", 1);
+        int chapter = intQuery(uri, "chapter", 1);
+        File file = new File(commentaryDir, safeName(source));
+        if (!file.exists()) throw new Exception("找不到注释：" + source);
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(file.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
+        JSONArray entries = new JSONArray();
+        try (Cursor cursor = db.rawQuery("select Chapter, FromVerse, ToVerse, Data from commentary where Book=? and (Chapter=? or Chapter=0) order by Chapter, FromVerse",
+                new String[]{String.valueOf(book), String.valueOf(chapter)})) {
+            while (cursor.moveToNext()) {
+                entries.put(new JSONObject()
+                        .put("chapter", cursor.getInt(0))
+                        .put("fromVerse", cursor.getInt(1))
+                        .put("toVerse", cursor.getInt(2))
+                        .put("text", cleanText(cursor.getString(3)))
+                        .put("hasImages", false));
+            }
+        } finally {
+            db.close();
+        }
+        return new JSONObject()
+                .put("source", source)
+                .put("title", source.replace(".db", ""))
+                .put("readable", true)
+                .put("book", book)
+                .put("chapter", chapter)
+                .put("entries", entries);
     }
 
     private JSONArray versions() throws Exception {
@@ -530,7 +731,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.2.0")
+                .put("version", "1.3.0")
                 .put("versionCount", versions().length());
     }
 

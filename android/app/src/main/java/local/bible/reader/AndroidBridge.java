@@ -32,6 +32,36 @@ public class AndroidBridge {
     }
 
     @JavascriptInterface
+    public String installPackage(String packageId, String url) {
+        try {
+            final String id = packageId == null ? "" : packageId;
+            final String downloadUrl = url == null ? "" : url;
+            new Thread(() -> offlineApi.installPackage(id, downloadUrl), "package-install").start();
+            return "{\"started\":true}";
+        } catch (Throwable error) {
+            return errorJson(error);
+        }
+    }
+
+    @JavascriptInterface
+    public String downloadStatus() {
+        try {
+            return offlineApi.downloadStatus();
+        } catch (Throwable error) {
+            return errorJson(error);
+        }
+    }
+
+    @JavascriptInterface
+    public String clearDownloadCache() {
+        try {
+            return offlineApi.clearDownloadCache();
+        } catch (Throwable error) {
+            return errorJson(error);
+        }
+    }
+
+    @JavascriptInterface
     public String postJson(String path, String payload) {
         try {
             return offlineApi.handlePost(path == null ? "" : path, payload == null ? "{}" : payload);

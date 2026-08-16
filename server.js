@@ -69,7 +69,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, {
         ok: true,
         app: "bible-reader",
-        version: "1.2.0",
+        version: "1.3.0",
         dataRoot: ROOT,
         biblesDir: BIBLES_DIR,
         commentariesDir: COMMENTARIES_DIR,
@@ -124,6 +124,31 @@ const server = createServer(async (req, res) => {
           offset: url.searchParams.get("offset") || 0,
         }),
       );
+      return;
+    }
+    if (url.pathname === "/api/packages") {
+      sendJson(res, {
+        packages: [
+          {
+            id: "extra-bibles",
+            title: "更多译本",
+            description: "下载补充经文译本",
+            fileName: "bibles-extra-v1.3.0.zip",
+            url: "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.3.0/bibles-extra-v1.3.0.zip",
+            installed: false,
+            androidOnly: true,
+          },
+          {
+            id: "commentaries",
+            title: "基础注释库",
+            description: "下载常用注释",
+            fileName: "commentaries-v1.3.0.zip",
+            url: "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.3.0/commentaries-v1.3.0.zip",
+            installed: false,
+            androidOnly: true,
+          },
+        ],
+      });
       return;
     }
     if (url.pathname === "/api/commentaries") {

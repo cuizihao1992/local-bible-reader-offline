@@ -19,6 +19,7 @@ public class ApkProvider extends ContentProvider {
     public String getType(Uri uri) {
         String name = uri.getLastPathSegment();
         if (name != null && name.toLowerCase().endsWith(".png")) return "image/png";
+        if (name != null && name.toLowerCase().endsWith(".json")) return "application/json";
         return "application/vnd.android.package-archive";
     }
 

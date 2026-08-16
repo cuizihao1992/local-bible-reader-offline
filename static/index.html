@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>离线阅读 · 1.2</p>
+            <p>离线阅读 · 1.3</p>
           </div>
         </div>
       </div>
@@ -34,7 +34,7 @@
         </label>
         <div class="comparePanel">
           <div class="panelTitle">对照版本</div>
-          <div class="panelHint">最多选择 3 个，也可在选节后点「对照」</div>
+          <div class="panelHint">用于选节后的「对照」，不再插入正文</div>
           <div id="compareVersions" class="compareVersions"></div>
         </div>
         <div class="commentaryPanel">
@@ -65,6 +65,18 @@
       </section>
 
       <section class="sidebarSection" data-sidebar-panel="data">
+        <div class="settingsPanel">
+          <div class="panelTitle">离线资源</div>
+          <div id="packageList" class="packageList"></div>
+          <div id="packageProgress" class="downloadProgress" hidden>
+            <div class="downloadProgressTop">
+              <span id="packageProgressText">准备下载</span>
+              <b id="packageProgressValue">0%</b>
+            </div>
+            <div class="downloadProgressTrack"><span id="packageProgressBar"></span></div>
+          </div>
+          <div id="packageHint" class="panelHint">可下载更多译本和注释库</div>
+        </div>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
           <div id="updateStatus" class="panelHint">当前版本 1.1.0</div>
@@ -132,6 +144,7 @@
           <label class="field compactField">
             <span>主题</span>
             <select id="themeSelect">
+              <option value="auto">跟随系统</option>
               <option value="light">日间</option>
               <option value="dark">夜间</option>
             </select>
@@ -158,6 +171,10 @@
             <input id="keepScreenOnToggle" type="checkbox" />
             <span>阅读时保持屏幕常亮</span>
           </label>
+          <div class="dataButtons">
+            <button id="speakChapterBtn" type="button">朗读本章</button>
+            <button id="stopSpeakBtn" type="button">停止朗读</button>
+          </div>
         </div>
       </section>
 

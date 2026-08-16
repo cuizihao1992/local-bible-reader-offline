@@ -439,6 +439,15 @@ select, input[type="search"], input[type="text"] {
 }
 #shareCanvas { width: min(100%, 320px); height: auto; border-radius: 8px; box-shadow: var(--shadow); }
 .verseStepPanel { margin-top: 16px; }
+.packageList { display: grid; gap: 10px; }
+.packageRow {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--control);
+}
+.packageRow button {
+  min-height: 34px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 800; padding: 0 12px;
+}
+.packageRow button:disabled { background: var(--soft); color: var(--muted); }
 .verse.favoriteVerse .verseNo::after,
 .verse.notedVerse .verseNo::after { display: block; margin-top: 4px; font-size: 12px; }
 .verse.favoriteVerse .verseNo::after { content: "★"; color: var(--accent-2); }

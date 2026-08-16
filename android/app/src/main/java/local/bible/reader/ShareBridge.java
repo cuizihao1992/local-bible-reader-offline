@@ -21,6 +21,32 @@ public class ShareBridge {
     }
 
     @JavascriptInterface
+    public String shareText(String text, String fileName) {
+        try {
+            String safeName = fileName == null || fileName.trim().isEmpty() ? "bible-reader-data.json" : fileName.replace("/", "").replace("\\", "");
+            File file = new File(activity.getExternalFilesDir("updates"), safeName);
+            File parent = file.getParentFile();
+            if (parent != null) parent.mkdirs();
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                out.write((text == null ? "" : text).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            Uri contentUri = Uri.parse("content://" + activity.getPackageName() + ".apkprovider/" + file.getName());
+            activity.runOnUiThread(() -> {
+                Intent intent = new Intent(Intent.ACTION_SEND);
+                intent.setType("application/json");
+                intent.putExtra(Intent.EXTRA_STREAM, contentUri);
+                intent.putExtra(Intent.EXTRA_TEXT, "本地圣经个人数据");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                activity.startActivity(Intent.createChooser(intent, "导出个人数据"));
+            });
+            return new JSONObject().put("ok", true).toString();
+        } catch (Throwable error) {
+            String message = error.getMessage() == null ? "导出失败" : error.getMessage();
+            return "{\"error\":\"" + message.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
+        }
+    }
+
+    @JavascriptInterface
     public String shareImage(String dataUrl, String text) {
         try {
             String raw = dataUrl == null ? "" : dataUrl;

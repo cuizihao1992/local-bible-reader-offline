@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
 const GITHUB_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -17,7 +17,7 @@ const state = {
   dictionary: "",
   showStrong: false,
   audioAutoNext: false,
-  theme: "light",
+  theme: "auto",
   palette: "classic",
   fontSize: 20,
   lineHeight: 2.05,
@@ -136,6 +136,14 @@ const closeShareSheetBtn = $("#closeShareSheetBtn");
 const shareImageBtn = $("#shareImageBtn");
 const saveShareBtn = $("#saveShareBtn");
 const highlightColors = $("#highlightColors");
+const packageList = $("#packageList");
+const packageHint = $("#packageHint");
+const packageProgress = $("#packageProgress");
+const packageProgressText = $("#packageProgressText");
+const packageProgressBar = $("#packageProgressBar");
+const packageProgressValue = $("#packageProgressValue");
+const speakChapterBtn = $("#speakChapterBtn");
+const stopSpeakBtn = $("#stopSpeakBtn");
 const overlay = $("#overlay");
 
 let bookFilter = "all";
@@ -234,7 +242,7 @@ function restoreState() {
       dictionary: saved.dictionary || "",
       showStrong: !!saved.showStrong,
       audioAutoNext: !!saved.audioAutoNext,
-      theme: saved.theme === "dark" ? "dark" : "light",
+      theme: saved.theme === "dark" || saved.theme === "light" || saved.theme === "auto" ? saved.theme : "auto",
       palette: saved.palette || "classic",
       fontSize: Number(saved.fontSize) || 20,
       lineHeight: Number(saved.lineHeight) || 2.05,
@@ -268,17 +276,25 @@ function saveState() {
   );
 }
 
+function resolvedTheme() {
+  if (state.theme === "auto") {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return state.theme === "dark" ? "dark" : "light";
+}
+
 function applySettings() {
-  document.body.classList.toggle("darkTheme", state.theme === "dark");
+  const night = resolvedTheme() === "dark";
+  document.body.classList.toggle("darkTheme", night);
   document.body.dataset.palette = state.palette === "classic" ? "" : state.palette;
   if (!document.body.dataset.palette) delete document.body.dataset.palette;
   document.documentElement.style.setProperty("--reader-font-size", `${state.fontSize}px`);
   document.documentElement.style.setProperty("--reader-line-height", String(state.lineHeight));
-  const themeColor = state.theme === "dark" ? "#171614" : "#2d6a5f";
+  const themeColor = night ? "#171614" : "#2d6a5f";
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) themeMeta.setAttribute("content", themeColor);
   if (window.AndroidBibleApi && window.AndroidBibleApi.setNightMode) {
-    window.AndroidBibleApi.setNightMode(state.theme === "dark");
+    window.AndroidBibleApi.setNightMode(night);
   }
   themeSelect.value = state.theme;
   paletteSelect.value = state.palette;
@@ -603,7 +619,6 @@ function renderVerses(data) {
             <div class="verseBody" data-verse="${verse.verse}">
               <div class="verseText">${escapeHtml(verse.text)}</div>
               ${renderStrongList(verse.strongs || [])}
-              ${renderCompareList(verse.verse, compareByVersion)}
               ${renderNoteEditor(verse.verse)}
             </div>
           </article>
@@ -769,7 +784,7 @@ async function loadChapter(options = {}) {
   renderChrome();
   if (!content.querySelector(".verse")) content.innerHTML = `<div class="loading">正在读取经文...</div>`;
   try {
-    const versions = [state.version, ...state.compareVersions.filter((id) => id && id !== state.version)].slice(0, 4);
+    const versions = [state.version];
     const query = versions.map((id) => `version=${encodeURIComponent(id)}`).join("&");
     const [chapterData] = await Promise.all([
       api(`/api/chapters?${query}&book=${snapshot.book}&chapter=${snapshot.chapter}`),
@@ -1417,11 +1432,27 @@ async function exportUserData() {
   exportDataBtn.textContent = "导出中";
   try {
     const data = await api("/api/user/export");
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const text = JSON.stringify(data, null, 2);
+    const fileName = `bible-reader-data-${new Date().toISOString().slice(0, 10)}.json`;
+    if (window.AndroidShareApi && window.AndroidShareApi.shareText) {
+      const result = JSON.parse(window.AndroidShareApi.shareText(text, fileName));
+      if (result.error) throw new Error(result.error);
+      userDataHint.textContent = "已打开系统分享";
+      showStatus("选择保存或发送导出文件", "success");
+      return;
+    }
+    const blob = new Blob([text], { type: "application/json" });
+    const file = new File([blob], fileName, { type: "application/json" });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "本地圣经个人数据" });
+      userDataHint.textContent = "数据已分享";
+      showStatus("数据导出完成", "success");
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `bible-reader-data-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = fileName;
     link.click();
     URL.revokeObjectURL(url);
     userDataHint.textContent = "数据导出完成";
@@ -1433,6 +1464,118 @@ async function exportUserData() {
     exportBusy = false;
     exportDataBtn.textContent = "导出";
   }
+}
+
+function chapterPlainText() {
+  return [...content.querySelectorAll(".verseText")]
+    .map((el) => el.textContent.trim())
+    .filter(Boolean)
+    .join("。");
+}
+
+function speakChapter() {
+  const text = `${currentBook().longName} 第 ${state.chapter} 章。${chapterPlainText()}`;
+  if (!text || text.length < 8) {
+    showStatus("没有可朗读的经文");
+    return;
+  }
+  if (window.AndroidTtsApi && window.AndroidTtsApi.speak) {
+    const result = JSON.parse(window.AndroidTtsApi.speak(text));
+    if (result.error) showStatus(result.error, "error");
+    else showStatus("开始朗读本章");
+    return;
+  }
+  if (!window.speechSynthesis) {
+    showStatus("当前环境不支持朗读");
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "zh-CN";
+  window.speechSynthesis.speak(utterance);
+  showStatus("开始朗读本章");
+}
+
+function stopSpeaking() {
+  if (window.AndroidTtsApi && window.AndroidTtsApi.stop) window.AndroidTtsApi.stop();
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  showStatus("已停止朗读");
+}
+
+function renderPackages(packages) {
+  if (!packageList) return;
+  if (!packages || !packages.length) {
+    packageList.innerHTML = `<div class="panelHint">当前没有可下载的资源包</div>`;
+    return;
+  }
+  packageList.innerHTML = packages
+    .map((item) => {
+      const status = item.installed ? "已安装" : `已有 ${item.installedCount || 0} / ${item.fullCount || "?"}`;
+      return `<div class="packageRow">
+        <div><b>${escapeHtml(item.title)}</b><div class="panelHint">${escapeHtml(item.description || "")} · ${status}</div></div>
+        <button type="button" data-install-package="${escapeHtml(item.id)}" data-package-url="${escapeHtml(item.url || "")}" ${item.installed ? "disabled" : ""}>${item.installed ? "已完成" : "下载"}</button>
+      </div>`;
+    })
+    .join("");
+}
+
+async function loadPackages() {
+  try {
+    const data = await api("/api/packages");
+    renderPackages(data.packages || []);
+  } catch (error) {
+    if (packageHint) packageHint.textContent = error.message;
+  }
+}
+
+function startPackageProgressPolling() {
+  clearInterval(apkPollTimer);
+  apkPollTimer = setInterval(() => {
+    if (!window.AndroidBibleApi || !window.AndroidBibleApi.downloadStatus) return;
+    try {
+      const status = JSON.parse(window.AndroidBibleApi.downloadStatus());
+      const percent = Number(status.percent || 0);
+      if (packageProgress) packageProgress.hidden = false;
+      if (packageProgressText) packageProgressText.textContent = status.message || "正在下载";
+      if (packageProgressValue) packageProgressValue.textContent = `${percent}%`;
+      if (packageProgressBar) packageProgressBar.style.width = `${percent}%`;
+      if (status.state === "done" || status.state === "error" || status.state === "cleared") {
+        clearInterval(apkPollTimer);
+        if (status.state === "done") {
+          showStatus("资源包安装完成", "success");
+          loadPackages();
+          api("/api/versions").then((data) => {
+            state.versions = data.versions;
+            renderVersions();
+            renderCompareVersions();
+          });
+          api("/api/commentaries").then((data) => {
+            state.commentaries = data.commentaries;
+            renderCommentaries();
+          });
+        } else if (status.state === "error") {
+          showStatus(status.message || "资源包下载失败", "error");
+        }
+      }
+    } catch {
+      clearInterval(apkPollTimer);
+    }
+  }, 400);
+}
+
+async function installResourcePackage(packageId, url) {
+  if (!window.AndroidBibleApi || !window.AndroidBibleApi.installPackage) {
+    if (url) window.open(url, "_blank");
+    else showStatus("请在 Android 版下载资源包");
+    return;
+  }
+  const result = JSON.parse(window.AndroidBibleApi.installPackage(packageId, url || ""));
+  if (result.error) {
+    showStatus(result.error, "error");
+    return;
+  }
+  startPackageProgressPolling();
+  showStatus("开始下载资源包");
 }
 
 async function importUserData(file) {
@@ -1714,6 +1857,7 @@ async function init() {
   restoreState();
   applySettings();
   if (updateStatus) updateStatus.textContent = `当前版本 ${APP_VERSION}`;
+  loadPackages();
   const [versions, commentaries, dictionaries, history] = await Promise.all([
     api("/api/versions"),
     api("/api/commentaries"),
@@ -1769,7 +1913,7 @@ compareVersionsEl.addEventListener("change", (event) => {
   } else {
     state.compareVersions = state.compareVersions.filter((item) => item !== id);
   }
-  loadChapter();
+  saveState();
 });
 
 commentarySelect.addEventListener("change", () => {
@@ -1871,6 +2015,18 @@ keepScreenOnToggle?.addEventListener("change", () => {
   applySettings();
   saveState();
 });
+speakChapterBtn?.addEventListener("click", speakChapter);
+stopSpeakBtn?.addEventListener("click", stopSpeaking);
+packageList?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-install-package]");
+  if (!button || button.disabled) return;
+  installResourcePackage(button.dataset.installPackage, button.dataset.packageUrl);
+});
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (state.theme === "auto") applySettings();
+  });
+}
 checkUpdateBtn.addEventListener("click", checkForUpdates);
 myCheckUpdateBtn.addEventListener("click", checkForUpdates);
 downloadUpdateBtn.addEventListener("click", downloadUpdate);

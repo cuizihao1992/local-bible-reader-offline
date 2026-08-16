@@ -25,6 +25,7 @@ public class MainActivity extends Activity {
     private static MainActivity instance;
     private OfflineApi offlineApi;
     private WebView webView;
+    private TtsBridge ttsBridge;
 
     public static void setKeepScreenOn(boolean keep) {
         MainActivity activity = instance;
@@ -102,6 +103,8 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new AndroidBridge(offlineApi), "AndroidBibleApi");
         webView.addJavascriptInterface(new UpdateBridge(this), "AndroidUpdateApi");
         webView.addJavascriptInterface(new ShareBridge(this), "AndroidShareApi");
+        ttsBridge = new TtsBridge(this);
+        webView.addJavascriptInterface(ttsBridge, "AndroidTtsApi");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -120,6 +123,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (instance == this) instance = null;
+        if (ttsBridge != null) ttsBridge.shutdown();
         super.onDestroy();
     }
 
