@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.5.1";
+const APP_VERSION = "1.6.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -154,8 +154,12 @@ const noteSheetTags = $("#noteSheetTags");
 const closeNoteSheetBtn = $("#closeNoteSheetBtn");
 const saveNoteSheetBtn = $("#saveNoteSheetBtn");
 const overlay = $("#overlay");
+const readerEl = document.querySelector("main.reader");
+const prevEdge = $("#prevEdge");
+const nextEdge = $("#nextEdge");
 let noteSheetVerse = null;
 let speaking = false;
+let chapterLongPress = false;
 
 let bookFilter = "all";
 let chapterLoadToken = 0;
@@ -481,7 +485,7 @@ function renderChapterGrid() {
   const book = currentBook();
   const readSet = new Set((state.progress?.readChapters || []).filter((item) => item.book === book.id).map((item) => item.chapter));
   chapterPanelTitle.textContent = book.longName;
-  chapterPanelMeta.textContent = `${book.chapterCount} 章 · 当前第 ${state.chapter} 章`;
+  chapterPanelMeta.textContent = `${book.chapterCount} 章 · 点即读 · 左右滑切章 · 长按选节`;
   bookPickerCurrent.textContent = `${book.longName} ${state.chapter} · ${versionLabel(state.version)}`;
   chapterGrid.innerHTML = Array.from({ length: book.chapterCount }, (_, index) => {
     const chapter = index + 1;
@@ -783,6 +787,7 @@ async function loadChapter(options = {}) {
   const snapshot = { version: state.version, book: state.book, chapter: state.chapter };
   chapterLoading = true;
   if (speaking) stopSpeaking();
+  resetSwipeVisual();
   renderChrome();
   if (!content.querySelector(".verse")) content.innerHTML = `<div class="loading">正在读取经文...</div>`;
   try {
@@ -843,6 +848,8 @@ function moveChapter(delta) {
   state.chapter = nextChapter;
   rememberCurrentBook();
   resetVerseInteraction();
+  const nextInfo = state.books.find((item) => item.id === nextBook) || currentBook();
+  showStatus(`${nextInfo.longName} ${nextChapter}`);
   loadChapter({ scrollTop: true });
 }
 
@@ -1943,9 +1950,59 @@ function verseFromEvent(event) {
   return Number(event.target.closest("[data-verse]")?.dataset.verse || 0);
 }
 
+function swipeIgnoreTarget(target) {
+  return !!target.closest(".sheetPanel, .readerSettingsPanel, .sidebar, .verseMenu, .selectionBar, .mobileNav, .topbar, .closeSidebarBtn, .chapterEdge, button, a, input, select, textarea, audio");
+}
+
+function resetSwipeVisual() {
+  if (!content) return;
+  content.style.transform = "";
+  content.style.opacity = "";
+  content.style.transition = "";
+}
+
+function applySwipeVisual(dx) {
+  if (!content) return;
+  content.style.transition = "none";
+  content.style.transform = `translateX(${Math.round(dx * 0.38)}px)`;
+  content.style.opacity = String(Math.max(0.58, 1 - Math.abs(dx) / 460));
+}
+
 function startSwipeGesture(x, y, target) {
-  if (target.closest("button, a, input, select, textarea, audio")) return;
-  swipeState = { x, y, lastX: x, lastY: y };
+  if (swipeIgnoreTarget(target)) return;
+  swipeState = { x, y, lastX: x, lastY: y, fromPicker: !!target.closest("#bookPickerPanel") };
+}
+
+function enablePickerChapterSwipe(el) {
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+  el.addEventListener("pointerdown", (event) => {
+    if (el.hidden) return;
+    if (event.target.closest("input, textarea, select, a")) return;
+    startX = event.clientX;
+    startY = event.clientY;
+    tracking = true;
+  });
+  el.addEventListener("pointerup", (event) => {
+    if (!tracking) return;
+    tracking = false;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy) * 1.1) return;
+    justSwiped = true;
+    chapterLongPress = true;
+    setTimeout(() => {
+      justSwiped = false;
+      chapterLongPress = false;
+    }, 280);
+    closeTopPanels();
+    keepReadingChromeVisible();
+    moveChapter(dx < 0 ? 1 : -1);
+  });
+  el.addEventListener("pointercancel", () => {
+    tracking = false;
+  });
 }
 
 function enableSheetDismiss(el) {
@@ -1976,10 +2033,27 @@ function finishSwipeGesture(x, y) {
   const dx = x - swipeState.x;
   const dy = y - swipeState.y;
   swipeState = null;
-  if (Math.abs(dx) >= 54 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-    if (hasBlockingOverlayOpen()) return;
+  if (Math.abs(dx) >= 46 && Math.abs(dx) > Math.abs(dy) * 1.05) {
+    if (hasBlockingOverlayOpen()) {
+      resetSwipeVisual();
+      return;
+    }
     justSwiped = true;
+    setTimeout(() => {
+      justSwiped = false;
+    }, 280);
+    if (content) {
+      content.style.transition = "transform 0.16s ease, opacity 0.16s ease";
+      content.style.transform = `translateX(${dx < 0 ? -48 : 48}px)`;
+      content.style.opacity = "0.72";
+    }
     moveChapter(dx < 0 ? 1 : -1);
+    return;
+  }
+  if (content) {
+    content.style.transition = "transform 0.16s ease, opacity 0.16s ease";
+    content.style.transform = "";
+    content.style.opacity = "";
   }
 }
 
@@ -1992,6 +2066,7 @@ async function init() {
     new MutationObserver(syncSheetOverlay).observe(el, { attributes: true, attributeFilter: ["hidden"] });
     enableSheetDismiss(el);
   });
+  if (bookPickerPanel) enablePickerChapterSwipe(bookPickerPanel);
   const [versions, commentaries, dictionaries, history] = await Promise.all([
     api("/api/versions"),
     api("/api/commentaries"),
@@ -2133,6 +2208,8 @@ closeSidebarBtn.addEventListener("click", closeSidebar);
 overlay.addEventListener("click", () => handleBackIntent());
 prevBtn.addEventListener("click", () => moveChapter(-1));
 nextBtn.addEventListener("click", () => moveChapter(1));
+prevEdge?.addEventListener("click", () => moveChapter(-1));
+nextEdge?.addEventListener("click", () => moveChapter(1));
 mobileMyBtn.addEventListener("click", () => {
   if (!myPanel.hidden) {
     closeTopPanels();
@@ -2240,10 +2317,28 @@ bookGrid.addEventListener("click", (event) => {
   renderBookGrid();
   renderChapterGrid();
 });
+chapterGrid.addEventListener("pointerdown", (event) => {
+  const button = event.target.closest("[data-chapter]");
+  if (!button || chapterLoading) return;
+  chapterLongPress = false;
+  clearTimeout(longPressTimer);
+  longPressTimer = setTimeout(() => {
+    chapterLongPress = true;
+    openVerseStep(Number(button.dataset.chapter));
+  }, 420);
+});
+chapterGrid.addEventListener("pointerup", () => clearTimeout(longPressTimer));
+chapterGrid.addEventListener("pointercancel", () => clearTimeout(longPressTimer));
 chapterGrid.addEventListener("click", (event) => {
   const button = event.target.closest("[data-chapter]");
   if (!button || chapterLoading) return;
-  openVerseStep(Number(button.dataset.chapter));
+  if (chapterLongPress) {
+    chapterLongPress = false;
+    return;
+  }
+  state.chapter = Number(button.dataset.chapter);
+  rememberCurrentBook();
+  jumpFromPicker(null);
 });
 verseGrid?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-pick-verse]");
@@ -2392,27 +2487,33 @@ content.addEventListener("contextmenu", (event) => {
   openVerseMenu(verseNo, event.clientX, event.clientY);
 });
 
-content.addEventListener("pointerdown", (event) => {
-  const verseNo = verseFromEvent(event);
+const swipeRoot = readerEl || content;
+swipeRoot.addEventListener("pointerdown", (event) => {
   startSwipeGesture(event.clientX, event.clientY, event.target);
+  const verseNo = verseFromEvent(event);
   if (!verseNo || event.pointerType === "mouse") return;
+  clearTimeout(longPressTimer);
   longPressTimer = setTimeout(() => openVerseMenu(verseNo, event.clientX, event.clientY), 420);
 });
-content.addEventListener("pointermove", (event) => {
+swipeRoot.addEventListener("pointermove", (event) => {
   if (!swipeState) return;
   swipeState.lastX = event.clientX;
   swipeState.lastY = event.clientY;
-  if (Math.hypot(event.clientX - swipeState.x, event.clientY - swipeState.y) > 12) {
-    clearTimeout(longPressTimer);
+  const dx = event.clientX - swipeState.x;
+  const dy = event.clientY - swipeState.y;
+  if (Math.hypot(dx, dy) > 12) clearTimeout(longPressTimer);
+  if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) && !hasBlockingOverlayOpen()) {
+    applySwipeVisual(dx);
   }
 });
-content.addEventListener("pointerup", (event) => {
+swipeRoot.addEventListener("pointerup", (event) => {
   clearTimeout(longPressTimer);
   finishSwipeGesture(event.clientX, event.clientY);
 });
-content.addEventListener("pointercancel", () => {
+swipeRoot.addEventListener("pointercancel", () => {
   clearTimeout(longPressTimer);
   if (swipeState) finishSwipeGesture(swipeState.lastX, swipeState.lastY);
+  else resetSwipeVisual();
 });
 
 verseMenu.addEventListener("click", (event) => {

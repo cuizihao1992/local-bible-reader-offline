@@ -550,6 +550,8 @@ body.chromeHidden .topbar { transform: translateY(-120%); }
 body.chromeHidden .mobileNav { transform: translateY(120%); }
 .topbar, .mobileNav { transition: transform 0.22s ease; }
 .content { -webkit-user-select: none; user-select: none; }
+.reader, .content, .bookPickerPanel { touch-action: pan-y; }
+.chapterEdge { display: none; }
 .content .noteEditor, .content textarea, .content input { -webkit-user-select: text; user-select: text; }
 
 .strongContent { display: grid; gap: 10px; line-height: 1.7; }
@@ -625,6 +627,22 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
     bottom: calc(var(--mobile-nav-height) + 8px);
     width: calc(100vw - 16px);
   }
+  .chapterEdge {
+    display: block;
+    position: fixed;
+    top: 22%;
+    bottom: calc(var(--mobile-nav-height) + 18%);
+    width: 22px;
+    z-index: 5;
+    border: 0;
+    background: transparent;
+    padding: 0;
+  }
+  .chapterEdge.prev { left: 0; }
+  .chapterEdge.next { right: 0; }
+  body.sheetOpen .chapterEdge,
+  body.sidebarOpen .chapterEdge,
+  body.chromeHidden .chapterEdge { display: none; }
 }
 
 @media (max-width: 420px) {
