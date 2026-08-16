@@ -64,6 +64,10 @@ const appJs = await getText("/app.js");
 const stylesCss = await getText("/styles.css");
 assert(indexHtml.includes("本地圣经"), "Index title missing");
 assert(appJs.includes("function parseReference"), "Reference parser missing");
+assert(appJs.includes("function parseSpokenReference"), "Spoken reference parser missing");
+assert(appJs.includes("mimo-v2.5-asr"), "MiMo ASR model missing");
+assert(appJs.includes("function startVoiceInput"), "Voice hold-to-talk missing");
+assert(indexHtml.includes("id=\"voiceBtn\""), "Voice button missing");
 assert(appJs.includes("function loadChapter"), "Chapter loader missing");
 assert(stylesCss.includes("--reader-font-size"), "Reader typography variables missing");
 

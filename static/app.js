@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.6.1";
+const APP_VERSION = "1.7.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -23,6 +23,9 @@ const state = {
   fontSize: 20,
   lineHeight: 2.05,
   keepScreenOn: false,
+  mimoKey: "",
+  mimoKeyType: "standard",
+  mimoBaseUrl: "https://api.xiaomimimo.com/v1",
   book: 1,
   chapter: 1,
   targetVerse: null,
@@ -156,12 +159,21 @@ const noteSheetTags = $("#noteSheetTags");
 const closeNoteSheetBtn = $("#closeNoteSheetBtn");
 const saveNoteSheetBtn = $("#saveNoteSheetBtn");
 const overlay = $("#overlay");
+const voiceBtn = $("#voiceBtn");
+const voiceBtnDesktop = $("#voiceBtnDesktop");
+const mimoKeyInput = $("#mimoKeyInput");
+const mimoKeyTypeSelect = $("#mimoKeyTypeSelect");
+const mimoBaseUrlInput = $("#mimoBaseUrlInput");
 const readerEl = document.querySelector("main.reader");
 const prevEdge = $("#prevEdge");
 const nextEdge = $("#nextEdge");
 let noteSheetVerse = null;
 let speaking = false;
 let chapterLongPress = false;
+let voiceInputActive = false;
+let voiceStopPending = false;
+let browserRecorder = null;
+let browserStream = null;
 
 let bookFilter = "all";
 let chapterLoadToken = 0;
@@ -264,6 +276,9 @@ function restoreState() {
       fontSize: Number(saved.fontSize) || 20,
       lineHeight: Number(saved.lineHeight) || 2.05,
       keepScreenOn: !!saved.keepScreenOn,
+      mimoKey: saved.mimoKey || "",
+      mimoKeyType: saved.mimoKeyType === "codeplan" ? "codeplan" : "standard",
+      mimoBaseUrl: saved.mimoBaseUrl || "https://api.xiaomimimo.com/v1",
       book: Number(saved.book) || 1,
       chapter: Number(saved.chapter) || 1,
       recentBooks: Array.isArray(saved.recentBooks) ? saved.recentBooks.slice(0, 8) : [],
@@ -287,6 +302,9 @@ function saveState() {
       fontSize: state.fontSize,
       lineHeight: state.lineHeight,
       keepScreenOn: state.keepScreenOn,
+      mimoKey: state.mimoKey,
+      mimoKeyType: state.mimoKeyType,
+      mimoBaseUrl: state.mimoBaseUrl,
       book: state.book,
       chapter: state.chapter,
       recentBooks: state.recentBooks,
@@ -326,6 +344,12 @@ function applySettings() {
   if (keepScreenOnToggle) keepScreenOnToggle.checked = state.keepScreenOn;
   if (window.AndroidBibleApi && window.AndroidBibleApi.setKeepScreenOn) {
     window.AndroidBibleApi.setKeepScreenOn(!!state.keepScreenOn);
+  }
+  if (mimoKeyInput) mimoKeyInput.value = state.mimoKey;
+  if (mimoKeyTypeSelect) mimoKeyTypeSelect.value = state.mimoKeyType;
+  if (mimoBaseUrlInput) {
+    mimoBaseUrlInput.value = state.mimoBaseUrl;
+    mimoBaseUrlInput.disabled = state.mimoKeyType !== "codeplan";
   }
 }
 
@@ -879,6 +903,53 @@ function parseReference(input) {
   };
 }
 
+function normalizeVoiceText(input) {
+  return String(input || "")
+    .replace(/[，。？！,.?!]/g, "")
+    .replace(/跳转到|转到|打开|查找|请读|读到|经文/g, "")
+    .replace(/第/g, "")
+    .replace(/\s+/g, "");
+}
+
+function chineseNumberToInt(input) {
+  const raw = String(input || "");
+  if (/^\d+$/.test(raw)) return Number(raw);
+  const digits = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  if (!/[十百]/.test(raw)) {
+    return raw.split("").reduce((value, char) => value * 10 + (digits[char] ?? 0), 0);
+  }
+  let total = 0;
+  let current = 0;
+  for (const char of raw) {
+    if (char === "百") {
+      total += (current || 1) * 100;
+      current = 0;
+    } else if (char === "十") {
+      total += (current || 1) * 10;
+      current = 0;
+    } else if (Object.prototype.hasOwnProperty.call(digits, char)) {
+      current = digits[char];
+    }
+  }
+  return total + current;
+}
+
+function parseSpokenReference(input) {
+  const value = normalizeVoiceText(input);
+  if (!value) return null;
+  const numberPattern = "([0-9零〇一二两三四五六七八九十百]+)";
+  const match = value.match(new RegExp(`^(.+?)${numberPattern}章(?:${numberPattern}节?)?$`));
+  if (!match) return parseReference(value);
+  const rawBook = match[1];
+  const found = bookAliases().find(([alias, book]) => rawBook === alias || rawBook.endsWith(alias) || book.longName === rawBook);
+  if (!found) return null;
+  return {
+    book: found[1].id,
+    chapter: chineseNumberToInt(match[2]),
+    verse: match[3] ? chineseNumberToInt(match[3]) : null,
+  };
+}
+
 async function jumpToReference(ref) {
   if (jumpBusy) {
     showStatus("正在跳转经文，请稍候");
@@ -899,6 +970,207 @@ async function jumpToReference(ref) {
     showStatus(`${book.longName} ${state.chapter}${state.targetVerse ? `:${state.targetVerse}` : ""}`);
   } finally {
     jumpBusy = false;
+  }
+}
+
+function normalizeMimoChatUrl(value = state.mimoBaseUrl) {
+  const source = state.mimoKeyType === "codeplan" ? value : "https://api.xiaomimimo.com/v1";
+  const raw = String(source || "").trim() || "https://api.xiaomimimo.com/v1";
+  return raw.replace(/\/+$/, "").replace(/\/chat\/completions$/i, "") + "/chat/completions";
+}
+
+function setVoiceButtons(mode) {
+  document.querySelectorAll("#voiceBtn, #voiceBtnDesktop").forEach((button) => {
+    button.classList.toggle("active", mode === "record" || mode === "upload");
+    button.classList.toggle("uploading", mode === "upload");
+    if (button.id === "voiceBtn") {
+      const label = button.childNodes[button.childNodes.length - 1];
+      if (label && label.nodeType === Node.TEXT_NODE) {
+        label.textContent = mode === "record" ? "松手" : mode === "upload" ? "识别" : "语音";
+      }
+    }
+  });
+}
+
+function resetVoiceState() {
+  voiceInputActive = false;
+  voiceStopPending = false;
+  setVoiceButtons("idle");
+}
+
+function saveMimoSettings() {
+  if (mimoKeyInput) state.mimoKey = mimoKeyInput.value.trim();
+  if (mimoKeyTypeSelect) state.mimoKeyType = mimoKeyTypeSelect.value === "codeplan" ? "codeplan" : "standard";
+  if (mimoBaseUrlInput) {
+    state.mimoBaseUrl = mimoBaseUrlInput.value.trim() || "https://api.xiaomimimo.com/v1";
+    mimoBaseUrlInput.disabled = state.mimoKeyType !== "codeplan";
+    if (state.mimoKeyType === "standard") state.mimoBaseUrl = "https://api.xiaomimimo.com/v1";
+  }
+  saveState();
+}
+
+async function handleVoiceText(text) {
+  const spoken = String(text || "").trim();
+  if (!spoken) {
+    showStatus("没有听清，请再说一次");
+    return;
+  }
+  showStatus(`识别：${spoken}`);
+  const ref = parseSpokenReference(spoken);
+  if (ref) {
+    await jumpToReference(ref);
+    return;
+  }
+  if (quickInput) quickInput.value = spoken;
+  toggleSearch(true);
+  await runSearch(spoken);
+}
+
+window.handleAndroidVoice = function handleAndroidVoice(type, text) {
+  if (type === "start" || type === "ready" || type === "speech") {
+    voiceInputActive = true;
+    if (type === "ready") setVoiceButtons("upload");
+    else setVoiceButtons("record");
+    return;
+  }
+  if (type === "partial") {
+    if (text) showStatus(text);
+    return;
+  }
+  if (type === "end") {
+    setVoiceButtons("upload");
+    return;
+  }
+  resetVoiceState();
+  if (type === "result") handleVoiceText(text).catch((error) => showStatus(error.message, "error"));
+  else if (type === "error") showStatus(text || "语音识别失败", "error");
+};
+
+async function recognizeMimoInBrowser(blob) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("读取录音失败"));
+    reader.readAsDataURL(blob);
+  });
+  const response = await fetch(normalizeMimoChatUrl(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.mimoKey}`,
+      "api-key": state.mimoKey,
+    },
+    body: JSON.stringify({
+      model: "mimo-v2.5-asr",
+      messages: [{ role: "user", content: [{ type: "input_audio", input_audio: { data: dataUrl } }] }],
+      asr_options: { language: "auto" },
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("MiMo Key 鉴权失败，请检查设置里的 Key 和类型");
+    throw new Error(payload.error?.message || payload.message || `识别失败 ${response.status}`);
+  }
+  return payload.choices?.[0]?.message?.content || "";
+}
+
+async function startVoiceInput(event) {
+  event.preventDefault();
+  if (voiceInputActive) {
+    showStatus("正在录音，请先松开");
+    return;
+  }
+  saveMimoSettings();
+  if (!state.mimoKey) {
+    openSidebar();
+    showStatus("请先在设置里填写小米 MiMo Key");
+    return;
+  }
+  if (state.mimoKeyType === "codeplan" && !state.mimoBaseUrl.trim()) {
+    openSidebar();
+    showStatus("CodePlan / Token Plan 需要填写专属 Base URL");
+    return;
+  }
+  voiceInputActive = true;
+  voiceStopPending = false;
+  setVoiceButtons("record");
+  showStatus("正在录音，松开后识别");
+  if (window.AndroidVoiceApi && window.AndroidVoiceApi.startCloud) {
+    window.AndroidVoiceApi.startCloud("mimo", state.mimoKey, "mimo-v2.5-asr", normalizeMimoChatUrl());
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+    resetVoiceState();
+    showStatus("当前环境不支持录音", "error");
+    return;
+  }
+  try {
+    browserStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = [];
+    const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
+    browserRecorder = new MediaRecorder(browserStream, { mimeType: mime });
+    browserRecorder.ondataavailable = (item) => {
+      if (item.data && item.data.size) chunks.push(item.data);
+    };
+    browserRecorder.onstop = async () => {
+      try {
+        if (browserStream) browserStream.getTracks().forEach((track) => track.stop());
+        browserStream = null;
+        const blob = new Blob(chunks, { type: mime });
+        if (blob.size < 512) throw new Error("录音太短，请按住说完后再松开");
+        setVoiceButtons("upload");
+        showStatus("正在用小米识别...");
+        const text = await recognizeMimoInBrowser(blob);
+        resetVoiceState();
+        await handleVoiceText(text);
+      } catch (error) {
+        resetVoiceState();
+        showStatus(error.message || "语音识别失败", "error");
+      } finally {
+        browserRecorder = null;
+      }
+    };
+    browserRecorder.start();
+  } catch (error) {
+    resetVoiceState();
+    showStatus(error.message || "无法打开麦克风", "error");
+  }
+}
+
+function stopVoiceInput(event) {
+  if (event) event.preventDefault();
+  if (!voiceInputActive || voiceStopPending) return;
+  voiceStopPending = true;
+  if (window.AndroidVoiceApi && window.AndroidVoiceApi.stopCloud) {
+    setVoiceButtons("upload");
+    showStatus("正在用小米识别...");
+    window.AndroidVoiceApi.stopCloud();
+    return;
+  }
+  if (browserRecorder && browserRecorder.state === "recording") {
+    setVoiceButtons("upload");
+    browserRecorder.stop();
+    return;
+  }
+  resetVoiceState();
+}
+
+function bindVoiceButton(button) {
+  if (!button) return;
+  button.addEventListener("pointerdown", startVoiceInput);
+  button.addEventListener("pointerup", stopVoiceInput);
+  button.addEventListener("pointercancel", stopVoiceInput);
+  button.addEventListener("pointerleave", (event) => {
+    if (event.buttons) stopVoiceInput(event);
+  });
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
+  if (!window.PointerEvent) {
+    button.addEventListener("touchstart", (event) => {
+      if (event.touches.length !== 1) return;
+      startVoiceInput(event);
+    }, { passive: false });
+    button.addEventListener("touchend", stopVoiceInput, { passive: false });
+    button.addEventListener("touchcancel", stopVoiceInput, { passive: false });
   }
 }
 
@@ -1750,6 +2022,7 @@ function handleBackIntent() {
 
 function setNav(name) {
   document.querySelectorAll(".mobileNav button").forEach((button) => {
+    if (button.id === "voiceBtn") return;
     button.classList.toggle("active", name && button.dataset.nav === name);
   });
 }
@@ -2605,6 +2878,11 @@ importDataFile.addEventListener("change", () => {
   if (importDataFile.files[0]) importUserData(importDataFile.files[0]);
 });
 diagnosticsBtn.addEventListener("click", runDiagnostics);
+mimoKeyInput?.addEventListener("change", saveMimoSettings);
+mimoKeyTypeSelect?.addEventListener("change", saveMimoSettings);
+mimoBaseUrlInput?.addEventListener("change", saveMimoSettings);
+bindVoiceButton(voiceBtn);
+bindVoiceButton(voiceBtnDesktop);
 
 document.addEventListener("keydown", (event) => {
   if (event.target.matches("input, textarea, select")) return;

@@ -5,14 +5,14 @@
 - 仓库：https://github.com/cuizihao1992/local-bible-reader-offline
 - 默认网页端口：`8766`
 - Android 包名：`local.bible.reader.next`
-- 当前版本：`1.6.1`
+- 当前版本：`1.7.0`
 
 ## 下载 Android APK
 
 从 [Releases](https://github.com/cuizihao1992/local-bible-reader-offline/releases) 下载：
 
 ```text
-local-bible-reader-offline-1.6.1-release.apk
+local-bible-reader-offline-1.7.0-release.apk
 ```
 
 内置译本：和合本、和合本修订版、KJV、WEB。
@@ -58,7 +58,7 @@ npm run dist:android
 生成文件：
 
 ```text
-D:\bible-reader\dist\android\local-bible-reader-offline-1.6.1-release.apk
+D:\bible-reader\dist\android\local-bible-reader-offline-1.7.0-release.apk
 ```
 
 APK 内置 `和合本`、`和合本修订版`、`KJV`、`WEB` 四个译本。安装后独立运行，不读电脑 D 盘。包名是 `local.bible.reader.next`，可以和原版同时安装。
@@ -89,6 +89,7 @@ npm start
 - 夜间模式、配色、字号、行距
 - 经文右键 / 长按菜单、多选复制
 - 左右滑翻章、键盘左右键
+- 按住语音，用小米 MiMo `mimo-v2.5-asr` 识别并跳转章节
 - 导入 / 导出个人数据
 - 本地诊断
 - Electron 桌面入口
@@ -101,7 +102,8 @@ npm start
 
 - 后台拆成 `lib/books.js`、`lib/sources.js`、`lib/reader.js`、`lib/user.js`
 - 包含 Android 离线 APK、GitHub 资源包下载和应用内更新
-- 不包含 DeepSeek / OpenAI / 小米 MiMo 云端 AI 和语音识别
+- 支持小米 MiMo 语音识别跳转（需在设置里填写本机 Key）
+- 不包含 DeepSeek / OpenAI 云端问答
 - 使用独立端口和独立用户数据库
 
 数据格式兼容原版的收藏、笔记、历史和阅读进度 JSON。

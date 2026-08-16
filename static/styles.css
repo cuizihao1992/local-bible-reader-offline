@@ -200,6 +200,7 @@ select, input[type="search"], input[type="text"] {
   color: var(--muted);
 }
 .iconBtn.active, .iconBtn[aria-pressed="true"] { color: var(--accent); }
+.voiceBtnTop { touch-action: none; }
 .iconBtn svg, .mobileNav svg, .actionBarButtons svg {
   width: 20px;
   height: 20px;
@@ -607,9 +608,10 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
     border-radius: 999px;
   }
   .readerSettingsGrid { grid-template-columns: 1fr; }
+  .voiceBtnTop { display: none; }
   .mobileNav {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 8;
     min-height: var(--mobile-nav-height);
     padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
@@ -622,7 +624,23 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
     gap: 2px;
     border: 0; background: transparent; color: var(--muted);
     font-size: 11px; font-weight: 500;
+    touch-action: manipulation;
   }
+  .mobileNav #voiceBtn {
+    color: #fff;
+    background: var(--accent);
+    border-radius: 999px;
+    margin: 2px 4px;
+    min-height: 44px;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .mobileNav #voiceBtn svg { stroke: #fff; }
+  .mobileNav #voiceBtn.active {
+    background: var(--accent-2);
+  }
+  .mobileNav #voiceBtn.uploading { opacity: 0.82; }
   .selectionBar {
     bottom: calc(var(--mobile-nav-height) + 8px);
     width: calc(100vw - 16px);

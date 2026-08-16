@@ -105,6 +105,7 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new ShareBridge(this), "AndroidShareApi");
         ttsBridge = new TtsBridge(this);
         webView.addJavascriptInterface(ttsBridge, "AndroidTtsApi");
+        webView.addJavascriptInterface(new VoiceBridge(this, webView), "AndroidVoiceApi");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
