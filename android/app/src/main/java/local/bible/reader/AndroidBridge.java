@@ -23,8 +23,12 @@ public class AndroidBridge {
 
     @JavascriptInterface
     public void setNightMode(boolean night) {
-        // Theme is applied from MainActivity via a static hook.
         MainActivity.setNightMode(night);
+    }
+
+    @JavascriptInterface
+    public void setKeepScreenOn(boolean keep) {
+        MainActivity.setKeepScreenOn(keep);
     }
 
     @JavascriptInterface

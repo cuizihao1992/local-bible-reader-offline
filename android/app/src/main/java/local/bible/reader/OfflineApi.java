@@ -115,6 +115,10 @@ public class OfflineApi {
         userDb.execSQL("create table if not exists verse_marks (version text not null, book integer not null, chapter integer not null, verse integer not null, favorite integer not null default 0, highlighted integer not null default 0, note text not null default '', tags text not null default '', updated_at text not null, primary key(version, book, chapter, verse))");
         userDb.execSQL("create table if not exists reading_history (id integer primary key check(id=1), version text not null, book integer not null, chapter integer not null, updated_at text not null)");
         userDb.execSQL("create table if not exists reading_progress (version text not null, book integer not null, chapter integer not null, read_at text not null, primary key(version, book, chapter))");
+        try {
+            userDb.execSQL("alter table verse_marks add column highlight_color text not null default ''");
+        } catch (Exception ignored) {
+        }
     }
 
     private JSONArray versions() throws Exception {
@@ -331,7 +335,7 @@ public class OfflineApi {
 
     private JSONObject marks(Uri uri) throws Exception {
         JSONArray marks = new JSONArray();
-        try (Cursor cursor = userDb.rawQuery("select version, book, chapter, verse, favorite, highlighted, note, tags, updated_at from verse_marks where version=? and book=? and chapter=? order by verse",
+        try (Cursor cursor = userDb.rawQuery("select version, book, chapter, verse, favorite, highlighted, note, tags, updated_at, highlight_color from verse_marks where version=? and book=? and chapter=? order by verse",
                 new String[]{query(uri, "version"), query(uri, "book"), query(uri, "chapter")})) {
             while (cursor.moveToNext()) marks.put(markFromCursor(cursor));
         }
@@ -342,7 +346,7 @@ public class OfflineApi {
         JSONArray marks = new JSONArray();
         String kind = query(uri, "kind");
         String tag = query(uri, "tag");
-        String sql = "select version, book, chapter, verse, favorite, highlighted, note, tags, updated_at from verse_marks";
+        String sql = "select version, book, chapter, verse, favorite, highlighted, note, tags, updated_at, highlight_color from verse_marks";
         List<String> args = new ArrayList<>();
         List<String> where = new ArrayList<>();
         if ("favorite".equals(kind)) where.add("favorite = 1");
@@ -416,6 +420,9 @@ public class OfflineApi {
         values.put("highlighted", body.optBoolean("highlighted") ? 1 : 0);
         values.put("note", body.optString("note", ""));
         values.put("tags", body.optString("tags", ""));
+        String highlightColor = body.optString("highlightColor", body.optString("highlight_color", ""));
+        values.put("highlight_color", highlightColor);
+        if (!highlightColor.isEmpty()) values.put("highlighted", 1);
         values.put("updated_at", updatedAt);
         userDb.insertWithOnConflict("verse_marks", null, values, SQLiteDatabase.CONFLICT_REPLACE);
         return new JSONObject()
@@ -425,6 +432,7 @@ public class OfflineApi {
                 .put("verse", values.getAsInteger("verse"))
                 .put("favorite", values.getAsInteger("favorite") == 1)
                 .put("highlighted", values.getAsInteger("highlighted") == 1)
+                .put("highlightColor", highlightColor)
                 .put("note", values.getAsString("note"))
                 .put("tags", values.getAsString("tags"))
                 .put("updatedAt", updatedAt);
@@ -473,7 +481,7 @@ public class OfflineApi {
 
     private JSONObject exportUserData() throws Exception {
         JSONArray marks = new JSONArray();
-        try (Cursor cursor = userDb.rawQuery("select version, book, chapter, verse, favorite, highlighted, note, tags, updated_at from verse_marks order by updated_at desc", null)) {
+        try (Cursor cursor = userDb.rawQuery("select version, book, chapter, verse, favorite, highlighted, note, tags, updated_at, highlight_color from verse_marks order by updated_at desc", null)) {
             while (cursor.moveToNext()) marks.put(markFromCursor(cursor));
         }
         JSONArray progressRows = new JSONArray();
@@ -522,7 +530,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.1.0")
+                .put("version", "1.2.0")
                 .put("versionCount", versions().length());
     }
 
@@ -540,10 +548,11 @@ public class OfflineApi {
                 .put("chapter", cursor.getInt(2))
                 .put("verse", cursor.getInt(3))
                 .put("favorite", cursor.getInt(4) == 1)
-                .put("highlighted", cursor.getInt(5) == 1)
                 .put("note", cursor.getString(6))
                 .put("tags", cursor.getString(7))
-                .put("updatedAt", cursor.getString(8));
+                .put("updatedAt", cursor.getString(8))
+                .put("highlightColor", cursor.getColumnCount() > 9 ? cursor.getString(9) : "")
+                .put("highlighted", cursor.getInt(5) == 1 || (cursor.getColumnCount() > 9 && cursor.getString(9) != null && !cursor.getString(9).isEmpty()));
     }
 
     private SQLiteDatabase openBible(String version) {

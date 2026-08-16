@@ -411,12 +411,34 @@ select, input[type="search"], input[type="text"] {
 }
 .verse.targetVerse { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 8px; }
 .verse.selectedVerse { outline: 2px solid var(--accent); border-radius: 8px; }
-.verse.highlightedVerse {
+.verse.highlightedVerse,
+.verse.hl-gold {
   background: #f3e2cc;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-2) 20%, transparent), transparent 70%);
   border-radius: 8px;
   padding-left: 8px;
 }
+.verse.hl-green { background: #dceee8; }
+.verse.hl-blue { background: #dce8f0; }
+.verse.hl-rose { background: #f3e0de; }
+.highlightColors {
+  display: flex; align-items: center; gap: 8px;
+}
+.highlightColors[hidden] { display: none !important; }
+.highlightColors button[data-hl-color] {
+  width: 28px; height: 28px; min-height: 28px; padding: 0;
+  border-radius: 999px; border: 2px solid var(--line);
+}
+.highlightColors [data-hl-color="gold"] { background: #e8c36a; }
+.highlightColors [data-hl-color="green"] { background: #2d6a5f; }
+.highlightColors [data-hl-color="blue"] { background: #2d6478; }
+.highlightColors [data-hl-color="rose"] { background: #7a514e; }
+.highlightColors [data-hl-color=""] { width: auto; padding: 0 8px; background: var(--control); color: var(--muted); font-size: 12px; }
+.sharePreviewWrap {
+  display: grid; place-items: center; margin-bottom: 14px;
+  background: var(--soft); border-radius: 12px; padding: 12px;
+}
+#shareCanvas { width: min(100%, 320px); height: auto; border-radius: 8px; box-shadow: var(--shadow); }
+.verseStepPanel { margin-top: 16px; }
 .verse.favoriteVerse .verseNo::after,
 .verse.notedVerse .verseNo::after { display: block; margin-top: 4px; font-size: 12px; }
 .verse.favoriteVerse .verseNo::after { content: "★"; color: var(--accent-2); }
@@ -579,7 +601,8 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
   .mobileNav button {
     border: 0; background: transparent; color: var(--ink); font-size: 14px; font-weight: 800;
   }
-  .content, .commentaryContent { padding-bottom: calc(var(--mobile-nav-height) + 24px); }
+  .content { padding-bottom: calc(var(--mobile-nav-height) + 24px); }
+  .commentaryContent { display: none; }
   .selectionBar {
     bottom: calc(var(--mobile-nav-height) + 10px);
     width: calc(100vw - 16px);

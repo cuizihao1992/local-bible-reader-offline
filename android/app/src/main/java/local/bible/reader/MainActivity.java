@@ -3,15 +3,20 @@ package local.bible.reader;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +25,15 @@ public class MainActivity extends Activity {
     private static MainActivity instance;
     private OfflineApi offlineApi;
     private WebView webView;
+
+    public static void setKeepScreenOn(boolean keep) {
+        MainActivity activity = instance;
+        if (activity == null) return;
+        activity.runOnUiThread(() -> {
+            if (keep) activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        });
+    }
 
     public static void setNightMode(boolean night) {
         MainActivity activity = instance;
@@ -44,8 +58,30 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         instance = this;
-        offlineApi = new OfflineApi(this);
+        TextView splash = new TextView(this);
+        splash.setText("正在准备经文…");
+        splash.setTextSize(18);
+        splash.setTypeface(Typeface.DEFAULT_BOLD);
+        splash.setGravity(Gravity.CENTER);
+        splash.setTextColor(Color.parseColor("#2d6a5f"));
+        splash.setBackgroundColor(Color.parseColor("#fbfaf6"));
+        LinearLayout splashWrap = new LinearLayout(this);
+        splashWrap.setGravity(Gravity.CENTER);
+        splashWrap.setBackgroundColor(Color.parseColor("#fbfaf6"));
+        splashWrap.addView(splash);
+        setContentView(splashWrap, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        new Thread(() -> {
+            OfflineApi api = new OfflineApi(this);
+            runOnUiThread(() -> setupWebView(api));
+        }, "bible-prepare").start();
+    }
 
+    @SuppressLint("SetJavaScriptEnabled")
+    private void setupWebView(OfflineApi api) {
+        offlineApi = api;
         webView = new WebView(this);
         setContentView(webView, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -65,6 +101,7 @@ public class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         webView.addJavascriptInterface(new AndroidBridge(offlineApi), "AndroidBibleApi");
         webView.addJavascriptInterface(new UpdateBridge(this), "AndroidUpdateApi");
+        webView.addJavascriptInterface(new ShareBridge(this), "AndroidShareApi");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override

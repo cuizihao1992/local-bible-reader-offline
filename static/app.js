@@ -1,5 +1,6 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
+const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
 const GITHUB_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
@@ -20,6 +21,7 @@ const state = {
   palette: "classic",
   fontSize: 20,
   lineHeight: 2.05,
+  keepScreenOn: false,
   book: 1,
   chapter: 1,
   targetVerse: null,
@@ -118,6 +120,22 @@ const updateProgressText = $("#updateProgressText");
 const updateProgressBar = $("#updateProgressBar");
 const updateProgressValue = $("#updateProgressValue");
 const myCheckUpdateBtn = $("#myCheckUpdateBtn");
+const keepScreenOnToggle = $("#keepScreenOnToggle");
+const verseStepPanel = $("#verseStepPanel");
+const verseGrid = $("#verseGrid");
+const versePanelTitle = $("#versePanelTitle");
+const versePanelMeta = $("#versePanelMeta");
+const readChapterStartBtn = $("#readChapterStartBtn");
+const commentarySheet = $("#commentarySheet");
+const commentarySheetTitle = $("#commentarySheetTitle");
+const commentarySheetContent = $("#commentarySheetContent");
+const closeCommentarySheetBtn = $("#closeCommentarySheetBtn");
+const shareSheet = $("#shareSheet");
+const shareCanvas = $("#shareCanvas");
+const closeShareSheetBtn = $("#closeShareSheetBtn");
+const shareImageBtn = $("#shareImageBtn");
+const saveShareBtn = $("#saveShareBtn");
+const highlightColors = $("#highlightColors");
 const overlay = $("#overlay");
 
 let bookFilter = "all";
@@ -220,6 +238,7 @@ function restoreState() {
       palette: saved.palette || "classic",
       fontSize: Number(saved.fontSize) || 20,
       lineHeight: Number(saved.lineHeight) || 2.05,
+      keepScreenOn: !!saved.keepScreenOn,
       book: Number(saved.book) || 1,
       chapter: Number(saved.chapter) || 1,
       recentBooks: Array.isArray(saved.recentBooks) ? saved.recentBooks.slice(0, 8) : [],
@@ -241,6 +260,7 @@ function saveState() {
       palette: state.palette,
       fontSize: state.fontSize,
       lineHeight: state.lineHeight,
+      keepScreenOn: state.keepScreenOn,
       book: state.book,
       chapter: state.chapter,
       recentBooks: state.recentBooks,
@@ -268,6 +288,10 @@ function applySettings() {
   lineHeightValue.textContent = Number(state.lineHeight).toFixed(2);
   strongToggle.checked = state.showStrong;
   audioAutoNext.checked = state.audioAutoNext;
+  if (keepScreenOnToggle) keepScreenOnToggle.checked = state.keepScreenOn;
+  if (window.AndroidBibleApi && window.AndroidBibleApi.setKeepScreenOn) {
+    window.AndroidBibleApi.setKeepScreenOn(!!state.keepScreenOn);
+  }
 }
 
 function showStatus(message, tone = "info") {
@@ -310,6 +334,9 @@ function closeContentPanels() {
   dictionaryPanel.hidden = true;
   myPanel.hidden = true;
   if (compareSheet) compareSheet.hidden = true;
+  if (commentarySheet) commentarySheet.hidden = true;
+  if (shareSheet) shareSheet.hidden = true;
+  if (highlightColors) highlightColors.hidden = true;
 }
 
 function closeTopPanels(includeSettings = true) {
@@ -437,6 +464,38 @@ function renderChapterGrid() {
   }).join("");
 }
 
+async function openVerseStep(chapter) {
+  const book = currentBook();
+  state.chapter = chapter;
+  rememberCurrentBook();
+  renderChapterGrid();
+  if (verseStepPanel) verseStepPanel.hidden = false;
+  if (versePanelTitle) versePanelTitle.textContent = `${book.longName} ${chapter} 章`;
+  if (versePanelMeta) versePanelMeta.textContent = "选择一节，或从第 1 节读";
+  if (verseGrid) verseGrid.innerHTML = `<div class="panelHint">正在读取节数...</div>`;
+  try {
+    const data = await api(`/api/chapter?version=${encodeURIComponent(state.version)}&book=${state.book}&chapter=${chapter}`);
+    const verses = data.verses || [];
+    if (versePanelMeta) versePanelMeta.textContent = `共 ${verses.length} 节`;
+    if (verseGrid) {
+      verseGrid.innerHTML = verses
+        .map((item) => `<button type="button" data-pick-verse="${item.verse}">${item.verse}</button>`)
+        .join("");
+    }
+    verseStepPanel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  } catch (error) {
+    if (verseGrid) verseGrid.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function jumpFromPicker(verse = null) {
+  resetVerseInteraction(verse);
+  bookPickerPanel.hidden = true;
+  closeSidebar();
+  keepReadingChromeVisible();
+  await loadChapter({ scrollTop: !verse });
+}
+
 function renderMyProgress() {
   if (!myProgressCard) return;
   const book = currentBook();
@@ -461,6 +520,7 @@ function markForVerse(verse) {
       verse: Number(verse),
       favorite: false,
       highlighted: false,
+      highlightColor: "",
       note: "",
       tags: "",
     }
@@ -468,9 +528,10 @@ function markForVerse(verse) {
 }
 
 function verseMarkClasses(mark) {
+  const color = mark.highlightColor || (mark.highlighted ? "gold" : "");
   return [
     mark.favorite ? "favoriteVerse" : "",
-    mark.highlighted ? "highlightedVerse" : "",
+    color ? `highlightedVerse hl-${color}` : "",
     mark.note || mark.tags ? "notedVerse" : "",
   ]
     .filter(Boolean)
@@ -999,8 +1060,8 @@ function updateVerseMarkDom(mark) {
   const verse = content.querySelector(`.verse[data-verse="${mark.verse}"]`);
   if (!verse) return;
   verse.classList.toggle("favoriteVerse", !!mark.favorite);
-  verse.classList.toggle("highlightedVerse", !!mark.highlighted);
-  verse.classList.toggle("notedVerse", !!(mark.note || mark.tags));
+  verse.className = `verse ${verseMarkClasses(mark)}`;
+  if (selectedVerseNumbers.includes(Number(mark.verse))) verse.classList.add("selectedVerse");
   const editor = verse.querySelector(`[data-note-editor="${mark.verse}"]`);
   if (editor) {
     const wasHidden = editor.hidden;
@@ -1154,12 +1215,20 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     await showCompareSheet(verseNo);
     return;
   }
-  if (action === "favorite") {
-    await saveVerseMark({ ...mark, favorite: !mark.favorite }, { successMessage: mark.favorite ? "已取消收藏" : "已收藏" });
+  if (action === "commentary") {
+    await showCommentarySheet(verseNo);
+    return;
+  }
+  if (action === "share") {
+    await openShareSheet(selectedVerseNumbers.length ? selectedVerseNumbers : [verseNo]);
     return;
   }
   if (action === "highlight") {
-    await saveVerseMark({ ...mark, highlighted: !mark.highlighted }, { successMessage: mark.highlighted ? "已取消高亮" : "已高亮" });
+    if (highlightColors) highlightColors.hidden = !highlightColors.hidden;
+    return;
+  }
+  if (action === "favorite") {
+    await saveVerseMark({ ...mark, favorite: !mark.favorite }, { successMessage: mark.favorite ? "已取消收藏" : "已收藏" });
     return;
   }
   if (action === "note") {
@@ -1181,13 +1250,127 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     return;
   }
   if (action === "commentary") {
-    commentaryContent.querySelectorAll(".commentaryEntry").forEach((entry) => {
-      const from = Number(entry.dataset.from || 0);
-      const to = Number(entry.dataset.to || from);
-      entry.classList.toggle("activeCommentary", verseNo >= from && verseNo <= (to || from));
-    });
-    commentaryContent.scrollIntoView({ block: "start", behavior: "smooth" });
+    await showCommentarySheet(verseNo);
   }
+}
+
+async function applyHighlightColor(color) {
+  const verses = selectedVerseNumbers.length ? selectedVerseNumbers : state.activeVerse ? [state.activeVerse] : [];
+  for (const verseNo of verses) {
+    const mark = markForVerse(verseNo);
+    await saveVerseMark(
+      { ...mark, highlighted: !!color, highlightColor: color || "" },
+      { successMessage: color ? "已高亮" : "已取消高亮" },
+    );
+  }
+  if (highlightColors) highlightColors.hidden = true;
+}
+
+async function showCommentarySheet(verseNo) {
+  const verse = Number(verseNo || selectedVerseNumbers[0] || state.activeVerse);
+  if (!verse) return;
+  closeContentPanels();
+  commentarySheet.hidden = false;
+  commentarySheetTitle.textContent = `${currentBook().longName} ${state.chapter}:${verse} 注释`;
+  if (!state.commentary) {
+    commentarySheetContent.innerHTML = `<div class="panelHint">还没选择注释来源。可在菜单「阅读」里选择一本注释。</div>`;
+    return;
+  }
+  commentarySheetContent.innerHTML = `<div class="loading">正在读取本节注释...</div>`;
+  try {
+    const data = await api(`/api/commentary?source=${encodeURIComponent(state.commentary)}&book=${state.book}&chapter=${state.chapter}`);
+    const entries = (data.entries || []).filter((entry) => {
+      if (entry.chapter === 0) return true;
+      const from = Number(entry.fromVerse || 0);
+      const to = Number(entry.toVerse || from);
+      if (!from) return entry.chapter === state.chapter;
+      return verse >= from && verse <= (to || from);
+    });
+    commentarySheetContent.innerHTML = entries.length
+      ? `<div class="resultRef" style="margin-bottom:8px">${escapeHtml(data.title || "")}</div>` +
+        entries
+          .map(
+            (entry) => `<article class="resultItem"><div class="resultRef">${escapeHtml(formatCommentaryRef(entry))}</div><div class="resultText">${escapeHtml(entry.text || "（无文本）")}</div></article>`,
+          )
+          .join("")
+      : `<div class="panelHint">这一节没有对应注释。</div>`;
+  } catch (error) {
+    commentarySheetContent.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function wrapShareText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const chars = String(text || "").split("");
+  let line = "";
+  let lines = 0;
+  let cursorY = y;
+  for (const char of chars) {
+    const test = line + char;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, cursorY);
+      line = char;
+      cursorY += lineHeight;
+      lines += 1;
+      if (lines >= maxLines - 1) break;
+    } else {
+      line = test;
+    }
+  }
+  if (line) ctx.fillText(line, x, cursorY);
+}
+
+async function openShareSheet(verseNumbers) {
+  const verses = (verseNumbers || []).filter(Boolean);
+  if (!verses.length) return;
+  closeContentPanels();
+  shareSheet.hidden = false;
+  const canvas = shareCanvas;
+  const ctx = canvas.getContext("2d");
+  const dark = state.theme === "dark";
+  ctx.fillStyle = dark ? "#171614" : "#f7f1e4";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = dark ? "#2a2621" : "#efe6d4";
+  ctx.fillRect(72, 72, canvas.width - 144, canvas.height - 144);
+  ctx.fillStyle = dark ? "#ede7dc" : "#2a241c";
+  ctx.font = "bold 44px serif";
+  ctx.fillText(currentBook().longName, 120, 200);
+  ctx.font = "32px sans-serif";
+  ctx.fillStyle = dark ? "#d6a16f" : "#8a4f2a";
+  ctx.fillText(`${state.chapter}:${verses[0]}${verses.length > 1 ? `-${verses[verses.length - 1]}` : ""}  ·  ${versionLabel(state.version)}`, 120, 260);
+  ctx.fillStyle = dark ? "#ede7dc" : "#24211d";
+  ctx.font = "46px serif";
+  wrapShareText(ctx, verses.map((n) => verseTextForNumber(n)).join(""), 120, 360, canvas.width - 240, 72, 12);
+  ctx.fillStyle = dark ? "#74b8a8" : "#2d6a5f";
+  ctx.font = "28px sans-serif";
+  ctx.fillText("本地圣经", 120, canvas.height - 120);
+}
+
+async function shareOrSaveCard(share) {
+  if (!shareCanvas) return;
+  const dataUrl = shareCanvas.toDataURL("image/png");
+  const text = formatVerseLines(selectedVerseNumbers.length ? selectedVerseNumbers : [state.activeVerse], "reference");
+  if (window.AndroidShareApi && window.AndroidShareApi.shareImage) {
+    const result = JSON.parse(window.AndroidShareApi.shareImage(dataUrl, text || ""));
+    if (result.error) showStatus(result.error, "error");
+    else showStatus(share ? "已打开分享" : "已保存到分享", "success");
+    return;
+  }
+  const blob = await (await fetch(dataUrl)).blob();
+  const file = new File([blob], "bible-verse.png", { type: "image/png" });
+  if (share && navigator.share) {
+    try {
+      await navigator.share({ files: [file], text, title: verseReference(selectedVerseNumbers[0] || state.activeVerse) });
+      showStatus("已分享", "success");
+      return;
+    } catch (error) {
+      if (error.name === "AbortError") return;
+    }
+  }
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = "bible-verse.png";
+  link.click();
+  showStatus("已保存图片", "success");
 }
 
 async function setCurrentChapterRead(read) {
@@ -1298,6 +1481,8 @@ function hasBlockingOverlayOpen() {
     !dictionaryPanel.hidden ||
     !myPanel.hidden ||
     (compareSheet && !compareSheet.hidden) ||
+    (commentarySheet && !commentarySheet.hidden) ||
+    (shareSheet && !shareSheet.hidden) ||
     !verseMenu.hidden ||
     !selectionBar.hidden
   );
@@ -1319,7 +1504,7 @@ function handleBackIntent() {
     keepReadingChromeVisible();
     return true;
   }
-  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden)) {
+  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden) || (commentarySheet && !commentarySheet.hidden) || (shareSheet && !shareSheet.hidden)) {
     closeTopPanels();
     keepReadingChromeVisible();
     return true;
@@ -1666,6 +1851,26 @@ closeCompareSheetBtn.addEventListener("click", () => {
   compareSheet.hidden = true;
   keepReadingChromeVisible();
 });
+closeCommentarySheetBtn?.addEventListener("click", () => {
+  commentarySheet.hidden = true;
+  keepReadingChromeVisible();
+});
+closeShareSheetBtn?.addEventListener("click", () => {
+  shareSheet.hidden = true;
+  keepReadingChromeVisible();
+});
+shareImageBtn?.addEventListener("click", () => shareOrSaveCard(true));
+saveShareBtn?.addEventListener("click", () => shareOrSaveCard(false));
+highlightColors?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-hl-color]");
+  if (!button) return;
+  applyHighlightColor(button.dataset.hlColor || "");
+});
+keepScreenOnToggle?.addEventListener("change", () => {
+  state.keepScreenOn = keepScreenOnToggle.checked;
+  applySettings();
+  saveState();
+});
 checkUpdateBtn.addEventListener("click", checkForUpdates);
 myCheckUpdateBtn.addEventListener("click", checkForUpdates);
 downloadUpdateBtn.addEventListener("click", downloadUpdate);
@@ -1712,13 +1917,14 @@ bookGrid.addEventListener("click", (event) => {
 chapterGrid.addEventListener("click", (event) => {
   const button = event.target.closest("[data-chapter]");
   if (!button || chapterLoading) return;
-  state.chapter = Number(button.dataset.chapter);
-  rememberCurrentBook();
-  resetVerseInteraction();
-  bookPickerPanel.hidden = true;
-  closeSidebar();
-  loadChapter({ scrollTop: true });
+  openVerseStep(Number(button.dataset.chapter));
 });
+verseGrid?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-pick-verse]");
+  if (!button) return;
+  jumpFromPicker(Number(button.dataset.pickVerse));
+});
+readChapterStartBtn?.addEventListener("click", () => jumpFromPicker(null));
 
 quickForm.addEventListener("submit", async (event) => {
   event.preventDefault();

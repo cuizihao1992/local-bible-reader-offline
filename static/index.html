@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>离线阅读 · 1.1</p>
+            <p>离线阅读 · 1.2</p>
           </div>
         </div>
       </div>
@@ -154,6 +154,10 @@
             <span>行距 <b id="lineHeightValue">2.05</b></span>
             <input id="lineHeightRange" type="range" min="1.6" max="2.5" step="0.05" />
           </label>
+          <label class="toggleField">
+            <input id="keepScreenOnToggle" type="checkbox" />
+            <span>阅读时保持屏幕常亮</span>
+          </label>
         </div>
       </section>
 
@@ -195,6 +199,16 @@
           </div>
           <div id="chapterGrid" class="chapterGrid"></div>
         </div>
+        <div class="verseStepPanel" id="verseStepPanel" hidden>
+          <div class="chapterPanelHeader">
+            <div id="versePanelTitle" class="panelTitle">经节</div>
+            <div id="versePanelMeta" class="panelHint"></div>
+          </div>
+          <div class="dataButtons" style="margin-bottom:10px">
+            <button id="readChapterStartBtn" type="button">从第 1 节读</button>
+          </div>
+          <div id="verseGrid" class="chapterGrid"></div>
+        </div>
       </section>
 
       <section id="searchPanel" class="sheetPanel panel" hidden>
@@ -231,6 +245,28 @@
         <div id="compareSheetContent" class="resultList"></div>
       </section>
 
+      <section id="commentarySheet" class="sheetPanel panel" hidden>
+        <div class="panelHeader">
+          <div id="commentarySheetTitle">本节注释</div>
+          <button id="closeCommentarySheetBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div id="commentarySheetContent" class="resultList"></div>
+      </section>
+
+      <section id="shareSheet" class="sheetPanel panel" hidden>
+        <div class="panelHeader">
+          <div>金句分享</div>
+          <button id="closeShareSheetBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div class="sharePreviewWrap">
+          <canvas id="shareCanvas" width="1080" height="1350"></canvas>
+        </div>
+        <div class="dataButtons">
+          <button id="shareImageBtn" type="button">分享图片</button>
+          <button id="saveShareBtn" type="button">保存图片</button>
+        </div>
+      </section>
+
       <section id="statusPanel" class="statusPanel" role="status" aria-live="polite" hidden></section>
 
       <section id="myPanel" class="sheetPanel panel" hidden>
@@ -262,18 +298,28 @@
       <button type="button" data-menu-action="note">笔记</button>
       <button type="button" data-menu-action="copy">复制</button>
       <button type="button" data-menu-action="compare">对照</button>
-      <button type="button" data-menu-action="dictionary">查词</button>
       <button type="button" data-menu-action="commentary">注释</button>
+      <button type="button" data-menu-action="share">分享</button>
+      <button type="button" data-menu-action="dictionary">查词</button>
     </div>
 
     <div id="selectionBar" class="selectionBar actionBar" hidden>
       <span id="selectionSummary">已选择经文</span>
+      <div id="highlightColors" class="highlightColors" hidden>
+        <button type="button" data-hl-color="gold" title="金色"></button>
+        <button type="button" data-hl-color="green" title="绿色"></button>
+        <button type="button" data-hl-color="blue" title="蓝色"></button>
+        <button type="button" data-hl-color="rose" title="玫红"></button>
+        <button type="button" data-hl-color="" title="取消高亮">无</button>
+      </div>
       <div class="actionBarButtons">
         <button type="button" data-bar-action="favorite">收藏</button>
         <button type="button" data-bar-action="highlight">高亮</button>
         <button type="button" data-bar-action="note">笔记</button>
         <button type="button" data-bar-action="copy">复制</button>
         <button type="button" data-bar-action="compare">对照</button>
+        <button type="button" data-bar-action="commentary">注释</button>
+        <button type="button" data-bar-action="share">分享</button>
         <button id="cancelSelectionBtn" type="button">取消</button>
       </div>
     </div>

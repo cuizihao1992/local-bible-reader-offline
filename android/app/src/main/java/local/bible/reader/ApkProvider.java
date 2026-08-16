@@ -17,6 +17,8 @@ public class ApkProvider extends ContentProvider {
 
     @Override
     public String getType(Uri uri) {
+        String name = uri.getLastPathSegment();
+        if (name != null && name.toLowerCase().endsWith(".png")) return "image/png";
         return "application/vnd.android.package-archive";
     }
 
