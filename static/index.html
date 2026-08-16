@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.7</p>
+            <p>设置 · 1.7.1</p>
           </div>
         </div>
       </div>
@@ -41,20 +41,20 @@
         <div class="panelTitle">小米语音跳转</div>
         <label class="field compactField">
           <span>MiMo Key</span>
-          <input id="mimoKeyInput" type="password" autocomplete="off" placeholder="填写后可按住语音跳转" />
+          <input id="mimoKeyInput" type="password" autocomplete="off" placeholder="sk- 普通 Key 或 tp- Code Plan" />
         </label>
         <label class="field compactField">
           <span>Key 类型</span>
           <select id="mimoKeyTypeSelect">
-            <option value="standard">普通 Key</option>
-            <option value="codeplan">CodePlan / Token Plan</option>
+            <option value="standard">普通 Key（sk-）</option>
+            <option value="codeplan">Code Plan / Token Plan（tp-）</option>
           </select>
         </label>
         <label class="field compactField">
-          <span>Base URL</span>
-          <input id="mimoBaseUrlInput" type="url" placeholder="https://api.xiaomimimo.com/v1" />
+          <span>Code Plan Base URL</span>
+          <input id="mimoBaseUrlInput" type="url" placeholder="https://token-plan-cn.xiaomimimo.com/v1" />
         </label>
-        <div class="panelHint">按住「语音」说「约翰福音三章十六节」，松开后用 mimo-v2.5-asr 识别并跳转。Key 只存在本机。</div>
+        <div class="panelHint">按住「语音」说「约翰福音三章十六节」。普通 Key 走官方地址；Code Plan 请填后台 OpenAI 兼容 Base URL。Key 只存在本机。</div>
       </div>
       <div class="settingsPanel">
         <div class="panelTitle">本地诊断</div>
@@ -297,7 +297,7 @@
         </div>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.7.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.7.1</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

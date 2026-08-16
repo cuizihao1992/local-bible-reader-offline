@@ -3,6 +3,8 @@ package local.bible.reader;
 import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
@@ -12,21 +14,24 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 
 public class VoiceBridge {
+    private static final String MIMO_CHAT_URL = "https://api.xiaomimimo.com/v1/chat/completions";
+    private static final String MIMO_CODEPLAN_CHAT_URL = "https://token-plan-cn.xiaomimimo.com/v1/chat/completions";
+    private static final int SAMPLE_RATE = 16000;
     private final Activity activity;
     private final WebView webView;
-    private MediaRecorder cloudRecorder;
-    private File cloudAudioFile;
+    private AudioRecord audioRecord;
+    private Thread recordThread;
+    private ByteArrayOutputStream pcmOut;
+    private volatile boolean recording;
     private String cloudKey = "";
     private String cloudModel = "mimo-v2.5-asr";
-    private String cloudBaseUrl = "https://api.xiaomimimo.com/v1";
+    private String cloudBaseUrl = MIMO_CHAT_URL;
 
     public VoiceBridge(Activity activity, WebView webView) {
         this.activity = activity;
@@ -34,7 +39,7 @@ public class VoiceBridge {
     }
 
     @JavascriptInterface
-    public String startCloud(String provider, String key, String model, String baseUrl) {
+    public String startCloud(String provider, String key, String model, String ignoredBaseUrl) {
         activity.runOnUiThread(() -> {
             try {
                 if (android.os.Build.VERSION.SDK_INT >= 23
@@ -48,26 +53,17 @@ public class VoiceBridge {
                     return;
                 }
                 if (key == null || key.trim().isEmpty()) {
-                    emitError("请先在设置里填写小米 MiMo Key");
+                    emitError("请先在设置里填写小米 MiMo 普通 Key");
                     return;
                 }
-                stopCloudRecorder(true);
+                stopRecording();
                 cloudKey = key.trim();
                 cloudModel = model == null || model.trim().isEmpty() ? "mimo-v2.5-asr" : model.trim();
-                cloudBaseUrl = baseUrl == null || baseUrl.trim().isEmpty() ? "https://api.xiaomimimo.com/v1" : baseUrl.trim();
-                cloudAudioFile = new File(activity.getCacheDir(), "mimo-voice-" + System.currentTimeMillis() + ".m4a");
-                cloudRecorder = new MediaRecorder();
-                cloudRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-                cloudRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-                cloudRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-                cloudRecorder.setAudioSamplingRate(16000);
-                cloudRecorder.setAudioEncodingBitRate(64000);
-                cloudRecorder.setOutputFile(cloudAudioFile.getAbsolutePath());
-                cloudRecorder.prepare();
-                cloudRecorder.start();
+                cloudBaseUrl = normalizeChatUrl(ignoredBaseUrl, cloudKey);
+                startWavRecording();
                 emit("start", "");
             } catch (Throwable error) {
-                stopCloudRecorder(true);
+                stopRecording();
                 emitError(message(error));
             }
         });
@@ -77,18 +73,16 @@ public class VoiceBridge {
     @JavascriptInterface
     public String stopCloud() {
         activity.runOnUiThread(() -> {
-            File file = cloudAudioFile;
             String key = cloudKey;
             String model = cloudModel;
             String baseUrl = cloudBaseUrl;
             try {
-                if (cloudRecorder == null) return;
-                cloudRecorder.stop();
-                stopCloudRecorder(false);
+                if (!recording && audioRecord == null) return;
+                byte[] wav = stopRecording();
                 emit("end", "");
-                new Thread(() -> uploadCloudAudio(key, model, baseUrl, file), "mimo-asr").start();
+                new Thread(() -> uploadCloudAudio(key, model, baseUrl, wav), "mimo-asr").start();
             } catch (Throwable error) {
-                stopCloudRecorder(true);
+                stopRecording();
                 emitError(message(error));
             }
         });
@@ -97,40 +91,133 @@ public class VoiceBridge {
 
     @JavascriptInterface
     public String cancel() {
-        activity.runOnUiThread(() -> stopCloudRecorder(true));
+        activity.runOnUiThread(this::stopRecording);
         return "{\"ok\":true}";
     }
 
-    private void uploadCloudAudio(String key, String model, String baseUrl, File file) {
+    private void startWavRecording() {
+        int channel = AudioFormat.CHANNEL_IN_MONO;
+        int encoding = AudioFormat.ENCODING_PCM_16BIT;
+        int min = AudioRecord.getMinBufferSize(SAMPLE_RATE, channel, encoding);
+        if (min <= 0) throw new IllegalStateException("无法初始化麦克风");
+        int bufferSize = Math.max(min, SAMPLE_RATE) * 2;
+        audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channel, encoding, bufferSize);
+        if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
+            audioRecord.release();
+            audioRecord = null;
+            throw new IllegalStateException("麦克风不可用");
+        }
+        pcmOut = new ByteArrayOutputStream();
+        recording = true;
+        audioRecord.startRecording();
+        final int readSize = min;
+        recordThread = new Thread(() -> {
+            byte[] buffer = new byte[readSize];
+            while (recording && audioRecord != null) {
+                int read = audioRecord.read(buffer, 0, buffer.length);
+                if (read > 0) {
+                    synchronized (pcmOut) {
+                        pcmOut.write(buffer, 0, read);
+                    }
+                }
+            }
+        }, "mimo-wav");
+        recordThread.start();
+    }
+
+    private byte[] stopRecording() {
+        recording = false;
+        if (recordThread != null) {
+            try {
+                recordThread.join(1200);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            recordThread = null;
+        }
+        if (audioRecord != null) {
+            try {
+                audioRecord.stop();
+            } catch (Throwable ignored) {
+            }
+            try {
+                audioRecord.release();
+            } catch (Throwable ignored) {
+            }
+            audioRecord = null;
+        }
+        byte[] pcm = new byte[0];
+        if (pcmOut != null) {
+            synchronized (pcmOut) {
+                pcm = pcmOut.toByteArray();
+            }
+            pcmOut = null;
+        }
+        return wrapWav(pcm, SAMPLE_RATE, 1, 16);
+    }
+
+    private static byte[] wrapWav(byte[] pcm, int sampleRate, int channels, int bits) {
+        int dataLen = pcm == null ? 0 : pcm.length;
+        ByteArrayOutputStream out = new ByteArrayOutputStream(44 + dataLen);
         try {
-            if (file == null || !file.exists() || file.length() < 512) {
+            writeAscii(out, "RIFF");
+            writeIntLE(out, 36 + dataLen);
+            writeAscii(out, "WAVE");
+            writeAscii(out, "fmt ");
+            writeIntLE(out, 16);
+            writeShortLE(out, 1);
+            writeShortLE(out, channels);
+            writeIntLE(out, sampleRate);
+            writeIntLE(out, sampleRate * channels * bits / 8);
+            writeShortLE(out, channels * bits / 8);
+            writeShortLE(out, bits);
+            writeAscii(out, "data");
+            writeIntLE(out, dataLen);
+            if (dataLen > 0) out.write(pcm);
+        } catch (Exception error) {
+            return new byte[0];
+        }
+        return out.toByteArray();
+    }
+
+    private static void writeAscii(ByteArrayOutputStream out, String text) {
+        out.write(text.getBytes(StandardCharsets.US_ASCII), 0, text.length());
+    }
+
+    private static void writeIntLE(ByteArrayOutputStream out, int value) {
+        out.write(value & 0xff);
+        out.write((value >> 8) & 0xff);
+        out.write((value >> 16) & 0xff);
+        out.write((value >> 24) & 0xff);
+    }
+
+    private static void writeShortLE(ByteArrayOutputStream out, int value) {
+        out.write(value & 0xff);
+        out.write((value >> 8) & 0xff);
+    }
+
+    private void uploadCloudAudio(String key, String model, String baseUrl, byte[] wav) {
+        try {
+            if (wav == null || wav.length < 1024) {
                 throw new IllegalArgumentException("录音太短，请按住说完后再松开");
             }
             emit("ready", "");
-            emit("result", requestMimoAsr(key, model, baseUrl, file));
+            emit("result", requestMimoAsr(key, model, baseUrl, wav));
         } catch (Throwable error) {
             emitError(message(error));
-        } finally {
-            if (file != null) {
-                try {
-                    file.delete();
-                } catch (Throwable ignored) {
-                }
-            }
         }
     }
 
-    private String requestMimoAsr(String key, String model, String baseUrl, File file) throws Exception {
-        String audioBase64 = Base64.encodeToString(readAll(new FileInputStream(file)), Base64.NO_WRAP);
-        JSONObject inputAudio = new JSONObject().put("data", "data:audio/mp4;base64," + audioBase64);
+    private String requestMimoAsr(String key, String model, String baseUrl, byte[] wav) throws Exception {
+        String audioBase64 = Base64.encodeToString(wav, Base64.NO_WRAP);
+        JSONObject inputAudio = new JSONObject().put("data", "data:audio/wav;base64," + audioBase64);
         JSONObject audioContent = new JSONObject().put("type", "input_audio").put("input_audio", inputAudio);
         JSONObject message = new JSONObject().put("role", "user").put("content", new JSONArray().put(audioContent));
         JSONObject body = new JSONObject()
                 .put("model", model == null || model.isEmpty() ? "mimo-v2.5-asr" : model)
                 .put("messages", new JSONArray().put(message))
                 .put("asr_options", new JSONObject().put("language", "auto"));
-        String endpoint = normalizeChatUrl(baseUrl);
-        HttpURLConnection connection = HttpSupport.open(activity, endpoint, 20000, 60000);
+        HttpURLConnection connection = HttpSupport.open(activity, normalizeChatUrl(baseUrl, key), 20000, 60000);
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
         connection.setRequestProperty("Authorization", "Bearer " + key);
@@ -148,12 +235,27 @@ public class VoiceBridge {
             responseBytes = readAll(connection.getErrorStream());
             String errorText = new String(responseBytes, StandardCharsets.UTF_8);
             if (code == 401) {
-                errorText = "MiMo Key 鉴权失败。普通 Key 用默认地址；tp- 开头的 Token Plan 请在设置里选 CodePlan 并填写后台专属 Base URL。";
+                errorText = isCodePlanKey(key)
+                        ? "Code Plan / Token Plan 鉴权失败。请确认 Key 是 tp- 开头，并填写后台显示的专属 Base URL。"
+                        : "普通 Key 鉴权失败。请确认是 sk- 开头的按量 Key，不要填 Token Plan 地址。";
             }
             throw new RuntimeException(errorText);
         }
         JSONObject response = new JSONObject(new String(responseBytes, StandardCharsets.UTF_8));
         return response.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "");
+    }
+
+    private boolean isCodePlanKey(String key) {
+        return key != null && key.trim().regionMatches(true, 0, "tp-", 0, 3);
+    }
+
+    private String normalizeChatUrl(String value, String key) {
+        String raw = value == null ? "" : value.trim();
+        if (raw.isEmpty()) raw = isCodePlanKey(key) ? MIMO_CODEPLAN_CHAT_URL : MIMO_CHAT_URL;
+        while (raw.endsWith("/")) raw = raw.substring(0, raw.length() - 1);
+        if (raw.endsWith("/chat/completions")) return raw;
+        if (raw.endsWith("/v1")) return raw + "/chat/completions";
+        return raw + "/v1/chat/completions";
     }
 
     private byte[] readAll(InputStream input) throws Exception {
@@ -163,30 +265,6 @@ public class VoiceBridge {
         int read;
         while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
         return output.toByteArray();
-    }
-
-    private String normalizeChatUrl(String value) {
-        String raw = value == null || value.trim().isEmpty() ? "https://api.xiaomimimo.com/v1" : value.trim();
-        while (raw.endsWith("/")) raw = raw.substring(0, raw.length() - 1);
-        if (raw.endsWith("/chat/completions")) return raw;
-        return raw + "/chat/completions";
-    }
-
-    private void stopCloudRecorder(boolean deleteFile) {
-        if (cloudRecorder != null) {
-            try {
-                cloudRecorder.release();
-            } catch (Throwable ignored) {
-            }
-            cloudRecorder = null;
-        }
-        if (deleteFile && cloudAudioFile != null) {
-            try {
-                cloudAudioFile.delete();
-            } catch (Throwable ignored) {
-            }
-            cloudAudioFile = null;
-        }
     }
 
     private void emitError(String text) {
