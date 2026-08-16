@@ -232,15 +232,36 @@ select, input[type="search"], input[type="text"] {
   font-weight: 500;
   padding: 0 6px;
 }
-.searchToggleBtn { display: none; }
+.searchToggleBtn { display: grid; }
 
-.quickForm { display: flex; gap: 6px; min-width: 280px; }
-.quickForm input { min-width: 140px; }
-.quickForm select { width: 86px; min-width: 86px; }
-.quickForm button {
+.quickForm, .sheetSearchForm { display: flex; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.quickForm input, .sheetSearchForm input { min-width: 140px; flex: 1; }
+.quickForm select, .sheetSearchForm select { width: 86px; min-width: 86px; }
+.quickForm button, .sheetSearchForm button {
   min-height: 36px; border: 0; border-radius: var(--radius);
   background: var(--accent); color: #fff; font-weight: 600; padding: 0 12px;
 }
+.recentSearches { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.recentSearches button {
+  border: 0; border-radius: 999px; background: var(--soft); color: var(--muted);
+  min-height: 28px; padding: 0 10px; font-size: 12px;
+}
+.chipRow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chipRow button {
+  border: 0; border-radius: 999px; background: var(--soft); color: var(--ink);
+  min-height: 30px; padding: 0 10px; font-size: 12px; font-weight: 500;
+}
+.chipRow button.active { background: var(--accent); color: #fff; }
+#noteSheetText {
+  width: 100%; min-height: 140px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--control); color: var(--ink); padding: 10px; font: inherit; resize: vertical;
+}
+#noteSheetTags {
+  width: 100%; min-height: 38px; margin: 10px 0; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--control); color: var(--ink); padding: 0 10px;
+}
+.mobileNav button.active { color: var(--accent); }
+.searchToggleBtn { display: grid; }
 
 .readerSettingsPanel, .sheetPanel, .panel, .audioPanel {
   width: min(760px, calc(100vw - 340px));
@@ -551,15 +572,7 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
   body.sidebarOpen .closeSidebarBtn { display: grid; place-items: center; }
   .topbar { padding-top: calc(8px + env(safe-area-inset-top)); gap: 2px; }
   .topbar .navBtn { display: none; }
-  .quickForm { display: none; }
   .searchToggleBtn { display: grid; place-items: center; }
-  body.showSearch .quickForm {
-    display: flex; position: absolute; left: 12px; right: 12px;
-    top: calc(54px + env(safe-area-inset-top));
-    z-index: 9;
-    background: var(--panel); padding: 8px; border-radius: 12px; border: 1px solid var(--line);
-    box-shadow: var(--shadow);
-  }
   .readerSettingsPanel, .audioPanel, .content, .commentaryContent, .statusPanel {
     width: calc(100vw - 28px);
   }

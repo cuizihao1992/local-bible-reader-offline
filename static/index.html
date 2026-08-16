@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#2d6a5f" />
+    <meta name="theme-color" content="#3d6b5c" />
     <title>本地圣经</title>
     <link rel="icon" href="icon.png" />
     <link rel="apple-touch-icon" href="icon.png" />
@@ -16,104 +16,42 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>离线阅读 · 1.4</p>
+            <p>设置 · 1.5</p>
           </div>
         </div>
       </div>
-
-      <div class="sidebarTabs" role="tablist" aria-label="菜单分类">
-        <button type="button" class="active" data-sidebar-target="reading">阅读</button>
-        <button type="button" data-sidebar-target="tools">工具</button>
-        <button type="button" data-sidebar-target="data">数据</button>
+      <label class="toggleField">
+        <input id="strongToggle" type="checkbox" />
+        <span>显示 Strong 编号</span>
+      </label>
+      <label class="toggleField">
+        <input id="audioAutoNext" type="checkbox" />
+        <span>音频结束自动下一章</span>
+      </label>
+      <div class="dictionaryPanel">
+        <div class="panelTitle">辞典 / 百科</div>
+        <select id="dictionarySelect"></select>
+        <div class="dictionarySearch">
+          <input id="dictionaryInput" type="search" placeholder="搜索词条" />
+          <button id="dictionaryBtn" type="button">查</button>
+        </div>
+        <div id="dictionaryHint" class="panelHint"></div>
       </div>
-
-      <section class="sidebarSection active" data-sidebar-panel="reading">
-        <label class="field">
-          <span>译本</span>
-          <select id="versionSelect"></select>
-        </label>
-        <div class="comparePanel">
-          <div class="panelTitle">对照版本</div>
-          <div class="panelHint">用于选节后的「对照」，不再插入正文</div>
-          <div id="compareVersions" class="compareVersions"></div>
-        </div>
-        <div class="commentaryPanel">
-          <div class="panelTitle">注释</div>
-          <select id="commentarySelect"></select>
-          <div id="commentaryHint" class="panelHint"></div>
-        </div>
-      </section>
-
-      <section class="sidebarSection" data-sidebar-panel="tools">
-        <label class="toggleField">
-          <input id="strongToggle" type="checkbox" />
-          <span>显示 Strong 编号</span>
-        </label>
-        <label class="toggleField">
-          <input id="audioAutoNext" type="checkbox" />
-          <span>音频结束自动下一章</span>
-        </label>
-        <div class="dictionaryPanel">
-          <div class="panelTitle">辞典 / 百科</div>
-          <select id="dictionarySelect"></select>
-          <div class="dictionarySearch">
-            <input id="dictionaryInput" type="search" placeholder="搜索词条" />
-            <button id="dictionaryBtn" type="button">查</button>
-          </div>
-          <div id="dictionaryHint" class="panelHint"></div>
-        </div>
-      </section>
-
-      <section class="sidebarSection" data-sidebar-panel="data">
-        <div class="settingsPanel">
-          <div class="panelTitle">离线资源</div>
-          <div id="packageList" class="packageList"></div>
-          <div id="packageProgress" class="downloadProgress" hidden>
-            <div class="downloadProgressTop">
-              <span id="packageProgressText">准备下载</span>
-              <b id="packageProgressValue">0%</b>
-            </div>
-            <div class="downloadProgressTrack"><span id="packageProgressBar"></span></div>
-          </div>
-          <div id="packageHint" class="panelHint">可下载更多译本和注释库</div>
-        </div>
-        <div class="settingsPanel">
-          <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.1.0</div>
-          <div class="dataButtons">
-            <button id="checkUpdateBtn" type="button">检查更新</button>
-            <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
-          </div>
-          <div id="updateProgress" class="downloadProgress" hidden>
-            <div class="downloadProgressTop">
-              <span id="updateProgressText">准备下载</span>
-              <b id="updateProgressValue">0%</b>
-            </div>
-            <div class="downloadProgressTrack"><span id="updateProgressBar"></span></div>
-          </div>
-        </div>
-        <div class="settingsPanel">
-          <div class="panelTitle">个人数据</div>
-          <div class="dataButtons">
-            <button id="exportDataBtn" type="button">导出</button>
-            <button id="importDataBtn" type="button">导入</button>
-            <input id="importDataFile" type="file" accept="application/json" hidden />
-          </div>
-          <div id="userDataHint" class="panelHint"></div>
-        </div>
-        <div class="settingsPanel">
-          <div class="panelTitle">本地诊断</div>
-          <button id="diagnosticsBtn" type="button">检查数据目录</button>
-          <div id="diagnosticsHint" class="panelHint"></div>
-        </div>
-      </section>
+      <div class="settingsPanel">
+        <div class="panelTitle">本地诊断</div>
+        <button id="diagnosticsBtn" type="button">检查数据目录</button>
+        <div id="diagnosticsHint" class="panelHint"></div>
+      </div>
+      <select id="versionSelect" hidden></select>
+      <select id="commentarySelect" hidden></select>
+      <div id="compareVersions" class="compareVersions" hidden></div>
     </aside>
-    <button id="closeSidebarBtn" class="closeSidebarBtn" type="button" aria-label="关闭目录">×</button>
+    <button id="closeSidebarBtn" class="closeSidebarBtn" type="button" aria-label="关闭设置">×</button>
 
     <main class="reader">
       <header class="topbar">
-        <button id="menuBtn" class="iconBtn" aria-label="打开菜单">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h10"/></svg>
+        <button id="menuBtn" class="iconBtn" aria-label="设置">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2M6.2 6.2l1.4 1.4M16.4 16.4l1.4 1.4M6.2 17.8l1.4-1.4M16.4 7.6l1.4-1.4"/></svg>
         </button>
         <button id="prevBtn" class="navBtn">上一章</button>
         <button id="chapterTitleBtn" class="titleBlock" type="button" aria-haspopup="dialog">
@@ -122,16 +60,9 @@
         <button id="versionChipBtn" class="versionChip" type="button" aria-haspopup="dialog">
           <span id="versionTitle">译本</span>
         </button>
-        <form id="quickForm" class="quickForm" role="search">
-          <input id="quickInput" type="search" placeholder="约3:16 或 关键词" autocomplete="off" />
-          <select id="searchScope" aria-label="搜索范围">
-            <option value="all">全本</option>
-            <option value="ot">旧约</option>
-            <option value="nt">新约</option>
-            <option value="book">本卷</option>
-          </select>
-          <button type="submit">查找</button>
-        </form>
+        <button id="speakToggleBtn" class="iconBtn" type="button" aria-label="朗读本章">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h3l5 4V6L7 10H4zM16 9a4 4 0 010 6M18.5 7a7 7 0 010 10"/></svg>
+        </button>
         <button id="searchToggleBtn" class="iconBtn searchToggleBtn" type="button" aria-label="搜索">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/></svg>
         </button>
@@ -177,10 +108,6 @@
             <input id="keepScreenOnToggle" type="checkbox" />
             <span>阅读时保持屏幕常亮</span>
           </label>
-          <div class="dataButtons">
-            <button id="speakChapterBtn" type="button">朗读本章</button>
-            <button id="stopSpeakBtn" type="button">停止朗读</button>
-          </div>
         </div>
       </section>
 
@@ -236,9 +163,21 @@
 
       <section id="searchPanel" class="sheetPanel panel" hidden>
         <div class="panelHeader">
-          <div id="searchSummary"></div>
+          <div>搜索</div>
           <button id="closeSearchBtn" class="textBtn" type="button">关闭</button>
         </div>
+        <form id="quickForm" class="sheetSearchForm" role="search">
+          <input id="quickInput" type="search" placeholder="约3:16 或 关键词" autocomplete="off" />
+          <select id="searchScope" aria-label="搜索范围">
+            <option value="all">全本</option>
+            <option value="ot">旧约</option>
+            <option value="nt">新约</option>
+            <option value="book">本卷</option>
+          </select>
+          <button type="submit">查找</button>
+        </form>
+        <div id="recentSearches" class="recentSearches"></div>
+        <div id="searchSummary" class="panelHint"></div>
         <div id="searchResults" class="resultList"></div>
       </section>
 
@@ -265,6 +204,7 @@
           <div id="compareSheetTitle">经文对照</div>
           <button id="closeCompareSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
+        <div id="compareSourceList" class="chipRow"></div>
         <div id="compareSheetContent" class="resultList"></div>
       </section>
 
@@ -273,7 +213,21 @@
           <div id="commentarySheetTitle">本节注释</div>
           <button id="closeCommentarySheetBtn" class="textBtn" type="button">关闭</button>
         </div>
+        <div id="commentarySourceList" class="chipRow"></div>
+        <div id="commentaryHint" class="panelHint"></div>
         <div id="commentarySheetContent" class="resultList"></div>
+      </section>
+
+      <section id="noteSheet" class="sheetPanel panel" hidden>
+        <div class="panelHeader">
+          <div id="noteSheetTitle">笔记</div>
+          <button id="closeNoteSheetBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <textarea id="noteSheetText" placeholder="写下笔记"></textarea>
+        <input id="noteSheetTags" type="text" placeholder="标签，用逗号分隔" />
+        <div class="dataButtons">
+          <button id="saveNoteSheetBtn" type="button">保存笔记</button>
+        </div>
       </section>
 
       <section id="shareSheet" class="sheetPanel panel" hidden>
@@ -305,8 +259,42 @@
           <input id="myTagFilter" type="search" placeholder="标签筛选" />
         </div>
         <div id="myResults" class="resultList"></div>
-        <div class="myUpdateRow">
-          <button id="myCheckUpdateBtn" type="button">检查更新</button>
+        <div class="settingsPanel">
+          <div class="panelTitle">离线资源</div>
+          <div id="packageList" class="packageList"></div>
+          <div id="packageProgress" class="downloadProgress" hidden>
+            <div class="downloadProgressTop">
+              <span id="packageProgressText">准备下载</span>
+              <b id="packageProgressValue">0%</b>
+            </div>
+            <div class="downloadProgressTrack"><span id="packageProgressBar"></span></div>
+          </div>
+          <div id="packageHint" class="panelHint">可下载更多译本和注释库</div>
+        </div>
+        <div class="settingsPanel">
+          <div class="panelTitle">版本更新</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.5.0</div>
+          <div class="dataButtons">
+            <button id="checkUpdateBtn" type="button">检查更新</button>
+            <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
+            <button id="myCheckUpdateBtn" type="button">刷新</button>
+          </div>
+          <div id="updateProgress" class="downloadProgress" hidden>
+            <div class="downloadProgressTop">
+              <span id="updateProgressText">准备下载</span>
+              <b id="updateProgressValue">0%</b>
+            </div>
+            <div class="downloadProgressTrack"><span id="updateProgressBar"></span></div>
+          </div>
+        </div>
+        <div class="settingsPanel">
+          <div class="panelTitle">个人数据</div>
+          <div class="dataButtons">
+            <button id="exportDataBtn" type="button">导出</button>
+            <button id="importDataBtn" type="button">导入</button>
+            <input id="importDataFile" type="file" accept="application/json" hidden />
+          </div>
+          <div id="userDataHint" class="panelHint"></div>
         </div>
       </section>
 
@@ -324,6 +312,7 @@
       <button type="button" data-menu-action="commentary">注释</button>
       <button type="button" data-menu-action="share">分享</button>
       <button type="button" data-menu-action="dictionary">查词</button>
+      <button type="button" data-menu-action="multi">多选</button>
     </div>
 
     <div id="selectionBar" class="selectionBar actionBar" hidden>
@@ -343,20 +332,21 @@
         <button type="button" data-bar-action="compare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7H5v10h3M16 7h3v10h-3M10 12h4"/></svg>对照</button>
         <button type="button" data-bar-action="commentary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12v9H9l-3 3z"/></svg>注释</button>
         <button type="button" data-bar-action="share"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="12" r="2"/><circle cx="17" cy="7" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 11l6-3M9 13l6 3"/></svg>分享</button>
+        <button type="button" data-bar-action="multi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h11M8 12h11M8 17h11M5 7h.01M5 12h.01M5 17h.01"/></svg>多选</button>
         <button id="cancelSelectionBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>取消</button>
       </div>
     </div>
 
     <nav class="mobileNav" aria-label="移动端导航">
-      <button id="mobileSearchBtn" type="button">
+      <button id="mobileSearchBtn" type="button" data-nav="search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/></svg>
         搜索
       </button>
-      <button id="mobileMenuBtn" type="button">
+      <button id="mobileMenuBtn" type="button" data-nav="books">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12M6 12h12M6 18h8"/></svg>
         目录
       </button>
-      <button id="mobileMyBtn" type="button">
+      <button id="mobileMyBtn" type="button" data-nav="my">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M6 19c1.4-3 3.4-4.5 6-4.5S16.6 16 18 19"/></svg>
         我的
       </button>
