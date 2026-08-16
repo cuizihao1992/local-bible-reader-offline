@@ -324,7 +324,14 @@ select, input[type="search"], input[type="text"] {
 .bookShort { display: block; font-weight: 600; }
 .bookMeta { display: block; color: inherit; opacity: 0.68; font-size: 11px; }
 .chapterPanel { margin-top: 16px; }
-.chapterPanelHeader { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.chapterPanelHeader { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.chapterPanelHeader .panelTitle { margin-bottom: 0; }
+.bookPickerPanel[data-step="books"] .chapterPanel,
+.bookPickerPanel[data-step="books"] .verseStepPanel { display: none; }
+.bookPickerPanel[data-step="chapters"] .bookPicker,
+.bookPickerPanel[data-step="verses"] .bookPicker { display: none; }
+.bookPickerPanel[data-step="verses"] .chapterPanel { display: none; }
+.verseStepPanel { margin-top: 0; }
 
 .resultList { display: grid; gap: 8px; }
 .resultItem {

@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.7.2</p>
+            <p>设置 · 1.8</p>
           </div>
         </div>
       </div>
@@ -149,8 +149,8 @@
       <section id="bookPickerPanel" class="sheetPanel bookPickerPanel" hidden>
         <div class="bookPickerHeader">
           <div>
-            <div class="panelTitle">选择书卷与章节</div>
-            <div id="bookPickerCurrent" class="panelHint">点章节即读，左右滑切章</div>
+            <div id="bookPickerTitle" class="panelTitle">选择书卷</div>
+            <div id="bookPickerCurrent" class="panelHint">点书卷即读 · 长按选章</div>
           </div>
           <button id="closeBookPickerBtn" class="textBtn" type="button">关闭</button>
         </div>
@@ -168,18 +168,23 @@
         </div>
         <div class="chapterPanel">
           <div class="chapterPanelHeader">
-            <div id="chapterPanelTitle" class="panelTitle">章节</div>
-            <div id="chapterPanelMeta" class="panelHint"></div>
+            <button id="backToBooksBtn" type="button" class="textBtn">返回书卷</button>
+            <div>
+              <div id="chapterPanelTitle" class="panelTitle">章节</div>
+              <div id="chapterPanelMeta" class="panelHint"></div>
+            </div>
+            <button id="enterBookBtn" type="button" class="textBtn">进入本书</button>
           </div>
           <div id="chapterGrid" class="chapterGrid"></div>
         </div>
         <div class="verseStepPanel" id="verseStepPanel" hidden>
           <div class="chapterPanelHeader">
-            <div id="versePanelTitle" class="panelTitle">经节</div>
-            <div id="versePanelMeta" class="panelHint"></div>
-          </div>
-          <div class="dataButtons" style="margin-bottom:10px">
-            <button id="readChapterStartBtn" type="button">从第 1 节读</button>
+            <button id="backToChaptersBtn" type="button" class="textBtn">返回章节</button>
+            <div>
+              <div id="versePanelTitle" class="panelTitle">经节</div>
+              <div id="versePanelMeta" class="panelHint"></div>
+            </div>
+            <button id="readChapterStartBtn" type="button" class="textBtn">从第 1 节读</button>
           </div>
           <div id="verseGrid" class="chapterGrid"></div>
         </div>
@@ -297,7 +302,7 @@
         </div>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.7.2</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.8.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

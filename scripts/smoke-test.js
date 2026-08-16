@@ -66,6 +66,8 @@ assert(indexHtml.includes("本地圣经"), "Index title missing");
 assert(appJs.includes("function parseReference"), "Reference parser missing");
 assert(appJs.includes("function parseSpokenReference"), "Spoken reference parser missing");
 assert(appJs.includes("function parseChapterVerseToken"), "Spoken chapter/verse tokenizer missing");
+assert(appJs.includes('level: "book"'), "Spoken book-only jump missing");
+assert(appJs.includes("function setBookPickerStep"), "Book picker step view missing");
 assert(appJs.includes("篇"), "Psalm spoken chapter alias missing");
 assert(appJs.includes("mimo-v2.5-asr"), "MiMo ASR model missing");
 assert(appJs.includes("function startVoiceInput"), "Voice hold-to-talk missing");

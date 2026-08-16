@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.7.2";
+const APP_VERSION = "1.8.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -72,8 +72,12 @@ const lineHeightRange = $("#lineHeightRange");
 const fontSizeValue = $("#fontSizeValue");
 const lineHeightValue = $("#lineHeightValue");
 const bookPickerPanel = $("#bookPickerPanel");
+const bookPickerTitle = $("#bookPickerTitle");
 const bookPickerCurrent = $("#bookPickerCurrent");
 const closeBookPickerBtn = $("#closeBookPickerBtn");
+const backToBooksBtn = $("#backToBooksBtn");
+const enterBookBtn = $("#enterBookBtn");
+const backToChaptersBtn = $("#backToChaptersBtn");
 const bookSearchInput = $("#bookSearchInput");
 const bookFilterTabs = $("#bookFilterTabs");
 const bookGrid = $("#bookGrid");
@@ -177,6 +181,8 @@ let browserStream = null;
 let browserAudio = null;
 
 let bookFilter = "all";
+let bookPickerStep = "books";
+let bookLongPress = false;
 let chapterLoadToken = 0;
 let chapterLoading = false;
 let jumpBusy = false;
@@ -507,8 +513,14 @@ function renderChapterGrid() {
   const book = currentBook();
   const readSet = new Set((state.progress?.readChapters || []).filter((item) => item.book === book.id).map((item) => item.chapter));
   chapterPanelTitle.textContent = book.longName;
-  chapterPanelMeta.textContent = `${book.chapterCount} 章 · 点即读 · 左右滑切章 · 长按选节`;
-  bookPickerCurrent.textContent = `${book.longName} ${state.chapter} · ${versionLabel(state.version)}`;
+  chapterPanelMeta.textContent = `${book.chapterCount} 章 · 点章即读 · 长按选节`;
+  if (bookPickerTitle) {
+    bookPickerTitle.textContent = bookPickerStep === "books" ? "选择书卷" : bookPickerStep === "chapters" ? "选择章节" : "选择经节";
+  }
+  bookPickerCurrent.textContent =
+    bookPickerStep === "books"
+      ? "点书卷即读 · 长按选章"
+      : `${book.longName} · ${versionLabel(state.version)}`;
   chapterGrid.innerHTML = Array.from({ length: book.chapterCount }, (_, index) => {
     const chapter = index + 1;
     const classes = [chapter === state.chapter ? "active" : "", readSet.has(chapter) ? "read" : ""].filter(Boolean).join(" ");
@@ -516,10 +528,30 @@ function renderChapterGrid() {
   }).join("");
 }
 
+function setBookPickerStep(step) {
+  bookPickerStep = step || "books";
+  if (bookPickerPanel) bookPickerPanel.dataset.step = bookPickerStep;
+  if (verseStepPanel) verseStepPanel.hidden = bookPickerStep !== "verses";
+  if (bookPickerTitle) {
+    bookPickerTitle.textContent = bookPickerStep === "books" ? "选择书卷" : bookPickerStep === "chapters" ? "选择章节" : "选择经节";
+  }
+}
+
+function openChapterStep(bookId) {
+  const nextId = Number(bookId);
+  if (state.book !== nextId) state.chapter = 1;
+  state.book = nextId;
+  rememberCurrentBook();
+  setBookPickerStep("chapters");
+  renderBookGrid();
+  renderChapterGrid();
+}
+
 async function openVerseStep(chapter) {
   const book = currentBook();
   state.chapter = chapter;
   rememberCurrentBook();
+  setBookPickerStep("verses");
   renderChapterGrid();
   if (verseStepPanel) verseStepPanel.hidden = false;
   if (versePanelTitle) versePanelTitle.textContent = `${book.longName} ${chapter} 章`;
@@ -534,7 +566,7 @@ async function openVerseStep(chapter) {
         .map((item) => `<button type="button" data-pick-verse="${item.verse}">${item.verse}</button>`)
         .join("");
     }
-    verseStepPanel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setBookPickerStep("verses");
   } catch (error) {
     if (verseGrid) verseGrid.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
   }
@@ -975,6 +1007,7 @@ function parseReference(input) {
     book: found[1].id,
     chapter: Number(match[2]),
     verse: match[3] ? Number(match[3]) : null,
+    level: match[3] ? "verse" : "chapter",
   };
 }
 
@@ -985,7 +1018,7 @@ function normalizeVoiceText(input) {
     .replace(/[，。？！,.?!、…~～]/g, "")
     .replace(/[:：]/g, ":")
     .replace(/([0-9零〇一二两三四五六七八九十百])比([0-9零〇一二两三四五六七八九十百])/g, "$1:$2")
-    .replace(/请你?|帮我|我想要?|听一下|跳转到|转到|打开|查找|请读|读到|读一下|来读|播放|经文|谢谢|啊|嗯|那个/g, "")
+    .replace(/请你?|帮我|我想要?|听一下|跳转到|转到|打开|查找|请读|读到|读一下|来读|来听|看看?|阅读|进入|播放|经文|谢谢|啊|嗯|那个/g, "")
     .replace(/第/g, "")
     .replace(/篇/g, "章")
     .replace(/\s+/g, "");
@@ -1040,11 +1073,16 @@ function parseChapterVerseToken(text) {
   return null;
 }
 
-function clampSpokenRef(book, chapter, verse) {
+function clampSpokenRef(book, chapter, verse, level) {
   if (!book || !Number.isFinite(chapter) || chapter < 1) return null;
   const safeChapter = Math.min(chapter, book.chapterCount || chapter);
   const safeVerse = Number.isFinite(verse) && verse >= 1 ? verse : null;
-  return { book: book.id, chapter: safeChapter, verse: safeVerse };
+  const resolvedLevel = level || (safeVerse ? "verse" : "chapter");
+  return { book: book.id, chapter: safeChapter, verse: safeVerse, level: resolvedLevel };
+}
+
+function leftoverHasNumber(text) {
+  return /[0-9零〇一二两三四五六七八九十百]/.test(String(text || ""));
 }
 
 function parseSpokenReference(input) {
@@ -1056,13 +1094,19 @@ function parseSpokenReference(input) {
     const index = value.indexOf(alias);
     if (index < 0) continue;
     if (best && (index > best.index || (index === best.index && alias.length <= best.alias.length))) continue;
-    const rest = parseChapterVerseToken(value.slice(index + alias.length));
-    if (!rest) continue;
-    best = { index, alias, book, ...rest };
+    const restText = value.slice(index + alias.length);
+    const rest = parseChapterVerseToken(restText);
+    if (rest) {
+      best = { index, alias, book, ...rest, level: rest.verse ? "verse" : "chapter" };
+      continue;
+    }
+    if (!leftoverHasNumber(restText)) {
+      best = { index, alias, book, chapter: 1, verse: null, level: "book" };
+    }
   }
-  if (best) return clampSpokenRef(best.book, best.chapter, best.verse);
+  if (best) return clampSpokenRef(best.book, best.chapter, best.verse, best.level);
   const currentOnly = parseChapterVerseToken(value);
-  if (currentOnly) return clampSpokenRef(currentBook(), currentOnly.chapter, currentOnly.verse);
+  if (currentOnly) return clampSpokenRef(currentBook(), currentOnly.chapter, currentOnly.verse, currentOnly.verse ? "verse" : "chapter");
   return parseReference(value);
 }
 
@@ -1155,7 +1199,12 @@ async function handleVoiceText(text) {
   const ref = parseSpokenReference(spoken);
   if (ref) {
     const book = state.books.find((item) => item.id === ref.book) || currentBook();
-    const formatted = `${book.longName} ${ref.chapter}${ref.verse ? `:${ref.verse}` : ""}`;
+    const formatted =
+      ref.level === "book"
+        ? book.longName
+        : ref.level === "verse" && ref.verse
+          ? `${book.longName} ${ref.chapter}:${ref.verse}`
+          : `${book.longName} ${ref.chapter}章`;
     showStatus(`识别：${spoken} → ${formatted}`);
     await jumpToReference(ref);
     return;
@@ -2679,8 +2728,8 @@ menuBtn.addEventListener("click", () => openSidebar());
 function openBookPicker() {
   closeTopPanels();
   closeSidebar();
-  if (verseStepPanel) verseStepPanel.hidden = true;
   bookPickerPanel.hidden = false;
+  setBookPickerStep("books");
   setNav("books");
   renderBookGrid();
   renderChapterGrid();
@@ -2835,14 +2884,42 @@ bookFilterTabs.addEventListener("click", (event) => {
   bookFilterTabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
   renderBookGrid();
 });
+bookGrid.addEventListener("pointerdown", (event) => {
+  const button = event.target.closest("[data-book]");
+  if (!button) return;
+  bookLongPress = false;
+  clearTimeout(longPressTimer);
+  longPressTimer = setTimeout(() => {
+    bookLongPress = true;
+    openChapterStep(Number(button.dataset.book));
+  }, 420);
+});
+bookGrid.addEventListener("pointerup", () => clearTimeout(longPressTimer));
+bookGrid.addEventListener("pointercancel", () => clearTimeout(longPressTimer));
 bookGrid.addEventListener("click", (event) => {
   const button = event.target.closest("[data-book]");
   if (!button) return;
+  if (bookLongPress) {
+    bookLongPress = false;
+    return;
+  }
   state.book = Number(button.dataset.book);
   state.chapter = 1;
   rememberCurrentBook();
-  if (verseStepPanel) verseStepPanel.hidden = true;
+  jumpFromPicker(null);
+});
+backToBooksBtn?.addEventListener("click", () => {
+  setBookPickerStep("books");
   renderBookGrid();
+  renderChapterGrid();
+});
+enterBookBtn?.addEventListener("click", () => {
+  state.chapter = 1;
+  rememberCurrentBook();
+  jumpFromPicker(null);
+});
+backToChaptersBtn?.addEventListener("click", () => {
+  setBookPickerStep("chapters");
   renderChapterGrid();
 });
 chapterGrid.addEventListener("pointerdown", (event) => {
