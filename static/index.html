@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.5</p>
+            <p>设置 · 1.5.1</p>
           </div>
         </div>
       </div>
@@ -60,7 +60,7 @@
         <button id="versionChipBtn" class="versionChip" type="button" aria-haspopup="dialog">
           <span id="versionTitle">译本</span>
         </button>
-        <button id="speakToggleBtn" class="iconBtn" type="button" aria-label="朗读本章">
+        <button id="speakToggleBtn" class="iconBtn" type="button" aria-label="朗读本章" aria-pressed="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h3l5 4V6L7 10H4zM16 9a4 4 0 010 6M18.5 7a7 7 0 010 10"/></svg>
         </button>
         <button id="searchToggleBtn" class="iconBtn searchToggleBtn" type="button" aria-label="搜索">
@@ -273,11 +273,10 @@
         </div>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.5.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.5.1</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
-            <button id="myCheckUpdateBtn" type="button">刷新</button>
           </div>
           <div id="updateProgress" class="downloadProgress" hidden>
             <div class="downloadProgressTop">

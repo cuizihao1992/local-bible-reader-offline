@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.5.1";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -121,7 +121,6 @@ const updateProgress = $("#updateProgress");
 const updateProgressText = $("#updateProgressText");
 const updateProgressBar = $("#updateProgressBar");
 const updateProgressValue = $("#updateProgressValue");
-const myCheckUpdateBtn = $("#myCheckUpdateBtn");
 const keepScreenOnToggle = $("#keepScreenOnToggle");
 const verseStepPanel = $("#verseStepPanel");
 const verseGrid = $("#verseGrid");
@@ -304,7 +303,7 @@ function applySettings() {
   if (!document.body.dataset.palette) delete document.body.dataset.palette;
   document.documentElement.style.setProperty("--reader-font-size", `${state.fontSize}px`);
   document.documentElement.style.setProperty("--reader-line-height", String(state.lineHeight));
-  const themeColor = night ? "#171614" : "#2d6a5f";
+  const themeColor = night ? "#1b1815" : "#3d6b5c";
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) themeMeta.setAttribute("content", themeColor);
   if (window.AndroidBibleApi && window.AndroidBibleApi.setNightMode) {
@@ -338,19 +337,9 @@ function closeSidebar() {
   document.body.classList.remove("sidebarOpen");
 }
 
-function openSidebar(panel) {
+function openSidebar() {
   document.body.classList.add("sidebarOpen");
-  if (panel) showSidebarPanel(panel);
   closeTopPanels(false);
-}
-
-function showSidebarPanel(name) {
-  document.querySelectorAll("[data-sidebar-target]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.sidebarTarget === name);
-  });
-  document.querySelectorAll("[data-sidebar-panel]").forEach((section) => {
-    section.classList.toggle("active", section.dataset.sidebarPanel === name);
-  });
 }
 
 function keepReadingChromeVisible(ms = 1600) {
@@ -368,6 +357,8 @@ function closeContentPanels() {
   if (shareSheet) shareSheet.hidden = true;
   if (noteSheet) noteSheet.hidden = true;
   if (highlightColors) highlightColors.hidden = true;
+  closeVerseMenu();
+  closeSelectionBar();
   setNav(null);
 }
 
@@ -380,10 +371,7 @@ function closeTopPanels(includeSettings = true) {
   bookPickerPanel.hidden = true;
   if (versionPickerPanel) versionPickerPanel.hidden = true;
   if (includeSettings) readerSettingsPanel.hidden = true;
-  document.body.classList.remove("showSearch");
   closeContentPanels();
-  closeVerseMenu();
-  closeSelectionBar();
   syncSheetOverlay();
 }
 
@@ -794,6 +782,7 @@ async function loadChapter(options = {}) {
   const token = ++chapterLoadToken;
   const snapshot = { version: state.version, book: state.book, chapter: state.chapter };
   chapterLoading = true;
+  if (speaking) stopSpeaking();
   renderChrome();
   if (!content.querySelector(".verse")) content.innerHTML = `<div class="loading">正在读取经文...</div>`;
   try {
@@ -813,7 +802,7 @@ async function loadChapter(options = {}) {
     saveReadingHistory(snapshot);
     saveState();
     if (options.scrollTop) scrollReaderToTop();
-    await Promise.all([loadCommentary(snapshot, token), loadAudio(snapshot, token)]);
+    await loadAudio(snapshot, token);
   } catch (error) {
     if (token !== chapterLoadToken) return;
     setChapterError(error, snapshot);
@@ -1090,17 +1079,17 @@ function renderMyResults(marks) {
 function updateVerseMarkDom(mark) {
   const verse = content.querySelector(`.verse[data-verse="${mark.verse}"]`);
   if (!verse) return;
-  verse.classList.toggle("favoriteVerse", !!mark.favorite);
   verse.className = `verse ${verseMarkClasses(mark)}`;
   if (selectedVerseNumbers.includes(Number(mark.verse))) verse.classList.add("selectedVerse");
-  const editor = verse.querySelector(`[data-note-editor="${mark.verse}"]`);
-  if (editor) {
-    const wasHidden = editor.hidden;
-    const preview = verse.querySelector(".notePreview");
-    editor.outerHTML = renderNoteEditor(mark.verse);
-    const nextEditor = verse.querySelector(`[data-note-editor="${mark.verse}"]`);
-    if (nextEditor) nextEditor.hidden = wasHidden;
-    if (preview && nextEditor) preview.replaceWith();
+  const body = verse.querySelector(".verseBody");
+  if (!body) return;
+  const preview = body.querySelector(".notePreview");
+  const html = renderNoteEditor(mark.verse);
+  if (html) {
+    if (preview) preview.outerHTML = html;
+    else body.insertAdjacentHTML("beforeend", html);
+  } else if (preview) {
+    preview.remove();
   }
 }
 
@@ -1264,7 +1253,13 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     return;
   }
   if (action === "favorite") {
-    await saveVerseMark({ ...mark, favorite: !mark.favorite }, { successMessage: mark.favorite ? "已取消收藏" : "已收藏" });
+    const verses = selectedVerseNumbers.length ? selectedVerseNumbers : [verseNo];
+    const next = !mark.favorite;
+    for (const number of verses) {
+      const item = markForVerse(number);
+      await saveVerseMark({ ...item, favorite: next });
+    }
+    showStatus(next ? "已收藏" : "已取消收藏", "success");
     return;
   }
   if (action === "note") {
@@ -1284,10 +1279,6 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
   if (action === "dictionary") {
     dictionaryInput.value = verseTextForNumber(verseNo).slice(0, 12);
     await searchDictionary(dictionaryInput.value);
-    return;
-  }
-  if (action === "commentary") {
-    await showCommentarySheet(verseNo);
   }
 }
 
@@ -1350,6 +1341,7 @@ async function saveNoteSheet() {
     { successMessage: "已保存笔记" },
   );
   noteSheet.hidden = true;
+  keepReadingChromeVisible();
 }
 
 async function showCommentarySheet(verseNo) {
@@ -1413,7 +1405,7 @@ async function openShareSheet(verseNumbers) {
   shareSheet.hidden = false;
   const canvas = shareCanvas;
   const ctx = canvas.getContext("2d");
-  const dark = state.theme === "dark";
+  const dark = resolvedTheme() === "dark";
   ctx.fillStyle = dark ? "#171614" : "#f7f1e4";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = dark ? "#2a2621" : "#efe6d4";
@@ -1545,6 +1537,15 @@ function chapterPlainText() {
     .join("。");
 }
 
+function setSpeaking(on) {
+  speaking = !!on;
+  if (speakToggleBtn) {
+    speakToggleBtn.classList.toggle("active", speaking);
+    speakToggleBtn.setAttribute("aria-pressed", speaking ? "true" : "false");
+    speakToggleBtn.setAttribute("aria-label", speaking ? "停止朗读" : "朗读本章");
+  }
+}
+
 function speakChapter() {
   if (speaking) {
     stopSpeaking();
@@ -1559,7 +1560,7 @@ function speakChapter() {
     const result = JSON.parse(window.AndroidTtsApi.speak(text));
     if (result.error) showStatus(result.error, "error");
     else {
-      speaking = true;
+      setSpeaking(true);
       showStatus("开始朗读本章");
     }
     return;
@@ -1571,18 +1572,17 @@ function speakChapter() {
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "zh-CN";
-  utterance.onend = () => {
-    speaking = false;
-  };
+  utterance.onend = () => setSpeaking(false);
+  utterance.onerror = () => setSpeaking(false);
   window.speechSynthesis.speak(utterance);
-  speaking = true;
+  setSpeaking(true);
   showStatus("开始朗读本章");
 }
 
 function stopSpeaking() {
-  speaking = false;
   if (window.AndroidTtsApi && window.AndroidTtsApi.stop) window.AndroidTtsApi.stop();
   if (window.speechSynthesis) window.speechSynthesis.cancel();
+  setSpeaking(false);
   showStatus("已停止朗读");
 }
 
@@ -1699,7 +1699,6 @@ async function runDiagnostics() {
 function hasBlockingOverlayOpen() {
   return (
     document.body.classList.contains("sidebarOpen") ||
-    document.body.classList.contains("showSearch") ||
     !bookPickerPanel.hidden ||
     (versionPickerPanel && !versionPickerPanel.hidden) ||
     !readerSettingsPanel.hidden ||
@@ -1724,11 +1723,6 @@ function handleBackIntent() {
   }
   if (!selectionBar.hidden) {
     closeSelectionBar();
-    keepReadingChromeVisible();
-    return true;
-  }
-  if (document.body.classList.contains("showSearch")) {
-    document.body.classList.remove("showSearch");
     keepReadingChromeVisible();
     return true;
   }
@@ -1882,7 +1876,7 @@ async function checkForUpdates() {
       downloadUpdateBtn.textContent = apk ? (newer ? "下载更新" : "重新下载 APK") : "暂无 APK";
     }
     showStatus(newer ? `发现新版本 ${latest}` : "已是最新版本", newer ? "info" : "success");
-    openMyPanel("all");
+    if (myPanel.hidden) await openMyPanel("all");
   } catch (error) {
     if (updateStatus) updateStatus.textContent = error.message;
     showStatus(error.message, "error");
@@ -2103,54 +2097,61 @@ lineHeightRange.addEventListener("input", () => {
 });
 
 menuBtn.addEventListener("click", () => openSidebar());
-mobileMenuBtn.addEventListener("click", () => {
-  if (!bookPickerPanel.hidden) {
-    closeTopPanels();
-    return;
-  }
+function openBookPicker() {
   closeTopPanels();
   closeSidebar();
+  if (verseStepPanel) verseStepPanel.hidden = true;
   bookPickerPanel.hidden = false;
   setNav("books");
   renderBookGrid();
   renderChapterGrid();
   keepReadingChromeVisible();
+}
+
+mobileMenuBtn.addEventListener("click", () => {
+  if (!bookPickerPanel.hidden) {
+    closeTopPanels();
+    keepReadingChromeVisible();
+    return;
+  }
+  openBookPicker();
 });
 mobileSearchBtn.addEventListener("click", () => {
-  if (!searchPanel.hidden) closeTopPanels();
-  else toggleSearch(true);
+  if (!searchPanel.hidden) {
+    closeTopPanels();
+    keepReadingChromeVisible();
+  } else toggleSearch(true);
 });
 searchToggleBtn.addEventListener("click", () => {
-  if (!searchPanel.hidden) closeTopPanels();
-  else toggleSearch(true);
+  if (!searchPanel.hidden) {
+    closeTopPanels();
+    keepReadingChromeVisible();
+  } else toggleSearch(true);
 });
 speakToggleBtn?.addEventListener("click", speakChapter);
 closeSidebarBtn.addEventListener("click", closeSidebar);
 overlay.addEventListener("click", () => handleBackIntent());
 prevBtn.addEventListener("click", () => moveChapter(-1));
 nextBtn.addEventListener("click", () => moveChapter(1));
-mobileMyBtn.addEventListener("click", () => openMyPanel("all"));
+mobileMyBtn.addEventListener("click", () => {
+  if (!myPanel.hidden) {
+    closeTopPanels();
+    keepReadingChromeVisible();
+    return;
+  }
+  openMyPanel("all");
+});
 versionChipBtn.addEventListener("click", () => toggleVersionPicker());
-closeVersionPickerBtn.addEventListener("click", () => {
-  versionPickerPanel.hidden = true;
+function dismissSheet() {
+  closeTopPanels();
   keepReadingChromeVisible();
-});
-closeCompareSheetBtn.addEventListener("click", () => {
-  compareSheet.hidden = true;
-  keepReadingChromeVisible();
-});
-closeCommentarySheetBtn?.addEventListener("click", () => {
-  commentarySheet.hidden = true;
-  keepReadingChromeVisible();
-});
-closeShareSheetBtn?.addEventListener("click", () => {
-  shareSheet.hidden = true;
-  keepReadingChromeVisible();
-});
-closeNoteSheetBtn?.addEventListener("click", () => {
-  noteSheet.hidden = true;
-  keepReadingChromeVisible();
-});
+}
+
+closeVersionPickerBtn.addEventListener("click", dismissSheet);
+closeCompareSheetBtn.addEventListener("click", dismissSheet);
+closeCommentarySheetBtn?.addEventListener("click", dismissSheet);
+closeShareSheetBtn?.addEventListener("click", dismissSheet);
+closeNoteSheetBtn?.addEventListener("click", dismissSheet);
 saveNoteSheetBtn?.addEventListener("click", saveNoteSheet);
 recentSearchesEl?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-recent-search]");
@@ -2204,31 +2205,22 @@ if (window.matchMedia) {
   });
 }
 checkUpdateBtn.addEventListener("click", checkForUpdates);
-myCheckUpdateBtn.addEventListener("click", checkForUpdates);
 downloadUpdateBtn.addEventListener("click", downloadUpdate);
 
 chapterTitleBtn.addEventListener("click", () => {
-  const show = bookPickerPanel.hidden;
-  closeTopPanels();
-  bookPickerPanel.hidden = !show;
-  if (show) {
-    setNav("books");
-    renderBookGrid();
-    renderChapterGrid();
-    keepReadingChromeVisible();
+  if (!bookPickerPanel.hidden) {
+    dismissSheet();
+    return;
   }
+  openBookPicker();
 });
-closeBookPickerBtn.addEventListener("click", () => {
-  bookPickerPanel.hidden = true;
-});
+closeBookPickerBtn.addEventListener("click", dismissSheet);
 readerSettingsBtn.addEventListener("click", () => {
   const show = readerSettingsPanel.hidden;
   closeTopPanels();
   readerSettingsPanel.hidden = !show;
 });
-closeReaderSettingsBtn.addEventListener("click", () => {
-  readerSettingsPanel.hidden = true;
-});
+closeReaderSettingsBtn.addEventListener("click", dismissSheet);
 
 bookSearchInput.addEventListener("input", renderBookGrid);
 bookFilterTabs.addEventListener("click", (event) => {
@@ -2244,6 +2236,7 @@ bookGrid.addEventListener("click", (event) => {
   state.book = Number(button.dataset.book);
   state.chapter = 1;
   rememberCurrentBook();
+  if (verseStepPanel) verseStepPanel.hidden = true;
   renderBookGrid();
   renderChapterGrid();
 });
@@ -2262,7 +2255,10 @@ readChapterStartBtn?.addEventListener("click", () => jumpFromPicker(null));
 quickForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const query = quickInput.value.trim();
-  if (!query) return;
+  if (!query) {
+    searchSummary.textContent = "输入书卷章节（如 约3:16）或关键词";
+    return;
+  }
   const ref = parseReference(query);
   if (ref) {
     await jumpToReference(ref);
@@ -2273,20 +2269,20 @@ quickForm.addEventListener("submit", async (event) => {
 
 closeSearchBtn.addEventListener("click", () => {
   searchRequestToken += 1;
-  searchPanel.hidden = true;
+  dismissSheet();
 });
 closeStrongBtn.addEventListener("click", () => {
   strongRequestToken += 1;
-  strongPanel.hidden = true;
+  dismissSheet();
 });
 closeDictionaryBtn.addEventListener("click", () => {
   dictionaryRequestToken += 1;
-  dictionaryPanel.hidden = true;
+  dismissSheet();
 });
 closeMyPanelBtn.addEventListener("click", () => {
   myPanelRequestToken += 1;
-  myPanel.hidden = true;
   myPanelLoading = false;
+  dismissSheet();
 });
 
 searchResults.addEventListener("click", async (event) => {
@@ -2322,20 +2318,6 @@ document.body.addEventListener("click", async (event) => {
   const strong = event.target.closest("[data-strong]");
   if (strong) {
     await openStrong(strong.dataset.strong);
-    return;
-  }
-  const saveNote = event.target.closest("[data-save-note]");
-  if (saveNote) {
-    const verse = Number(saveNote.dataset.saveNote);
-    const mark = markForVerse(verse);
-    const note = content.querySelector(`[data-note-text="${verse}"]`)?.value || "";
-    const tags = content.querySelector(`[data-note-tags="${verse}"]`)?.value || "";
-    saveNote.textContent = "保存中";
-    await saveVerseMark({ ...mark, note, tags }, { successMessage: "已保存笔记" });
-    saveNote.textContent = "已保存";
-    setTimeout(() => {
-      saveNote.textContent = "保存笔记";
-    }, 1000);
     return;
   }
   const retry = event.target.closest("[data-retry-chapter]");
@@ -2467,7 +2449,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "ArrowRight") moveChapter(1);
   if (event.key === "/" && !event.ctrlKey) {
     event.preventDefault();
-    quickInput.focus();
+    toggleSearch(true);
   }
 });
 

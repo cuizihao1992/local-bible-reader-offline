@@ -199,6 +199,7 @@ select, input[type="search"], input[type="text"] {
   place-items: center;
   color: var(--muted);
 }
+.iconBtn.active, .iconBtn[aria-pressed="true"] { color: var(--accent); }
 .iconBtn svg, .mobileNav svg, .actionBarButtons svg {
   width: 20px;
   height: 20px;
@@ -342,13 +343,21 @@ select, input[type="search"], input[type="text"] {
 .progressBar > span { display: block; height: 100%; background: var(--accent); }
 
 .statusPanel {
-  width: min(760px, calc(100vw - 340px));
-  margin: 12px auto 0;
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  background: var(--soft);
+  position: fixed;
+  left: 50%;
+  top: calc(12px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  z-index: 30;
+  width: auto;
+  max-width: min(520px, calc(100vw - 32px));
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--panel);
   color: var(--muted);
   font-size: 13px;
+  box-shadow: var(--shadow);
+  pointer-events: none;
 }
 .statusPanel.error { color: #9b2c2c; background: #fdecec; }
 .statusPanel.success { color: var(--accent); }
@@ -475,11 +484,7 @@ select, input[type="search"], input[type="text"] {
 .noteTags { color: var(--accent-2); font-size: 12px; font-weight: 600; }
 .noteText { white-space: pre-wrap; font-size: 14px; line-height: 1.7; }
 
-.commentaryContent {
-  width: min(720px, calc(100vw - 340px));
-  margin: 0 auto 90px;
-  padding: 0 22px 80px;
-}
+.commentaryContent { display: none; }
 .commentaryBlock { margin-top: 18px; background: var(--panel); border-top: 1px solid var(--line); }
 .commentaryHeader { display: flex; justify-content: space-between; gap: 12px; padding: 14px 0; }
 .commentaryTitle { font-weight: 600; }
@@ -573,7 +578,7 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
   .topbar { padding-top: calc(8px + env(safe-area-inset-top)); gap: 2px; }
   .topbar .navBtn { display: none; }
   .searchToggleBtn { display: grid; place-items: center; }
-  .readerSettingsPanel, .audioPanel, .content, .commentaryContent, .statusPanel {
+  .readerSettingsPanel, .audioPanel, .content {
     width: calc(100vw - 28px);
   }
   .content { padding: 0 20px calc(var(--mobile-nav-height) + 28px); margin-top: 10px; }
@@ -616,7 +621,6 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
     border: 0; background: transparent; color: var(--muted);
     font-size: 11px; font-weight: 500;
   }
-  .commentaryContent { display: none; }
   .selectionBar {
     bottom: calc(var(--mobile-nav-height) + 8px);
     width: calc(100vw - 16px);
