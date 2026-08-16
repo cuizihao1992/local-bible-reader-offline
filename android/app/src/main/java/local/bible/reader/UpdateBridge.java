@@ -14,11 +14,10 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
 
 public class UpdateBridge {
     private static final String LATEST_RELEASE_URL = "https://api.github.com/repos/cuizihao1992/local-bible-reader-offline/releases/latest";
-    private static final String CURRENT_VERSION = "1.6.0";
+    private static final String CURRENT_VERSION = "1.6.1";
     private final Activity activity;
     private volatile JSONObject downloadStatus = new JSONObject();
 
@@ -30,13 +29,17 @@ public class UpdateBridge {
     public String checkLatest() {
         try {
             JSONObject release = new JSONObject(readText(LATEST_RELEASE_URL));
+            HttpSupport.JSONProxy proxy = HttpSupport.snapshot(activity);
             JSONObject result = new JSONObject()
                     .put("currentVersion", CURRENT_VERSION)
                     .put("tagName", release.optString("tag_name"))
                     .put("version", release.optString("tag_name").replaceFirst("^v", ""))
                     .put("name", release.optString("name"))
                     .put("body", release.optString("body"))
-                    .put("publishedAt", release.optString("published_at"));
+                    .put("publishedAt", release.optString("published_at"))
+                    .put("proxyType", proxy.type)
+                    .put("proxyHost", proxy.host)
+                    .put("proxyPort", proxy.port);
             JSONArray assets = new JSONArray();
             JSONArray sourceAssets = release.optJSONArray("assets");
             if (sourceAssets != null) {
@@ -55,26 +58,53 @@ public class UpdateBridge {
     }
 
     @JavascriptInterface
+    public String localApkStatus(String fileName, String expectedSizeText) {
+        try {
+            File target = updateFile(fileName);
+            long expected = parseSize(expectedSizeText);
+            long size = target.exists() ? target.length() : 0;
+            boolean ready = isCompleteApk(target, expected);
+            return new JSONObject()
+                    .put("exists", target.exists())
+                    .put("ready", ready)
+                    .put("size", size)
+                    .put("expected", expected)
+                    .put("path", target.getAbsolutePath())
+                    .toString();
+        } catch (Throwable error) {
+            return errorJson(error);
+        }
+    }
+
+    @JavascriptInterface
     public String downloadAndInstall(String downloadUrl, String fileName) {
+        return downloadAndInstall(downloadUrl, fileName, "0");
+    }
+
+    @JavascriptInterface
+    public String downloadAndInstall(String downloadUrl, String fileName, String expectedSizeText) {
         try {
             if (downloadUrl == null || !downloadUrl.startsWith("https://github.com/")) {
                 throw new IllegalArgumentException("更新下载地址不正确");
             }
-            String safeName = fileName == null || fileName.trim().isEmpty()
-                    ? "local-bible-reader-update.apk"
-                    : fileName.replace("/", "").replace("\\", "");
-            File target = new File(activity.getExternalFilesDir("updates"), safeName);
+            File target = updateFile(fileName);
             File parent = target.getParentFile();
             if (parent != null) parent.mkdirs();
+            long expected = parseSize(expectedSizeText);
+            if (isCompleteApk(target, expected)) {
+                setDownloadStatus("apk", "done", target.length(), expected > 0 ? expected : target.length(), "已有安装包，正在打开安装");
+                openInstaller(target);
+                return new JSONObject().put("started", true).put("reused", true).put("file", target.getAbsolutePath()).toString();
+            }
             new Thread(() -> {
                 try {
-                    downloadWithRetry(downloadUrl, target, 3);
+                    downloadWithRetry(downloadUrl, target, expected, 3);
                     openInstaller(target);
                 } catch (Throwable error) {
-                    setDownloadStatus("apk", "error", target.exists() ? target.length() : 0, 0, friendlyDownloadError(error));
+                    setDownloadStatus("apk", "error", target.exists() ? target.length() : 0, expected, friendlyDownloadError(error));
                 }
             }).start();
-            return new JSONObject().put("started", true).put("file", target.getAbsolutePath()).toString();
+            return new JSONObject().put("started", true).put("reused", false).put("file", target.getAbsolutePath()).toString();
         } catch (Throwable error) {
             setDownloadStatus("apk", "error", 0, 0, friendlyDownloadError(error));
             return errorJson(error);
@@ -97,12 +127,33 @@ public class UpdateBridge {
         }
     }
 
+    private File updateFile(String fileName) {
+        String safeName = fileName == null || fileName.trim().isEmpty()
+                ? "local-bible-reader-update.apk"
+                : fileName.replace("/", "").replace("\\", "");
+        return new File(activity.getExternalFilesDir("updates"), safeName);
+    }
+
+    private long parseSize(String text) {
+        try {
+            return Long.parseLong(String.valueOf(text == null ? "0" : text).trim());
+        } catch (Exception error) {
+            return 0;
+        }
+    }
+
+    private boolean isCompleteApk(File target, long expected) {
+        if (target == null || !target.isFile()) return false;
+        long size = target.length();
+        if (size < 1024 * 1024) return false;
+        if (expected > 0) return size == expected;
+        return size > 1024 * 1024;
+    }
+
     private String readText(String urlText) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(20000);
+        String resolved = HttpSupport.resolveRedirects(activity, urlText, 15000, 20000);
+        HttpURLConnection connection = HttpSupport.open(activity, resolved, 15000, 20000);
         connection.setRequestProperty("Accept", "application/vnd.github+json");
-        connection.setRequestProperty("User-Agent", "LocalBibleReader/" + CURRENT_VERSION);
         try (InputStream in = connection.getInputStream()) {
             byte[] buffer = new byte[8192];
             StringBuilder builder = new StringBuilder();
@@ -116,33 +167,50 @@ public class UpdateBridge {
         }
     }
 
-    private void downloadWithRetry(String urlText, File target, int maxAttempts) throws Exception {
+    private void downloadWithRetry(String urlText, File target, long expected, int maxAttempts) throws Exception {
         Exception lastError = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt += 1) {
             try {
-                downloadTo(urlText, target, attempt);
+                downloadTo(urlText, target, expected, attempt);
                 return;
             } catch (Exception error) {
                 lastError = error;
-                setDownloadStatus("apk", "retrying", target.exists() ? target.length() : 0, 0, "下载失败，重试 " + attempt + "/" + maxAttempts);
+                setDownloadStatus("apk", "retrying", target.exists() ? target.length() : 0, expected, "下载失败，重试 " + attempt + "/" + maxAttempts);
                 Thread.sleep(1200L * attempt);
             }
         }
         throw lastError == null ? new RuntimeException("APK 下载失败") : lastError;
     }
 
-    private void downloadTo(String urlText, File target, int attempt) throws Exception {
+    private void downloadTo(String urlText, File target, long expected, int attempt) throws Exception {
+        if (isCompleteApk(target, expected)) {
+            setDownloadStatus("apk", "done", target.length(), expected > 0 ? expected : target.length(), "已有安装包");
+            return;
+        }
+        String resolved = HttpSupport.resolveRedirects(activity, urlText, 15000, 20000);
         long existing = target.exists() ? target.length() : 0;
-        HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(60000);
-        connection.setRequestProperty("User-Agent", "LocalBibleReader/" + CURRENT_VERSION);
+        if (expected > 0 && existing > expected) {
+            if (!target.delete()) existing = 0;
+            else existing = 0;
+        }
+        HttpURLConnection connection = HttpSupport.open(activity, resolved, 15000, 60000);
         if (existing > 0) connection.setRequestProperty("Range", "bytes=" + existing + "-");
         int code = connection.getResponseCode();
+        if (code == 416 && existing > 0) {
+            connection.disconnect();
+            if (expected > 0 && existing == expected) {
+                setDownloadStatus("apk", "done", existing, expected, "已有安装包");
+                return;
+            }
+            if (!target.delete()) throw new java.io.IOException("无法重置损坏的安装包");
+            existing = 0;
+            connection = HttpSupport.open(activity, resolved, 15000, 60000);
+            code = connection.getResponseCode();
+        }
         boolean append = existing > 0 && code == HttpURLConnection.HTTP_PARTIAL;
         if (existing > 0 && !append) existing = 0;
         long contentLength = connection.getContentLengthLong();
-        long total = append && contentLength > 0 ? existing + contentLength : contentLength;
+        long total = expected > 0 ? expected : (append && contentLength > 0 ? existing + contentLength : contentLength);
         long downloaded = existing;
         setDownloadStatus("apk", "downloading", downloaded, total, attempt > 1 ? "正在重试下载 APK" : "正在下载 APK");
         try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(target, append)) {
@@ -162,7 +230,7 @@ public class UpdateBridge {
 
     private String friendlyDownloadError(Throwable error) {
         String message = error == null || error.getMessage() == null ? "APK 下载失败" : error.getMessage();
-        return message + "。可稍后重试，或到 GitHub Release 用浏览器下载。";
+        return message + "。若只用规则分流，请把 github.com、api.github.com、*.githubusercontent.com 走代理，或临时开全局。也可到 GitHub Release 用浏览器下载。";
     }
 
     private void setDownloadStatus(String id, String state, long downloaded, long total, String message) {

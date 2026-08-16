@@ -10,10 +10,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -190,30 +190,39 @@ public class OfflineApi {
         targetDir.mkdirs();
         File downloadDir = new File(context.getCacheDir(), "downloads");
         downloadDir.mkdirs();
+        File cached = new File(downloadDir, fileName);
         File temp = new File(downloadDir, fileName + ".part");
-        HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
-        connection.setConnectTimeout(20000);
-        connection.setReadTimeout(120000);
-        connection.setRequestProperty("User-Agent", "LocalBibleReader/1.3.0");
-        int status = connection.getResponseCode();
-        if (status < 200 || status >= 300) throw new Exception("下载失败：" + status);
-        long total = connection.getContentLengthLong();
-        long downloaded = 0;
-        setDownloadStatus(packageId, "downloading", 0, total, "正在下载资源包");
-        try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
-            byte[] buffer = new byte[1024 * 64];
-            int read;
-            while ((read = in.read(buffer)) > 0) {
-                out.write(buffer, 0, read);
-                downloaded += read;
-                setDownloadStatus(packageId, "downloading", downloaded, total, "正在下载资源包");
+        long downloaded = cached.exists() ? cached.length() : 0;
+        long total = downloaded;
+        if (!isCompleteZip(cached)) {
+            String resolved = HttpSupport.resolveRedirects(context, urlText, 20000, 30000);
+            HttpURLConnection connection = HttpSupport.open(context, resolved, 20000, 120000);
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) throw new Exception("下载失败：" + status);
+            total = connection.getContentLengthLong();
+            downloaded = 0;
+            setDownloadStatus(packageId, "downloading", 0, total, "正在下载资源包");
+            try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
+                byte[] buffer = new byte[1024 * 64];
+                int read;
+                while ((read = in.read(buffer)) > 0) {
+                    out.write(buffer, 0, read);
+                    downloaded += read;
+                    setDownloadStatus(packageId, "downloading", downloaded, total, "正在下载资源包");
+                }
+            } finally {
+                connection.disconnect();
             }
-        } finally {
-            connection.disconnect();
+            if (cached.exists() && !cached.delete()) throw new Exception("无法替换已下载的资源包");
+            if (!temp.renameTo(cached)) {
+                throw new Exception("保存资源包失败");
+            }
+        } else {
+            setDownloadStatus(packageId, "installing", downloaded, total, "已有资源包，正在安装");
         }
-        setDownloadStatus(packageId, "installing", downloaded, total, "正在安装资源包");
+        setDownloadStatus(packageId, "installing", downloaded, total > 0 ? total : downloaded, "正在安装资源包");
         int installed = 0;
-        try (ZipInputStream zip = new ZipInputStream(new java.io.FileInputStream(temp))) {
+        try (ZipInputStream zip = new ZipInputStream(new FileInputStream(cached))) {
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
                 if (entry.isDirectory() || !entry.getName().toLowerCase().endsWith(".db")) continue;
@@ -227,8 +236,6 @@ public class OfflineApi {
                 }
                 installed++;
             }
-        } finally {
-            if (!temp.delete()) temp.deleteOnExit();
         }
         setDownloadStatus(packageId, "done", downloaded, total, "资源包安装完成");
         return new JSONObject().put("id", packageId).put("installed", installed).put("packages", packages());
@@ -245,6 +252,16 @@ public class OfflineApi {
                     .put("percent", percent)
                     .put("message", message == null ? "" : message);
         } catch (Exception ignored) {
+        }
+    }
+
+    private boolean isCompleteZip(File file) {
+        if (file == null || !file.isFile() || file.length() < 1024 * 1024) return false;
+        try (FileInputStream in = new FileInputStream(file)) {
+            byte[] header = new byte[2];
+            return in.read(header) == 2 && header[0] == 'P' && header[1] == 'K';
+        } catch (Exception error) {
+            return false;
         }
     }
 
@@ -731,7 +748,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.6.0")
+                .put("version", "1.6.1")
                 .put("versionCount", versions().length());
     }
 

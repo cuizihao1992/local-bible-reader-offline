@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.6.0";
+const APP_VERSION = "1.6.1";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -116,7 +116,9 @@ const closeCompareSheetBtn = $("#closeCompareSheetBtn");
 const myProgressCard = $("#myProgressCard");
 const checkUpdateBtn = $("#checkUpdateBtn");
 const downloadUpdateBtn = $("#downloadUpdateBtn");
+const clearDownloadsBtn = $("#clearDownloadsBtn");
 const updateStatus = $("#updateStatus");
+const updateNetworkHint = $("#updateNetworkHint");
 const updateProgress = $("#updateProgress");
 const updateProgressText = $("#updateProgressText");
 const updateProgressBar = $("#updateProgressBar");
@@ -1839,6 +1841,37 @@ function apkAssetFromRelease(release) {
   return assets.find((asset) => /\.apk$/i.test(asset.name)) || null;
 }
 
+function localApkStatus(apk) {
+  if (!apk || !window.AndroidUpdateApi || !window.AndroidUpdateApi.localApkStatus) return null;
+  try {
+    return JSON.parse(window.AndroidUpdateApi.localApkStatus(apk.name, String(apk.size || 0)));
+  } catch {
+    return null;
+  }
+}
+
+function formatProxyHint(release) {
+  if (!window.AndroidUpdateApi) return "电脑版下载走系统 / 浏览器网络。";
+  if (release?.proxyType && release.proxyType !== "direct" && release.proxyHost) {
+    return `当前系统 HTTP 代理 ${release.proxyHost}:${release.proxyPort}。规则分流仍可能把 GitHub CDN 直连，失败时请开全局或把 githubusercontent 加入代理。`;
+  }
+  return "当前没有系统 HTTP 代理。Clash 等软件开「规则」时不会自动填代理，GitHub 常直连失败；开全局，或把 github.com、api.github.com、*.githubusercontent.com 走代理。";
+}
+
+function refreshUpdateAction(apk, newer) {
+  if (!downloadUpdateBtn) return;
+  if (!apk) {
+    downloadUpdateBtn.disabled = true;
+    downloadUpdateBtn.textContent = "暂无 APK";
+    return;
+  }
+  const local = localApkStatus(apk);
+  downloadUpdateBtn.disabled = false;
+  if (local?.ready) downloadUpdateBtn.textContent = "立即安装";
+  else if (local?.exists && Number(local.size) > 0) downloadUpdateBtn.textContent = "继续下载";
+  else downloadUpdateBtn.textContent = newer ? "下载更新" : "下载 APK";
+}
+
 async function checkForUpdates() {
   if (updateCheckBusy) {
     showStatus("正在检查更新，请稍候");
@@ -1873,16 +1906,15 @@ async function checkForUpdates() {
     const latest = release.version || "";
     const newer = compareAppVersions(latest, APP_VERSION) > 0;
     const apk = apkAssetFromRelease(release);
+    const local = localApkStatus(apk);
     if (updateStatus) {
-      updateStatus.textContent = newer
-        ? `发现新版本 ${latest}（当前 ${APP_VERSION}）`
-        : `已是最新版本 ${APP_VERSION}`;
+      if (newer && local?.ready) updateStatus.textContent = `发现新版本 ${latest}，已下载，可直接安装`;
+      else if (newer) updateStatus.textContent = `发现新版本 ${latest}（当前 ${APP_VERSION}）`;
+      else updateStatus.textContent = `已是最新版本 ${APP_VERSION}`;
     }
-    if (downloadUpdateBtn) {
-      downloadUpdateBtn.disabled = !apk;
-      downloadUpdateBtn.textContent = apk ? (newer ? "下载更新" : "重新下载 APK") : "暂无 APK";
-    }
-    showStatus(newer ? `发现新版本 ${latest}` : "已是最新版本", newer ? "info" : "success");
+    if (updateNetworkHint) updateNetworkHint.textContent = formatProxyHint(release);
+    refreshUpdateAction(apk, newer);
+    showStatus(newer ? (local?.ready ? "已下载，可直接安装" : `发现新版本 ${latest}`) : "已是最新版本", newer ? "info" : "success");
     if (myPanel.hidden) await openMyPanel("all");
   } catch (error) {
     if (updateStatus) updateStatus.textContent = error.message;
@@ -1909,7 +1941,11 @@ function startApkProgressPolling() {
         apkDownloadBusy = false;
         if (downloadUpdateBtn) downloadUpdateBtn.disabled = false;
         if (status.state === "error") showStatus(status.message || "下载失败", "error");
-        if (status.state === "done") showStatus("下载完成，请按提示安装", "success");
+        if (status.state === "done") {
+          showStatus(status.message || "下载完成，请按提示安装", "success");
+          const apk = apkAssetFromRelease(lastUpdateInfo);
+          refreshUpdateAction(apk, compareAppVersions(lastUpdateInfo?.version, APP_VERSION) > 0);
+        }
       }
     } catch {
       clearInterval(apkPollTimer);
@@ -1931,11 +1967,17 @@ async function downloadUpdate() {
     }
     apkDownloadBusy = true;
     downloadUpdateBtn.disabled = true;
-    const result = JSON.parse(window.AndroidUpdateApi.downloadAndInstall(apk.url, apk.name));
+    const result = JSON.parse(window.AndroidUpdateApi.downloadAndInstall(apk.url, apk.name, String(apk.size || 0)));
     if (result.error) {
       apkDownloadBusy = false;
       downloadUpdateBtn.disabled = false;
       showStatus(result.error, "error");
+      return;
+    }
+    if (result.reused) {
+      apkDownloadBusy = false;
+      refreshUpdateAction(apk, compareAppVersions(lastUpdateInfo?.version, APP_VERSION) > 0);
+      showStatus("已有安装包，正在打开安装", "success");
       return;
     }
     startApkProgressPolling();
@@ -2283,6 +2325,30 @@ if (window.matchMedia) {
 }
 checkUpdateBtn.addEventListener("click", checkForUpdates);
 downloadUpdateBtn.addEventListener("click", downloadUpdate);
+clearDownloadsBtn?.addEventListener("click", () => {
+  if (!window.AndroidUpdateApi && !window.AndroidBibleApi) {
+    showStatus("清除下载仅在 Android 版可用");
+    return;
+  }
+  let bytes = 0;
+  try {
+    if (window.AndroidUpdateApi && window.AndroidUpdateApi.clearDownloadCache) {
+      const result = JSON.parse(window.AndroidUpdateApi.clearDownloadCache());
+      bytes += Number(result.bytes || 0);
+    }
+    if (window.AndroidBibleApi && window.AndroidBibleApi.clearDownloadCache) {
+      const result = JSON.parse(window.AndroidBibleApi.clearDownloadCache());
+      bytes += Number(result.bytes || 0);
+    }
+  } catch (error) {
+    showStatus(error.message || "清除失败", "error");
+    return;
+  }
+  if (updateProgress) updateProgress.hidden = true;
+  const apk = apkAssetFromRelease(lastUpdateInfo);
+  refreshUpdateAction(apk, compareAppVersions(lastUpdateInfo?.version, APP_VERSION) > 0);
+  showStatus(bytes > 0 ? `已清除 ${(bytes / 1024 / 1024).toFixed(1)} MB 下载文件` : "没有可清除的下载", "success");
+});
 
 chapterTitleBtn.addEventListener("click", () => {
   if (!bookPickerPanel.hidden) {
