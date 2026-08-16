@@ -120,7 +120,7 @@ function mockFindSpokenBook(input) {
     const book = books.find((item) => item.longName === longName);
     if (book) aliases.set(alias, book);
   });
-  const value = spokenBooks.canonicalizeSpokenBooks(spokenBooks.normalizeTraditional(String(input || "").replace(/\s+/g, "")));
+  const value = spokenBooks.prepareSpokenText(String(input || "").replace(/\s+/g, ""));
   let best = null;
   for (const [alias, book] of [...aliases.entries()].sort((left, right) => right[0].length - left[0].length)) {
     const index = spokenBooks.spokenAliasIndex(value, alias);
@@ -145,6 +145,18 @@ assert(mockFindSpokenBook("腓力比") === "腓立比书", "Philippians homophon
 assert(mockFindSpokenBook("菲利门") === "腓利门书", "Philemon homophone failed");
 assert(mockFindSpokenBook("马泰福音") === "马太福音", "Matthew homophone failed");
 assert(mockFindSpokenBook("约书亚记") === "约书亚记", "Joshua must not collapse to John");
+assert(spokenBooks.stripBibleFiller("圣经诗篇") === "诗篇", "圣经 prefix must be stripped from 诗篇");
+assert(spokenBooks.stripBibleFiller("圣经箴言") === "箴言", "圣经 prefix must be stripped from 箴言");
+assert(spokenBooks.canonicalizeSpokenBooks("真言") === "箴言", "真言 must map to 箴言");
+assert(spokenBooks.normalizeChapterSpeech("最后一张") === "最后一章", "最后一张 must become 最后一章");
+assert(spokenBooks.normalizeChapterSpeech("倒数一张") === "倒数一章", "倒数一张 must become 倒数一章");
+assert(spokenBooks.normalizeChapterSpeech("到数第一章") === "倒数一章", "到数第一章 must become 倒数一章");
+assert(mockFindSpokenBook("圣经诗篇") === "诗篇", "圣经诗篇 must jump to Psalms");
+assert(mockFindSpokenBook("圣经真言") === "箴言", "圣经真言 must jump to Proverbs");
+assert(mockFindSpokenBook("真言") === "箴言", "真言 must jump to Proverbs");
+assert(appJs.includes("leftoverIsFiller"), "Spoken leftover filler guard missing");
+assert(appJs.includes("normalizeRelativeText"), "Relative chapter normalizer missing");
+assert(appJs.includes("模型超时，没有返回内容") || appJs.includes("waitVoiceIntent(60000)"), "Study chat timeout too short");
 assert(appJs.includes("function startVoiceInput"), "Voice hold-to-talk missing");
 assert(indexHtml.includes("id=\"voiceBtn\""), "Voice button missing");
 assert(appJs.includes("function loadChapter"), "Chapter loader missing");

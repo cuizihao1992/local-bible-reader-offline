@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.12.2";
+const APP_VERSION = "1.12.3";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -1066,7 +1066,9 @@ function normalizeVoiceText(input) {
     .replace(/篇/g, "章")
     .replace(/\u0000诗篇\u0000/g, "诗篇")
     .replace(/\s+/g, "");
-  if (typeof SpokenBooks !== "undefined") {
+  if (typeof SpokenBooks !== "undefined" && SpokenBooks.prepareSpokenText) {
+    value = SpokenBooks.prepareSpokenText(value);
+  } else if (typeof SpokenBooks !== "undefined") {
     if (SpokenBooks.normalizeTraditional) value = SpokenBooks.normalizeTraditional(value);
     if (SpokenBooks.canonicalizeSpokenBooks) value = SpokenBooks.canonicalizeSpokenBooks(value);
   }
@@ -1105,12 +1107,20 @@ function chapterFromEnd(book, fromEnd) {
   return clampSpokenRef(book, chapter, null, "chapter");
 }
 
+function normalizeRelativeText(text) {
+  let value = String(text || "").replace(/^的/, "").replace(/那(?=一?[卷本部长章节张帐])/g, "");
+  if (typeof SpokenBooks !== "undefined" && SpokenBooks.normalizeChapterSpeech) {
+    value = SpokenBooks.normalizeChapterSpeech(value);
+  }
+  return value.replace(/[了吧呀呢喔哦嘛嘞]/g, "");
+}
+
 function parseCountdown(text) {
-  const match = String(text || "").match(/^倒数([0-9零〇一二两三四五六七八九十百]+)(章|卷|节)?$/);
+  const match = String(text || "").match(/^倒数([0-9零〇一二两三四五六七八九十百]+)?(个)?(章|卷|节)?$/);
   if (!match) return null;
-  const n = chineseNumberToInt(match[1]);
+  const n = match[1] ? chineseNumberToInt(match[1]) : 1;
   if (!n || n < 1) return null;
-  return { n, unit: match[2] || "章" };
+  return { n, unit: match[3] || "章" };
 }
 
 function isNextBookTail(text) {
@@ -1121,8 +1131,13 @@ function isPrevBookTail(text) {
   return /^(上一|上一部|上一本|前面一?|前一)(卷|本|部)?书?$/.test(text);
 }
 
+function leftoverIsFiller(rest) {
+  const text = normalizeRelativeText(rest).replace(/^[里中的]/, "");
+  return !text;
+}
+
 function parseRelativeTail(rest, book) {
-  const text = String(rest || "").replace(/^的/, "").replace(/那(?=一?[卷本部])/g, "");
+  const text = normalizeRelativeText(rest);
   if (!text) return clampSpokenRef(book, 1, null, "book");
   if (/^(最后|末尾|结尾)一?(章|卷)?$/.test(text)) return clampSpokenRef(book, book.chapterCount, null, "chapter");
   const countdown = parseCountdown(text);
@@ -1161,7 +1176,7 @@ function parseSpokenCommand(input) {
   }
   if (/^(下一|后面一)章$/.test(value)) return { type: "moveChapter", delta: 1 };
   if (/^(上一|前面一)章$/.test(value)) return { type: "moveChapter", delta: -1 };
-  if (/^(最后|末尾)一?章$/.test(value)) {
+  if (/^(最后|末尾|结尾)一?章$/.test(value) || /^倒数(一)?章?$/.test(value)) {
     const book = currentBook();
     return book ? { type: "jump", ...clampSpokenRef(book, book.chapterCount, null, "chapter") } : null;
   }
@@ -1178,7 +1193,9 @@ function parseSpokenCommand(input) {
     if (relative) return { type: "jump", ...relative };
     const rest = parseChapterVerseToken(found.rest);
     if (rest) return { type: "jump", ...clampSpokenRef(found.book, rest.chapter, rest.verse, rest.verse ? "verse" : "chapter") };
-    if (!leftoverHasNumber(found.rest)) return { type: "jump", ...clampSpokenRef(found.book, 1, null, "book") };
+    if (!leftoverHasNumber(found.rest) && leftoverIsFiller(found.rest)) {
+      return { type: "jump", ...clampSpokenRef(found.book, 1, null, "book") };
+    }
   }
   const ref = parseSpokenReference(input);
   if (ref) return { type: "jump", ...ref };
@@ -1397,7 +1414,9 @@ function finishJob(token, message, tone = "success") {
 }
 
 function extractJsonObject(text) {
-  const raw = String(text || "");
+  let raw = String(text || "").trim();
+  if (!raw) return null;
+  raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
@@ -1484,7 +1503,7 @@ function voiceIntentPrompt(spoken) {
   ].join("\n");
 }
 
-function waitVoiceIntent(timeoutMs = 15000) {
+function waitVoiceIntent(timeoutMs = 60000) {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       if (voiceIntentWaiter) voiceIntentWaiter = null;
@@ -1511,10 +1530,12 @@ async function llmChat(messages) {
   const provider = getAiProvider();
   if (!provider.key) throw new Error("请先填写模型 Key");
   if (window.AndroidVoiceApi && window.AndroidVoiceApi.completeChatMessages) {
-    const pending = waitVoiceIntent();
+    const pending = waitVoiceIntent(60000);
     window.AndroidVoiceApi.completeChatMessages(provider.key, provider.model, provider.url, JSON.stringify(messages));
     const text = await pending;
-    if (text == null) throw new Error("模型没有返回内容");
+    if (text && typeof text === "object" && text.__error) throw new Error(text.__error);
+    if (text == null) throw new Error("模型超时，没有返回内容");
+    if (!String(text).trim()) throw new Error("模型返回了空内容");
     return text;
   }
   const headers = { "Content-Type": "application/json" };
@@ -1535,7 +1556,10 @@ async function llmChat(messages) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error?.message || payload.message || `理解失败 ${response.status}`);
-  return payload.choices?.[0]?.message?.content || "";
+  const message = payload.choices?.[0]?.message || {};
+  const content = String(message.content || message.reasoning_content || "").trim();
+  if (!content) throw new Error("模型返回了空内容");
+  return content;
 }
 
 async function mimoChatComplete(systemPrompt, userText) {
@@ -1546,11 +1570,11 @@ async function mimoChatComplete(systemPrompt, userText) {
 }
 
 const BIBLE_STUDY_SKILL_FALLBACK = `你是离线圣经阅读器里的查经助手。必须用工具从本机译本取经文，禁止编造章节。
-每轮只输出一个 JSON。
+每轮只输出一个 JSON，禁止空回复，禁止 Markdown。
 搜索：{"tool":"search","q":"葡萄","book":"约书亚记"} 或 {"tool":"search","q":"葡萄","scope":"all"}
 取经文：{"tool":"verse","book":"民数记","chapter":13,"verse":23} 或 {"tool":"chapter","book":"民数记","chapter":13}
 结束：{"done":true,"correction":"","answer":"","refs":[{"book":"民数记","chapter":13,"verse":23,"why":""}]}
-用户指错书卷必须纠正。约书亚记抬葡萄实际在民数记13:23。最多4次工具。`;
+还不知道章节时先 search，不要直接空 done。用户指错书卷必须纠正。约书亚记抬葡萄实际在民数记13:23。最多4次工具。`;
 
 let bibleStudySkillText = "";
 
@@ -1566,8 +1590,9 @@ async function loadBibleStudySkill() {
 
 function looksLikeStudyQuery(text) {
   const value = String(text || "").trim();
-  if (value.length < 5) return false;
-  return /帮我|搜一下|找一下|找找|哪(一)?(节|处|章|卷)|经文|抬|关于|故事|谁|在哪/.test(value);
+  if (value.length < 4) return false;
+  if (/帮我(打开|跳到|转到|去|读|听)/.test(value)) return false;
+  return /帮我搜|搜一下|找一下|找找|哪(一)?(节|处|章|卷)|这段经文|那节经文|经文(在|是|哪)|抬|关于.{0,12}(经文|故事)|故事|谁(是|做|曾)|在哪(里|一|卷|章|节)/.test(value);
 }
 
 async function runStudyTool(call) {
@@ -1659,7 +1684,7 @@ async function runBibleStudy(question, token = beginJob("正在查经...")) {
       if (!jobAlive(token)) return;
       const raw = await llmChat(messages);
       if (!jobAlive(token)) return;
-      const data = extractJsonObject(raw);
+      const data = extractJsonObject(raw) || (String(raw || "").trim() ? { done: true, correction: "", answer: String(raw).trim(), refs: [] } : null);
       if (!data) throw new Error("模型没有给出可用结果");
       if (data.done) {
         renderStudyResult(data);
@@ -1802,30 +1827,11 @@ function saveMimoSettings() {
   saveState();
 }
 
-async function handleVoiceText(text, token = jobToken) {
-  const spoken = String(text || "").trim();
-  if (!jobAlive(token)) return;
-  if (!spoken) {
-    finishJob(token, "没有听清，请再说一次", "info");
-    return;
-  }
-  showStatus(`已听清：${spoken}，正在处理...`);
-  if (looksLikeStudyQuery(spoken) && state.mimoKey) {
-    await runBibleStudy(spoken, token);
-    return;
-  }
-  let command = null;
-  if (state.smartVoice) {
-    showStatus(`已听清：${spoken}，正在用大模型理解...`);
-    command = await understandSpokenCommand(spoken);
-    if (!jobAlive(token)) return;
-  }
-  if (!command) command = parseSpokenCommand(spoken);
-  if (!jobAlive(token)) return;
-  if (command?.type === "search" && looksLikeStudyQuery(command.query) && state.mimoKey) {
-    await runBibleStudy(command.query, token);
-    return;
-  }
+function isDirectJumpCommand(command) {
+  return command && (command.type === "jump" || command.type === "moveBook" || command.type === "moveChapter");
+}
+
+async function applySpokenCommand(command, token, spoken) {
   if (!command) {
     finishJob(token, `已听清：${spoken}，没有对应口令`, "info");
     return;
@@ -1854,13 +1860,44 @@ async function handleVoiceText(text, token = jobToken) {
   }
 }
 
+async function handleVoiceText(text, token = jobToken) {
+  const spoken = String(text || "").trim();
+  if (!jobAlive(token)) return;
+  if (!spoken) {
+    finishJob(token, "没有听清，请再说一次", "info");
+    return;
+  }
+  showStatus(`已听清：${spoken}，正在处理...`);
+  let command = parseSpokenCommand(spoken);
+  if (isDirectJumpCommand(command)) {
+    await applySpokenCommand(command, token, spoken);
+    return;
+  }
+  if (looksLikeStudyQuery(spoken) && state.mimoKey) {
+    await runBibleStudy(spoken, token);
+    return;
+  }
+  if (state.smartVoice) {
+    showStatus(`已听清：${spoken}，正在用大模型理解...`);
+    const understood = await understandSpokenCommand(spoken);
+    if (!jobAlive(token)) return;
+    if (understood) command = understood;
+  }
+  if (!jobAlive(token)) return;
+  if (command?.type === "search" && looksLikeStudyQuery(command.query) && state.mimoKey) {
+    await runBibleStudy(command.query, token);
+    return;
+  }
+  await applySpokenCommand(command, token, spoken);
+}
+
 window.handleAndroidVoice = function handleAndroidVoice(type, text) {
   if (type === "intent") {
     if (voiceIntentWaiter) voiceIntentWaiter(text);
     return;
   }
   if (type === "intentError") {
-    if (voiceIntentWaiter) voiceIntentWaiter(null);
+    if (voiceIntentWaiter) voiceIntentWaiter({ __error: text || "模型调用失败" });
     return;
   }
   if (type === "start" || type === "ready" || type === "speech") {

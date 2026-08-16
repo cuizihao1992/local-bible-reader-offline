@@ -77,6 +77,17 @@
     玛拉吉书: "玛拉基书",
     玛拉吉: "玛拉基书",
     创世纪: "创世记",
+    真言: "箴言",
+    真言书: "箴言",
+    针言: "箴言",
+    针言书: "箴言",
+    诊言: "箴言",
+    贞言: "箴言",
+    箴言书: "箴言",
+    诗编: "诗篇",
+    诗遍: "诗篇",
+    诗盘: "诗篇",
+    诗篇书: "诗篇",
   };
 
   const TRADITIONAL_CHARS = [
@@ -158,11 +169,41 @@
     return names;
   }
 
+  function stripBibleFiller(text) {
+    return String(text || "")
+      .replace(/旧约圣经|新约圣经|圣经旧约|圣经新约/g, "")
+      .replace(/圣经/g, "")
+      .replace(/旧约(?=[\u4e00-\u9fff])/g, "")
+      .replace(/新约(?=[\u4e00-\u9fff])/g, "");
+  }
+
+  function normalizeChapterSpeech(text) {
+    return String(text || "")
+      .replace(/到数/g, "倒数")
+      .replace(/倒数第/g, "倒数")
+      .replace(/最后的/g, "最后")
+      .replace(/末尾的/g, "末尾")
+      .replace(/结尾的/g, "结尾")
+      .replace(/最末/g, "最后")
+      .replace(/([0-9零〇一二两三四五六七八九十百最后末尾结尾])[张帐]/g, "$1章")
+      .replace(/[了吧呀呢喔哦嘛嘞]+$/g, "");
+  }
+
+  function prepareSpokenText(text) {
+    let value = normalizeTraditional(String(text || ""));
+    value = stripBibleFiller(value);
+    value = normalizeChapterSpeech(value);
+    return canonicalizeSpokenBooks(value);
+  }
+
   root.SpokenBooks = {
     extras: BOOK_SPEECH_EXTRAS,
     normalizeTraditional,
     canonicalizeSpokenBooks,
     spokenAliasIndex,
     namesForBook,
+    stripBibleFiller,
+    normalizeChapterSpeech,
+    prepareSpokenText,
   };
 })(typeof globalThis !== "undefined" ? globalThis : this);

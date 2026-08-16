@@ -290,7 +290,7 @@ public class VoiceBridge {
                 .put("model", model == null || model.isEmpty() ? "mimo-v2.5" : model)
                 .put("temperature", 0)
                 .put("messages", messages);
-        HttpURLConnection connection = HttpSupport.open(activity, normalizeChatUrl(baseUrl, key), 20000, 45000);
+        HttpURLConnection connection = HttpSupport.open(activity, normalizeChatUrl(baseUrl, key), 20000, 60000);
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
         connection.setRequestProperty("Authorization", "Bearer " + key);
@@ -309,7 +309,24 @@ public class VoiceBridge {
             throw new RuntimeException(new String(responseBytes, StandardCharsets.UTF_8));
         }
         JSONObject response = new JSONObject(new String(responseBytes, StandardCharsets.UTF_8));
-        return response.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "");
+        return chatMessageContent(response);
+    }
+
+    private String chatMessageContent(JSONObject response) throws Exception {
+        JSONObject message = response.getJSONArray("choices").getJSONObject(0).getJSONObject("message");
+        String content = message.optString("content", "").trim();
+        if (!content.isEmpty() && !"null".equals(content)) return content;
+        content = message.optString("reasoning_content", "").trim();
+        if (!content.isEmpty()) return content;
+        JSONArray toolCalls = message.optJSONArray("tool_calls");
+        if (toolCalls != null && toolCalls.length() > 0) {
+            JSONObject fn = toolCalls.getJSONObject(0).optJSONObject("function");
+            if (fn != null) {
+                String arguments = fn.optString("arguments", "").trim();
+                if (!arguments.isEmpty()) return arguments;
+            }
+        }
+        return "";
     }
 
     private boolean isCodePlanKey(String key) {
@@ -348,11 +365,6 @@ public class VoiceBridge {
     }
 
     private String quote(String value) {
-        return "\"" + quoteValue(value) + "\"";
-    }
-
-    private String quoteValue(String value) {
-        String safe = value == null ? "" : value;
-        return safe.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
+        return JSONObject.quote(value == null ? "" : value);
     }
 }
