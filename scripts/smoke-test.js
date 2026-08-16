@@ -77,6 +77,8 @@ assert(appJs.includes('level: "book"'), "Spoken book-only jump missing");
 assert(appJs.includes("function setBookPickerStep"), "Book picker step view missing");
 assert(appJs.includes("篇"), "Psalm spoken chapter alias missing");
 assert(appJs.includes("mimo-v2.5-asr"), "MiMo ASR model missing");
+assert(appJs.includes("MIMO_CHAT_MODEL"), "MiMo chat model missing");
+assert(appJs.includes("function understandSpokenCommand"), "Spoken LLM understand missing");
 assert(appJs.includes("function startVoiceInput"), "Voice hold-to-talk missing");
 assert(indexHtml.includes("id=\"voiceBtn\""), "Voice button missing");
 assert(appJs.includes("function loadChapter"), "Chapter loader missing");

@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.9.2";
+const APP_VERSION = "1.10.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -1327,6 +1327,146 @@ function resetVoiceState() {
   setVoiceButtons("idle");
 }
 
+const MIMO_CHAT_MODEL = "mimo-v2.5";
+let voiceIntentWaiter = null;
+
+function extractJsonObject(text) {
+  const raw = String(text || "");
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+function resolveBookName(name) {
+  if (name == null || name === "") return null;
+  if (Number.isFinite(Number(name))) return state.books.find((item) => item.id === Number(name)) || null;
+  const raw = String(name).replace(/\s+/g, "");
+  const found = findSpokenBook(normalizeVoiceText(raw) || raw);
+  if (found?.book) return found.book;
+  return bookAliases().find(([alias]) => raw === alias || raw.endsWith(alias) || alias.endsWith(raw))?.[1] || null;
+}
+
+function resolveChapterSpec(book, chapter) {
+  if (!book) return 1;
+  if (chapter == null || chapter === "") return 1;
+  const spec = String(chapter).trim();
+  if (spec === "last" || spec === "end" || spec === "最后") return book.chapterCount;
+  if (spec === "first" || spec === "开头") return 1;
+  const lastN = spec.match(/^last-(\d+)$/i) || spec.match(/^倒数(\d+)$/);
+  if (lastN) return Math.max(1, book.chapterCount - Number(lastN[1]) + 1);
+  const n = Number(spec);
+  if (Number.isFinite(n) && n >= 1) return Math.min(n, book.chapterCount);
+  const parsed = chineseNumberToInt(spec);
+  if (Number.isFinite(parsed) && parsed >= 1) return Math.min(parsed, book.chapterCount);
+  return 1;
+}
+
+function resolveLlmCommand(raw) {
+  const data = raw && typeof raw === "object" ? raw : extractJsonObject(raw);
+  if (!data || typeof data !== "object") return null;
+  const type = String(data.type || "").trim();
+  if (type === "search") {
+    const query = String(data.query || "").trim();
+    return query ? { type: "search", query } : null;
+  }
+  if (type === "moveBook" || type === "moveChapter") {
+    const delta = Number(data.delta);
+    if (delta !== 1 && delta !== -1) return null;
+    return { type, delta };
+  }
+  if (type !== "jump") return null;
+  const book = resolveBookName(data.book) || (data.book == null || data.book === "" ? currentBook() : null);
+  if (!book) return null;
+  const chapter = resolveChapterSpec(book, data.chapter);
+  let verse = data.verse;
+  if (verse === "last" || verse === "最后") verse = "last";
+  else if (verse == null || verse === "") verse = null;
+  else {
+    const n = Number(verse);
+    verse = Number.isFinite(n) && n >= 1 ? n : null;
+  }
+  const level = verse ? "verse" : data.chapter == null || data.chapter === "" ? "book" : "chapter";
+  return { type: "jump", book: book.id, chapter, verse, level };
+}
+
+function voiceIntentPrompt(spoken) {
+  const book = currentBook();
+  return [
+    "你是圣经阅读器的口令解析器。只输出一个 JSON，不要解释，不要 Markdown。",
+    `用户当前在：${book.longName} 第 ${state.chapter} 章。`,
+    "书卷请用中文全名，例如 创世记、出埃及记、诗篇、约翰福音。",
+    "JSON 只能是以下之一：",
+    '{"type":"jump","book":"诗篇","chapter":"last-2","verse":null}',
+    '{"type":"jump","book":"出埃及记","chapter":1,"verse":null}',
+    '{"type":"jump","book":"约翰福音","chapter":3,"verse":16}',
+    '{"type":"moveBook","delta":1}',
+    '{"type":"moveChapter","delta":-1}',
+    '{"type":"search","query":"爱人如己"}',
+    "chapter 可用数字，或 first、last、last-2（倒数第二篇）。verse 可用数字或 last。",
+    "诗篇的倒数第二篇 → book=诗篇 chapter=last-2",
+    "创世纪的下一卷书 / 创世记下一本 → book=出埃及记 chapter=1",
+    "只说下一章 → moveChapter delta=1；只说上一卷 → moveBook delta=-1",
+    "无法判断跳转时用 search。",
+    `用户说：${spoken}`,
+  ].join("\n");
+}
+
+function waitVoiceIntent(timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (voiceIntentWaiter) voiceIntentWaiter = null;
+      resolve(null);
+    }, timeoutMs);
+    voiceIntentWaiter = (payload) => {
+      clearTimeout(timer);
+      voiceIntentWaiter = null;
+      resolve(payload);
+    };
+  });
+}
+
+async function mimoChatComplete(systemPrompt, userText) {
+  if (window.AndroidVoiceApi && window.AndroidVoiceApi.completeChat) {
+    const pending = waitVoiceIntent();
+    window.AndroidVoiceApi.completeChat(state.mimoKey, MIMO_CHAT_MODEL, normalizeMimoChatUrl(), systemPrompt, userText);
+    return pending;
+  }
+  const response = await fetch(normalizeMimoChatUrl(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.mimoKey}`,
+      "api-key": state.mimoKey,
+    },
+    body: JSON.stringify({
+      model: MIMO_CHAT_MODEL,
+      temperature: 0,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userText },
+      ],
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error?.message || payload.message || `理解失败 ${response.status}`);
+  return payload.choices?.[0]?.message?.content || "";
+}
+
+async function understandSpokenCommand(spoken) {
+  if (!state.mimoKey) return null;
+  try {
+    const content = await mimoChatComplete(voiceIntentPrompt(spoken), spoken);
+    return resolveLlmCommand(content);
+  } catch {
+    return null;
+  }
+}
+
 function saveMimoSettings() {
   if (mimoKeyInput) state.mimoKey = mimoKeyInput.value.trim();
   if (isCodePlanKey(state.mimoKey)) state.mimoKeyType = "codeplan";
@@ -1346,7 +1486,9 @@ async function handleVoiceText(text) {
     showStatus("没有听清，请再说一次");
     return;
   }
-  const command = parseSpokenCommand(spoken);
+  showStatus(`识别：${spoken}，正在理解口令...`);
+  let command = await understandSpokenCommand(spoken);
+  if (!command) command = parseSpokenCommand(spoken);
   if (!command) {
     showStatus(`识别：${spoken}`);
     return;
@@ -1375,6 +1517,14 @@ async function handleVoiceText(text) {
 }
 
 window.handleAndroidVoice = function handleAndroidVoice(type, text) {
+  if (type === "intent") {
+    if (voiceIntentWaiter) voiceIntentWaiter(text);
+    return;
+  }
+  if (type === "intentError") {
+    if (voiceIntentWaiter) voiceIntentWaiter(null);
+    return;
+  }
   if (type === "start" || type === "ready" || type === "speech") {
     voiceInputActive = true;
     if (type === "ready") setVoiceButtons("upload");

@@ -90,6 +90,23 @@ public class VoiceBridge {
     }
 
     @JavascriptInterface
+    public String completeChat(String key, String model, String baseUrl, String systemPrompt, String userText) {
+        final String safeKey = key == null ? "" : key.trim();
+        final String safeModel = model == null || model.trim().isEmpty() ? "mimo-v2.5" : model.trim();
+        final String safeBase = baseUrl;
+        final String sys = systemPrompt == null ? "" : systemPrompt;
+        final String user = userText == null ? "" : userText;
+        new Thread(() -> {
+            try {
+                emit("intent", requestMimoChat(safeKey, safeModel, safeBase, sys, user));
+            } catch (Throwable error) {
+                emit("intentError", message(error));
+            }
+        }, "mimo-chat").start();
+        return "{\"started\":true}";
+    }
+
+    @JavascriptInterface
     public String cancel() {
         activity.runOnUiThread(this::stopRecording);
         return "{\"ok\":true}";
@@ -240,6 +257,36 @@ public class VoiceBridge {
                         : "普通 Key 鉴权失败。请确认是 sk- 开头的按量 Key，不要填 Token Plan 地址。";
             }
             throw new RuntimeException(errorText);
+        }
+        JSONObject response = new JSONObject(new String(responseBytes, StandardCharsets.UTF_8));
+        return response.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "");
+    }
+
+    private String requestMimoChat(String key, String model, String baseUrl, String systemPrompt, String userText) throws Exception {
+        JSONArray messages = new JSONArray()
+                .put(new JSONObject().put("role", "system").put("content", systemPrompt))
+                .put(new JSONObject().put("role", "user").put("content", userText));
+        JSONObject body = new JSONObject()
+                .put("model", model == null || model.isEmpty() ? "mimo-v2.5" : model)
+                .put("temperature", 0)
+                .put("messages", messages);
+        HttpURLConnection connection = HttpSupport.open(activity, normalizeChatUrl(baseUrl, key), 20000, 45000);
+        connection.setRequestMethod("POST");
+        connection.setDoOutput(true);
+        connection.setRequestProperty("Authorization", "Bearer " + key);
+        connection.setRequestProperty("api-key", key);
+        connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+        byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
+        try (OutputStream output = connection.getOutputStream()) {
+            output.write(payload);
+        }
+        byte[] responseBytes;
+        int code = connection.getResponseCode();
+        if (code >= 200 && code < 300) {
+            responseBytes = readAll(connection.getInputStream());
+        } else {
+            responseBytes = readAll(connection.getErrorStream());
+            throw new RuntimeException(new String(responseBytes, StandardCharsets.UTF_8));
         }
         JSONObject response = new JSONObject(new String(responseBytes, StandardCharsets.UTF_8));
         return response.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "");
