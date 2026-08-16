@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.9.1";
+const APP_VERSION = "1.9.2";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -1024,9 +1024,11 @@ function normalizeVoiceText(input) {
     .replace(/[:：]/g, ":")
     .replace(/([0-9零〇一二两三四五六七八九十百])比([0-9零〇一二两三四五六七八九十百])/g, "$1:$2")
     .replace(/请你?|帮我|我想要?|听一下|跳转到|跳到|转到|打开|请读|读到|读一下|来读|来听|看看?|阅读|进入|播放|经文|谢谢|啊|嗯|那个/g, "")
-    .replace(/的(?=最后|最前|第一|下一|上一|后面|前面)/g, "")
+    .replace(/的(?=最后|倒数|最前|第一|下一|上一|后面|前面|之后)/g, "")
+    .replace(/诗篇/g, "\u0000诗篇\u0000")
     .replace(/第/g, "")
     .replace(/篇/g, "章")
+    .replace(/\u0000诗篇\u0000/g, "诗篇")
     .replace(/\s+/g, "");
 }
 
@@ -1056,16 +1058,40 @@ function neighborBook(book, delta) {
   return index < 0 ? null : list[index + delta] || null;
 }
 
+function chapterFromEnd(book, fromEnd) {
+  const chapter = (book.chapterCount || 1) - fromEnd + 1;
+  if (chapter < 1) return null;
+  return clampSpokenRef(book, chapter, null, "chapter");
+}
+
+function parseCountdown(text) {
+  const match = String(text || "").match(/^倒数([0-9零〇一二两三四五六七八九十百]+)(章|卷|节)?$/);
+  if (!match) return null;
+  const n = chineseNumberToInt(match[1]);
+  if (!n || n < 1) return null;
+  return { n, unit: match[2] || "章" };
+}
+
+function isNextBookTail(text) {
+  return /^(下一|下一部|下一本|后面一?|后一|之后一?)(卷|本|部)?书?$/.test(text);
+}
+
+function isPrevBookTail(text) {
+  return /^(上一|上一部|上一本|前面一?|前一)(卷|本|部)?书?$/.test(text);
+}
+
 function parseRelativeTail(rest, book) {
-  const text = String(rest || "").replace(/^的/, "");
+  const text = String(rest || "").replace(/^的/, "").replace(/那(?=一?[卷本部])/g, "");
   if (!text) return clampSpokenRef(book, 1, null, "book");
   if (/^(最后|末尾|结尾)一?(章|卷)?$/.test(text)) return clampSpokenRef(book, book.chapterCount, null, "chapter");
+  const countdown = parseCountdown(text);
+  if (countdown && countdown.unit !== "节") return chapterFromEnd(book, countdown.n);
   if (/^(开头|最前|第一?)(章|卷)?$/.test(text)) return clampSpokenRef(book, 1, null, "chapter");
-  if (/^(下一|后面一|后一)卷书?$/.test(text)) {
+  if (isNextBookTail(text)) {
     const next = neighborBook(book, 1);
     return next ? clampSpokenRef(next, 1, null, "book") : null;
   }
-  if (/^(上一|前面一|前一)卷书?$/.test(text)) {
+  if (isPrevBookTail(text)) {
     const prev = neighborBook(book, -1);
     return prev ? clampSpokenRef(prev, 1, null, "book") : null;
   }
@@ -1085,8 +1111,13 @@ function parseSpokenCommand(input) {
   if (searchHit) return { type: "search", query: searchHit[1] };
   const value = normalizeVoiceText(input);
   if (!value) return null;
-  if (/^(下一|后面一|后一)卷书?$/.test(value)) return { type: "moveBook", delta: 1 };
-  if (/^(上一|前面一|前一)卷书?$/.test(value)) return { type: "moveBook", delta: -1 };
+  if (isNextBookTail(value)) return { type: "moveBook", delta: 1 };
+  if (isPrevBookTail(value)) return { type: "moveBook", delta: -1 };
+  if (/^倒数([0-9零〇一二两三四五六七八九十百]+)(章|卷)?$/.test(value)) {
+    const book = currentBook();
+    const countdown = parseCountdown(value);
+    return book && countdown ? { type: "jump", ...chapterFromEnd(book, countdown.n) } : null;
+  }
   if (/^(下一|后面一)章$/.test(value)) return { type: "moveChapter", delta: 1 };
   if (/^(上一|前面一)章$/.test(value)) return { type: "moveChapter", delta: -1 };
   if (/^(最后|末尾)一?章$/.test(value)) {

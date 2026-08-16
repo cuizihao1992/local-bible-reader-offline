@@ -69,6 +69,8 @@ assert(indexHtml.includes("本地圣经"), "Index title missing");
 assert(indexHtml.includes("id=\"fuzzySearchToggle\""), "Fuzzy search toggle missing");
 assert(appJs.includes("function parseReference"), "Reference parser missing");
 assert(appJs.includes("function parseSpokenCommand"), "Spoken command parser missing");
+assert(appJs.includes("function parseCountdown"), "Spoken countdown chapter parser missing");
+assert(appJs.includes("isNextBookTail"), "Spoken next-book parser missing");
 assert(appJs.includes("function parseSpokenReference"), "Spoken reference parser missing");
 assert(appJs.includes("function parseChapterVerseToken"), "Spoken chapter/verse tokenizer missing");
 assert(appJs.includes('level: "book"'), "Spoken book-only jump missing");
