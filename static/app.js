@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.7.1";
+const APP_VERSION = "1.7.2";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -878,9 +878,88 @@ function moveChapter(delta) {
 function bookAliases() {
   const aliases = new Map();
   state.books.forEach((book) => {
-    [book.shortName, book.longName, book.longName?.replace(/记$/, ""), book.longName?.replace(/书$/, "")].forEach((name) => {
+    [book.shortName, book.longName, book.longName?.replace(/记$/, ""), book.longName?.replace(/书$/, ""), book.longName?.replace(/福音$/, "")].forEach((name) => {
       if (name) aliases.set(name, book);
     });
+  });
+  const extras = {
+    创世: "创世记",
+    创世纪: "创世记",
+    出埃及: "出埃及记",
+    利未: "利未记",
+    民数: "民数记",
+    申命: "申命记",
+    约书亚: "约书亚记",
+    士师: "士师记",
+    路得: "路得记",
+    撒母耳上: "撒母耳记上",
+    撒母耳下: "撒母耳记下",
+    列王上: "列王纪上",
+    列王下: "列王纪下",
+    历代上: "历代志上",
+    历代下: "历代志下",
+    以斯拉: "以斯拉记",
+    尼希米: "尼希米记",
+    以斯帖: "以斯帖记",
+    约伯: "约伯记",
+    诗: "诗篇",
+    传道: "传道书",
+    以赛亚: "以赛亚书",
+    耶利米哀歌: "耶利米哀歌",
+    耶利米: "耶利米书",
+    以西结: "以西结书",
+    但以理: "但以理书",
+    何西阿: "何西阿书",
+    约珥: "约珥书",
+    阿摩司: "阿摩司书",
+    俄巴底亚: "俄巴底亚书",
+    约拿: "约拿书",
+    弥迦: "弥迦书",
+    那鸿: "那鸿书",
+    哈巴谷: "哈巴谷书",
+    西番雅: "西番雅书",
+    哈该: "哈该书",
+    撒迦利亚: "撒迦利亚书",
+    玛拉基: "玛拉基书",
+    马太: "马太福音",
+    马可: "马可福音",
+    路加: "路加福音",
+    使徒: "使徒行传",
+    罗马: "罗马书",
+    哥林多前: "哥林多前书",
+    哥林多后: "哥林多后书",
+    加拉太: "加拉太书",
+    以弗所: "以弗所书",
+    腓立比: "腓立比书",
+    歌罗西: "歌罗西书",
+    帖撒罗尼迦前: "帖撒罗尼迦前书",
+    帖撒罗尼迦后: "帖撒罗尼迦后书",
+    提摩太前: "提摩太前书",
+    提摩太后: "提摩太后书",
+    提多: "提多书",
+    腓利门: "腓利门书",
+    希伯来: "希伯来书",
+    雅各: "雅各书",
+    彼得前: "彼得前书",
+    彼得后: "彼得后书",
+    约翰一书: "约翰一书",
+    约翰二书: "约翰二书",
+    约翰三书: "约翰三书",
+    约翰一: "约翰一书",
+    约翰二: "约翰二书",
+    约翰三: "约翰三书",
+    约翰壹: "约翰一书",
+    约翰贰: "约翰二书",
+    约翰叁: "约翰三书",
+    约翰福音: "约翰福音",
+    约翰: "约翰福音",
+    犹大: "犹大书",
+    启示: "启示录",
+    默示录: "启示录",
+  };
+  Object.entries(extras).forEach(([alias, longName]) => {
+    const book = state.books.find((item) => item.longName === longName);
+    if (book && alias) aliases.set(alias, book);
   });
   return [...aliases.entries()].sort((a, b) => b[0].length - a[0].length);
 }
@@ -901,18 +980,25 @@ function parseReference(input) {
 
 function normalizeVoiceText(input) {
   return String(input || "")
-    .replace(/[，。？！,.?!]/g, "")
-    .replace(/跳转到|转到|打开|查找|请读|读到|经文/g, "")
+    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 65248))
+    .replace(/[“”‘’「」『』]/g, "")
+    .replace(/[，。？！,.?!、…~～]/g, "")
+    .replace(/[:：]/g, ":")
+    .replace(/([0-9零〇一二两三四五六七八九十百])比([0-9零〇一二两三四五六七八九十百])/g, "$1:$2")
+    .replace(/请你?|帮我|我想要?|听一下|跳转到|转到|打开|查找|请读|读到|读一下|来读|播放|经文|谢谢|啊|嗯|那个/g, "")
     .replace(/第/g, "")
+    .replace(/篇/g, "章")
     .replace(/\s+/g, "");
 }
 
 function chineseNumberToInt(input) {
   const raw = String(input || "");
+  if (!raw) return NaN;
   if (/^\d+$/.test(raw)) return Number(raw);
   const digits = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
   if (!/[十百]/.test(raw)) {
-    return raw.split("").reduce((value, char) => value * 10 + (digits[char] ?? 0), 0);
+    if (![...raw].every((char) => Object.prototype.hasOwnProperty.call(digits, char))) return NaN;
+    return raw.split("").reduce((value, char) => value * 10 + digits[char], 0);
   }
   let total = 0;
   let current = 0;
@@ -930,20 +1016,54 @@ function chineseNumberToInt(input) {
   return total + current;
 }
 
+function parseChapterVerseToken(text) {
+  const value = String(text || "");
+  const number = "([0-9零〇一二两三四五六七八九十百]+)";
+  const patterns = [
+    new RegExp(`${number}章(?:到|至|-|—)?${number}节`),
+    new RegExp(`${number}[:/\\.．]${number}`),
+    new RegExp(`${number}章${number}`),
+    new RegExp(`${number}章`),
+  ];
+  for (const pattern of patterns) {
+    const match = value.match(pattern);
+    if (!match) continue;
+    const chapter = chineseNumberToInt(match[1]);
+    const verse = match[2] ? chineseNumberToInt(match[2]) : null;
+    if (chapter >= 1) return { chapter, verse: verse >= 1 ? verse : null };
+  }
+  const only = value.match(new RegExp(`^${number}$`));
+  if (only) {
+    const chapter = chineseNumberToInt(only[1]);
+    if (chapter >= 1) return { chapter, verse: null };
+  }
+  return null;
+}
+
+function clampSpokenRef(book, chapter, verse) {
+  if (!book || !Number.isFinite(chapter) || chapter < 1) return null;
+  const safeChapter = Math.min(chapter, book.chapterCount || chapter);
+  const safeVerse = Number.isFinite(verse) && verse >= 1 ? verse : null;
+  return { book: book.id, chapter: safeChapter, verse: safeVerse };
+}
+
 function parseSpokenReference(input) {
   const value = normalizeVoiceText(input);
   if (!value) return null;
-  const numberPattern = "([0-9零〇一二两三四五六七八九十百]+)";
-  const match = value.match(new RegExp(`^(.+?)${numberPattern}章(?:${numberPattern}节?)?$`));
-  if (!match) return parseReference(value);
-  const rawBook = match[1];
-  const found = bookAliases().find(([alias, book]) => rawBook === alias || rawBook.endsWith(alias) || book.longName === rawBook);
-  if (!found) return null;
-  return {
-    book: found[1].id,
-    chapter: chineseNumberToInt(match[2]),
-    verse: match[3] ? chineseNumberToInt(match[3]) : null,
-  };
+  const aliases = bookAliases();
+  let best = null;
+  for (const [alias, book] of aliases) {
+    const index = value.indexOf(alias);
+    if (index < 0) continue;
+    if (best && (index > best.index || (index === best.index && alias.length <= best.alias.length))) continue;
+    const rest = parseChapterVerseToken(value.slice(index + alias.length));
+    if (!rest) continue;
+    best = { index, alias, book, ...rest };
+  }
+  if (best) return clampSpokenRef(best.book, best.chapter, best.verse);
+  const currentOnly = parseChapterVerseToken(value);
+  if (currentOnly) return clampSpokenRef(currentBook(), currentOnly.chapter, currentOnly.verse);
+  return parseReference(value);
 }
 
 async function jumpToReference(ref) {
@@ -1032,12 +1152,15 @@ async function handleVoiceText(text) {
     showStatus("没有听清，请再说一次");
     return;
   }
-  showStatus(`识别：${spoken}`);
   const ref = parseSpokenReference(spoken);
   if (ref) {
+    const book = state.books.find((item) => item.id === ref.book) || currentBook();
+    const formatted = `${book.longName} ${ref.chapter}${ref.verse ? `:${ref.verse}` : ""}`;
+    showStatus(`识别：${spoken} → ${formatted}`);
     await jumpToReference(ref);
     return;
   }
+  showStatus(`识别：${spoken}`);
   if (quickInput) quickInput.value = spoken;
   toggleSearch(true);
   await runSearch(spoken);
