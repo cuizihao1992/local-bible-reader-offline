@@ -501,6 +501,14 @@ select, input[type="search"], input[type="text"] {
 .notePreview { background: transparent; border-left: 2px solid var(--accent-2); border-radius: 0; }
 .noteTags { color: var(--accent-2); font-size: 12px; font-weight: 600; }
 .noteText { white-space: pre-wrap; font-size: 14px; line-height: 1.7; }
+.aiSheetContent {
+  min-height: 80px;
+  margin-bottom: 12px;
+  white-space: pre-wrap;
+  font-size: 15px;
+  line-height: 1.85;
+  font-family: var(--read-font);
+}
 
 .commentaryContent { display: none; }
 .commentaryBlock { margin-top: 18px; background: var(--panel); border-top: 1px solid var(--line); }

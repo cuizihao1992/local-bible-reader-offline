@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.10.0";
+const APP_VERSION = "1.11.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -27,6 +27,7 @@ const state = {
   mimoKey: "",
   mimoKeyType: "standard",
   mimoBaseUrl: "https://api.xiaomimimo.com/v1",
+  smartVoice: false,
   book: 1,
   chapter: 1,
   targetVerse: null,
@@ -170,6 +171,14 @@ const voiceBtnDesktop = $("#voiceBtnDesktop");
 const mimoKeyInput = $("#mimoKeyInput");
 const mimoKeyTypeSelect = $("#mimoKeyTypeSelect");
 const mimoBaseUrlInput = $("#mimoBaseUrlInput");
+const smartVoiceToggle = $("#smartVoiceToggle");
+const aiSheet = $("#aiSheet");
+const aiSheetTitle = $("#aiSheetTitle");
+const aiSheetContent = $("#aiSheetContent");
+const aiAskForm = $("#aiAskForm");
+const aiAskInput = $("#aiAskInput");
+const closeAiSheetBtn = $("#closeAiSheetBtn");
+const aiActionRow = $("#aiActionRow");
 const readerEl = document.querySelector("main.reader");
 const prevEdge = $("#prevEdge");
 const nextEdge = $("#nextEdge");
@@ -289,6 +298,7 @@ function restoreState() {
       mimoKey: saved.mimoKey || "",
       mimoKeyType: saved.mimoKeyType === "codeplan" || String(saved.mimoKey || "").trim().toLowerCase().startsWith("tp-") ? "codeplan" : "standard",
       mimoBaseUrl: saved.mimoBaseUrl || "https://token-plan-cn.xiaomimimo.com/v1",
+      smartVoice: !!saved.smartVoice,
       book: Number(saved.book) || 1,
       chapter: Number(saved.chapter) || 1,
       recentBooks: Array.isArray(saved.recentBooks) ? saved.recentBooks.slice(0, 8) : [],
@@ -316,6 +326,7 @@ function saveState() {
       mimoKey: state.mimoKey,
       mimoKeyType: state.mimoKeyType,
       mimoBaseUrl: state.mimoBaseUrl,
+      smartVoice: !!state.smartVoice,
       book: state.book,
       chapter: state.chapter,
       recentBooks: state.recentBooks,
@@ -393,6 +404,7 @@ function closeContentPanels() {
   if (commentarySheet) commentarySheet.hidden = true;
   if (shareSheet) shareSheet.hidden = true;
   if (noteSheet) noteSheet.hidden = true;
+  if (aiSheet) aiSheet.hidden = true;
   if (highlightColors) highlightColors.hidden = true;
   closeVerseMenu();
   closeSelectionBar();
@@ -1294,6 +1306,7 @@ function syncMimoSettingsFields() {
     mimoBaseUrlInput.value = state.mimoBaseUrl || "https://token-plan-cn.xiaomimimo.com/v1";
     mimoBaseUrlInput.disabled = state.mimoKeyType !== "codeplan";
   }
+  if (smartVoiceToggle) smartVoiceToggle.checked = !!state.smartVoice;
 }
 
 function normalizeMimoChatUrl(value = state.mimoBaseUrl) {
@@ -1467,6 +1480,96 @@ async function understandSpokenCommand(spoken) {
   }
 }
 
+function requireMimoKey() {
+  saveMimoSettings();
+  if (state.mimoKey) return true;
+  openSidebar();
+  showStatus("请先在设置里填写小米 MiMo Key");
+  return false;
+}
+
+function aiVerseNumbers(verseNo) {
+  if (selectedVerseNumbers.length) return selectedVerseNumbers;
+  if (verseNo) return [Number(verseNo)];
+  if (state.activeVerse) return [state.activeVerse];
+  return [];
+}
+
+function aiContext(verseNo) {
+  const verses = aiVerseNumbers(verseNo);
+  const book = currentBook();
+  const ref =
+    verses.length > 1
+      ? `${book.longName} ${state.chapter}:${verses[0]}-${verses[verses.length - 1]}`
+      : verses.length === 1
+        ? `${book.longName} ${state.chapter}:${verses[0]}`
+        : `${book.longName} ${state.chapter}章`;
+  const verseText = verses.map((n) => `${n}. ${verseTextForNumber(n)}`).filter((line) => !line.endsWith(". ")).join("\n");
+  return {
+    ref,
+    version: versionLabel(state.version),
+    verseText: verseText || "（未选中经文）",
+    chapterText: chapterPlainText().slice(0, 1800),
+    note: verses[0] ? markForVerse(verses[0]).note || "" : "",
+  };
+}
+
+function openAiSheet(title, verseNo, focusAsk = false) {
+  closeContentPanels();
+  if (verseNo) state.activeVerse = Number(verseNo);
+  aiSheet.hidden = false;
+  if (aiSheetTitle) aiSheetTitle.textContent = title || "小米助手";
+  if (focusAsk) {
+    aiAskInput?.focus();
+    if (aiSheetContent && !aiSheetContent.textContent) aiSheetContent.textContent = "写下问题后点提问。也可以先点讲解或摘要。";
+  }
+}
+
+async function runAiTask(kind, verseNo, question = "") {
+  if (!requireMimoKey()) return;
+  const ctx = aiContext(verseNo);
+  openAiSheet(kind === "summary" ? "本章摘要" : kind === "polish" ? "润色笔记" : kind === "ask" ? "提问" : "讲解本节", verseNo);
+  if (kind === "polish" && !ctx.note) {
+    aiSheetContent.textContent = "这一节还没有笔记。先写笔记再润色。";
+    return;
+  }
+  aiSheetContent.textContent = "正在生成...";
+  const prompts = {
+    explain: [
+      "你是简明的圣经助读。用中文解释经文，150-250字。先说大意，再补一两处背景或应用。不要列大纲，不要客套。",
+      `译本：${ctx.version}\n经文：${ctx.ref}\n${ctx.verseText}`,
+    ],
+    summary: [
+      "你是简明的圣经助读。用中文概括本章，120-200字。抓住主线，不要逐节复述，不要客套。",
+      `译本：${ctx.version}\n章节：${currentBook().longName} ${state.chapter}章\n${ctx.chapterText}`,
+    ],
+    polish: [
+      "你是笔记编辑。把用户笔记整理成通顺的中文，保留原意，不超过原文的1.3倍。只输出润色后的笔记。",
+      `经文：${ctx.ref}\n${ctx.verseText}\n原笔记：${ctx.note}`,
+    ],
+    ask: [
+      "你是简明的圣经助读。根据经文回答用户问题，用中文，尽量不超过220字。没有把握就直说。不要客套。",
+      `译本：${ctx.version}\n经文：${ctx.ref}\n${ctx.verseText}\n本章摘录：${ctx.chapterText.slice(0, 800)}\n问题：${question}`,
+    ],
+  };
+  const pair = prompts[kind] || prompts.explain;
+  try {
+    const text = String((await mimoChatComplete(pair[0], pair[1])) || "").trim();
+    if (!text) throw new Error("没有生成内容");
+    aiSheetContent.textContent = text;
+    if (kind === "polish") {
+      const verses = aiVerseNumbers(verseNo);
+      if (verses[0]) {
+        const mark = markForVerse(verses[0]);
+        await saveVerseMark({ ...mark, note: text }, { successMessage: "已写入润色后的笔记" });
+      }
+    }
+  } catch (error) {
+    aiSheetContent.textContent = error.message || "生成失败";
+    showStatus(error.message || "生成失败", "error");
+  }
+}
+
 function saveMimoSettings() {
   if (mimoKeyInput) state.mimoKey = mimoKeyInput.value.trim();
   if (isCodePlanKey(state.mimoKey)) state.mimoKeyType = "codeplan";
@@ -1476,6 +1579,7 @@ function saveMimoSettings() {
     state.mimoBaseUrl = mimoBaseUrlInput.value.trim() || "https://token-plan-cn.xiaomimimo.com/v1";
   }
   if (state.mimoKeyType !== "codeplan") state.mimoBaseUrl = "https://token-plan-cn.xiaomimimo.com/v1";
+  if (smartVoiceToggle) state.smartVoice = !!smartVoiceToggle.checked;
   syncMimoSettingsFields();
   saveState();
 }
@@ -1486,8 +1590,12 @@ async function handleVoiceText(text) {
     showStatus("没有听清，请再说一次");
     return;
   }
-  showStatus(`识别：${spoken}，正在理解口令...`);
-  let command = await understandSpokenCommand(spoken);
+  showStatus(`识别：${spoken}`);
+  let command = null;
+  if (state.smartVoice) {
+    showStatus(`识别：${spoken}，正在理解口令...`);
+    command = await understandSpokenCommand(spoken);
+  }
   if (!command) command = parseSpokenCommand(spoken);
   if (!command) {
     showStatus(`识别：${spoken}`);
@@ -2106,6 +2214,14 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     await showCommentarySheet(verseNo);
     return;
   }
+  if (action === "explain") {
+    await runAiTask("explain", verseNo);
+    return;
+  }
+  if (action === "ask") {
+    openAiSheet("提问", verseNo, true);
+    return;
+  }
   if (action === "share") {
     await openShareSheet(selectedVerseNumbers.length ? selectedVerseNumbers : [verseNo]);
     return;
@@ -2572,6 +2688,7 @@ function hasBlockingOverlayOpen() {
     (commentarySheet && !commentarySheet.hidden) ||
     (shareSheet && !shareSheet.hidden) ||
     (noteSheet && !noteSheet.hidden) ||
+    (aiSheet && !aiSheet.hidden) ||
     !verseMenu.hidden ||
     !selectionBar.hidden
   );
@@ -2588,7 +2705,7 @@ function handleBackIntent() {
     keepReadingChromeVisible();
     return true;
   }
-  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden) || (commentarySheet && !commentarySheet.hidden) || (shareSheet && !shareSheet.hidden) || (noteSheet && !noteSheet.hidden)) {
+  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden) || (commentarySheet && !commentarySheet.hidden) || (shareSheet && !shareSheet.hidden) || (noteSheet && !noteSheet.hidden) || (aiSheet && !aiSheet.hidden)) {
     closeTopPanels();
     keepReadingChromeVisible();
     return true;
@@ -3125,6 +3242,22 @@ closeCompareSheetBtn.addEventListener("click", dismissSheet);
 closeCommentarySheetBtn?.addEventListener("click", dismissSheet);
 closeShareSheetBtn?.addEventListener("click", dismissSheet);
 closeNoteSheetBtn?.addEventListener("click", dismissSheet);
+closeAiSheetBtn?.addEventListener("click", dismissSheet);
+smartVoiceToggle?.addEventListener("change", saveMimoSettings);
+aiActionRow?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-ai-action]");
+  if (!button) return;
+  runAiTask(button.dataset.aiAction, state.activeVerse);
+});
+aiAskForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const question = aiAskInput?.value.trim();
+  if (!question) {
+    showStatus("请先输入问题");
+    return;
+  }
+  runAiTask("ask", state.activeVerse, question);
+});
 saveNoteSheetBtn?.addEventListener("click", saveNoteSheet);
 recentSearchesEl?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-recent-search]");

@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.10</p>
+            <p>设置 · 1.11</p>
           </div>
         </div>
       </div>
@@ -38,7 +38,7 @@
         <div id="dictionaryHint" class="panelHint"></div>
       </div>
       <div class="settingsPanel">
-        <div class="panelTitle">口令（跳转 / 搜索）</div>
+        <div class="panelTitle">小米智能</div>
         <label class="field compactField">
           <span>MiMo Key</span>
           <input id="mimoKeyInput" type="password" autocomplete="off" placeholder="sk- 普通 Key 或 tp- Code Plan" />
@@ -54,7 +54,11 @@
           <span>Code Plan Base URL</span>
           <input id="mimoBaseUrlInput" type="url" placeholder="https://token-plan-cn.xiaomimimo.com/v1" />
         </label>
-        <div class="panelHint">按住「口令」说话。先用 mimo-v2.5-asr 听写，再用同一把 Key 调用 mimo-v2.5 理解跳转或搜索，不必说固定句式。</div>
+        <label class="toggleField">
+          <input id="smartVoiceToggle" type="checkbox" />
+          <span>智能口令（大模型理解，稍慢）</span>
+        </label>
+        <div class="panelHint">默认口令本地秒跳。打开智能口令后，听写再用 mimo-v2.5 理解。长按经文可用：讲解、摘要、提问、润色笔记。</div>
       </div>
       <div class="settingsPanel">
         <div class="panelTitle">本地诊断</div>
@@ -277,6 +281,23 @@
         </div>
       </section>
 
+      <section id="aiSheet" class="sheetPanel panel" hidden>
+        <div class="panelHeader">
+          <div id="aiSheetTitle">小米助手</div>
+          <button id="closeAiSheetBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div id="aiActionRow" class="chipRow">
+          <button type="button" data-ai-action="explain">讲解本节</button>
+          <button type="button" data-ai-action="summary">本章摘要</button>
+          <button type="button" data-ai-action="polish">润色笔记</button>
+        </div>
+        <div id="aiSheetContent" class="aiSheetContent"></div>
+        <form id="aiAskForm" class="sheetSearchForm">
+          <input id="aiAskInput" type="search" placeholder="问这节或这章" autocomplete="off" />
+          <button type="submit">提问</button>
+        </form>
+      </section>
+
       <section id="statusPanel" class="statusPanel" role="status" aria-live="polite" hidden></section>
 
       <section id="myPanel" class="sheetPanel panel" hidden>
@@ -306,7 +327,7 @@
         </div>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.10.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.11.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -344,6 +365,8 @@
       <button type="button" data-menu-action="copy">复制</button>
       <button type="button" data-menu-action="compare">对照</button>
       <button type="button" data-menu-action="commentary">注释</button>
+      <button type="button" data-menu-action="explain">讲解</button>
+      <button type="button" data-menu-action="ask">提问</button>
       <button type="button" data-menu-action="share">分享</button>
       <button type="button" data-menu-action="dictionary">查词</button>
       <button type="button" data-menu-action="multi">多选</button>
@@ -365,6 +388,7 @@
         <button type="button" data-bar-action="copy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="1.5"/><path d="M5 16V5h10"/></svg>复制</button>
         <button type="button" data-bar-action="compare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7H5v10h3M16 7h3v10h-3M10 12h4"/></svg>对照</button>
         <button type="button" data-bar-action="commentary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12v9H9l-3 3z"/></svg>注释</button>
+        <button type="button" data-bar-action="explain"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16h.01"/></svg>讲解</button>
         <button type="button" data-bar-action="share"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="12" r="2"/><circle cx="17" cy="7" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 11l6-3M9 13l6 3"/></svg>分享</button>
         <button type="button" data-bar-action="multi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h11M8 12h11M8 17h11M5 7h.01M5 12h.01M5 17h.01"/></svg>多选</button>
         <button id="cancelSelectionBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>取消</button>
