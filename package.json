@@ -1,0 +1,47 @@
+{
+  "name": "bible-reader",
+  "version": "1.0.0",
+  "description": "本地圣经阅读器（对照原 bible_reader_app 重写）",
+  "author": "Local",
+  "private": true,
+  "type": "module",
+  "main": "desktop/electron-main.cjs",
+  "scripts": {
+    "check": "node --check server.js && node --check static/app.js && node --check desktop/electron-main.cjs",
+    "desktop": "electron .",
+    "dist:android": "powershell -ExecutionPolicy Bypass -File scripts/build-android.ps1",
+    "dist:android:debug": "powershell -ExecutionPolicy Bypass -File scripts/build-android.ps1 -BuildType debug",
+    "dist:win": "electron-builder --win portable",
+    "start": "node --no-warnings server.js",
+    "test": "node --no-warnings scripts/smoke-test.js"
+  },
+  "devDependencies": {
+    "@babel/cli": "^8.0.4",
+    "@babel/core": "^8.0.1",
+    "@babel/preset-env": "^8.0.2",
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "local.bible.reader.next",
+    "productName": "本地圣经",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**/*",
+      "lib/**/*",
+      "static/**/*",
+      "scripts/**/*",
+      "server.js",
+      "package.json",
+      "README.md"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    }
+  }
+}

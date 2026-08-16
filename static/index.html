@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>本地圣经</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="sidebarHeader">
+        <div class="brand">
+          <div class="mark">读</div>
+          <div>
+            <h1>本地圣经</h1>
+            <p>离线阅读 · 1.0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebarTabs" role="tablist" aria-label="菜单分类">
+        <button type="button" class="active" data-sidebar-target="reading">阅读</button>
+        <button type="button" data-sidebar-target="tools">工具</button>
+        <button type="button" data-sidebar-target="data">数据</button>
+      </div>
+
+      <section class="sidebarSection active" data-sidebar-panel="reading">
+        <label class="field">
+          <span>译本</span>
+          <select id="versionSelect"></select>
+        </label>
+        <div class="comparePanel">
+          <div class="panelTitle">对照版本</div>
+          <div class="panelHint">最多选择 3 个</div>
+          <div id="compareVersions" class="compareVersions"></div>
+        </div>
+        <div class="commentaryPanel">
+          <div class="panelTitle">注释</div>
+          <select id="commentarySelect"></select>
+          <div id="commentaryHint" class="panelHint"></div>
+        </div>
+      </section>
+
+      <section class="sidebarSection" data-sidebar-panel="tools">
+        <label class="toggleField">
+          <input id="strongToggle" type="checkbox" />
+          <span>显示 Strong 编号</span>
+        </label>
+        <label class="toggleField">
+          <input id="audioAutoNext" type="checkbox" />
+          <span>音频结束自动下一章</span>
+        </label>
+        <div class="dictionaryPanel">
+          <div class="panelTitle">辞典 / 百科</div>
+          <select id="dictionarySelect"></select>
+          <div class="dictionarySearch">
+            <input id="dictionaryInput" type="search" placeholder="搜索词条" />
+            <button id="dictionaryBtn" type="button">查</button>
+          </div>
+          <div id="dictionaryHint" class="panelHint"></div>
+        </div>
+      </section>
+
+      <section class="sidebarSection" data-sidebar-panel="data">
+        <div class="settingsPanel">
+          <div class="panelTitle">个人数据</div>
+          <div class="dataButtons">
+            <button id="exportDataBtn" type="button">导出</button>
+            <button id="importDataBtn" type="button">导入</button>
+            <input id="importDataFile" type="file" accept="application/json" hidden />
+          </div>
+          <div id="userDataHint" class="panelHint"></div>
+        </div>
+        <div class="settingsPanel">
+          <div class="panelTitle">本地诊断</div>
+          <button id="diagnosticsBtn" type="button">检查数据目录</button>
+          <div id="diagnosticsHint" class="panelHint"></div>
+        </div>
+      </section>
+    </aside>
+    <button id="closeSidebarBtn" class="closeSidebarBtn" type="button" aria-label="关闭目录">×</button>
+
+    <main class="reader">
+      <header class="topbar">
+        <button id="menuBtn" class="iconBtn" aria-label="打开选择栏">☰</button>
+        <button id="prevBtn" class="navBtn">上一章</button>
+        <button id="chapterTitleBtn" class="titleBlock" type="button" aria-haspopup="dialog">
+          <div id="chapterTitle" class="chapterTitle">加载中</div>
+          <div id="versionTitle" class="versionTitle"></div>
+        </button>
+        <form id="quickForm" class="quickForm" role="search">
+          <input id="quickInput" type="search" placeholder="约3:16 或 关键词" autocomplete="off" />
+          <select id="searchScope" aria-label="搜索范围">
+            <option value="all">全本</option>
+            <option value="ot">旧约</option>
+            <option value="nt">新约</option>
+            <option value="book">本卷</option>
+          </select>
+          <button type="submit">查找</button>
+        </form>
+        <button id="readerSettingsBtn" class="iconBtn" aria-label="阅读设置">⚙</button>
+        <button id="nextBtn" class="navBtn">下一章</button>
+      </header>
+
+      <section id="readerSettingsPanel" class="readerSettingsPanel" hidden>
+        <div class="readerSettingsHeader">
+          <div>阅读设置</div>
+          <button id="closeReaderSettingsBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div class="readerSettingsGrid">
+          <label class="field compactField">
+            <span>主题</span>
+            <select id="themeSelect">
+              <option value="light">日间</option>
+              <option value="dark">夜间</option>
+            </select>
+          </label>
+          <label class="field compactField">
+            <span>配色</span>
+            <select id="paletteSelect">
+              <option value="classic">经典纸张</option>
+              <option value="jade">清润青绿</option>
+              <option value="blue">安静蓝灰</option>
+              <option value="rose">柔和玫瑰</option>
+              <option value="mono">简洁墨白</option>
+            </select>
+          </label>
+          <label class="rangeField">
+            <span>字号 <b id="fontSizeValue">20px</b></span>
+            <input id="fontSizeRange" type="range" min="16" max="28" step="1" />
+          </label>
+          <label class="rangeField">
+            <span>行距 <b id="lineHeightValue">2.05</b></span>
+            <input id="lineHeightRange" type="range" min="1.6" max="2.5" step="0.05" />
+          </label>
+        </div>
+      </section>
+
+      <section id="bookPickerPanel" class="bookPickerPanel" hidden>
+        <div class="bookPickerHeader">
+          <div>
+            <div class="panelTitle">选择书卷与章节</div>
+            <div id="bookPickerCurrent" class="panelHint"></div>
+          </div>
+          <button id="closeBookPickerBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div class="bookPicker">
+          <div class="bookPickerTop">
+            <input id="bookSearchInput" type="search" placeholder="搜索书卷" autocomplete="off" />
+            <div id="bookFilterTabs" class="bookFilterTabs">
+              <button type="button" data-book-filter="all" class="active">全部</button>
+              <button type="button" data-book-filter="recent">最近</button>
+              <button type="button" data-book-filter="ot">旧约</button>
+              <button type="button" data-book-filter="nt">新约</button>
+            </div>
+          </div>
+          <div id="bookGrid" class="bookGrid"></div>
+        </div>
+        <div class="chapterPanel">
+          <div class="chapterPanelHeader">
+            <div id="chapterPanelTitle" class="panelTitle">章节</div>
+            <div id="chapterPanelMeta" class="panelHint"></div>
+          </div>
+          <div id="chapterGrid" class="chapterGrid"></div>
+        </div>
+      </section>
+
+      <section id="searchPanel" class="panel" hidden>
+        <div class="panelHeader">
+          <div id="searchSummary"></div>
+          <button id="closeSearchBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div id="searchResults" class="resultList"></div>
+      </section>
+
+      <section id="strongPanel" class="panel" hidden>
+        <div class="panelHeader">
+          <div id="strongTitle"></div>
+          <button id="closeStrongBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div id="strongContent" class="strongContent"></div>
+      </section>
+
+      <section id="audioPanel" class="audioPanel" hidden></section>
+
+      <section id="dictionaryPanel" class="panel" hidden>
+        <div class="panelHeader">
+          <div id="dictionarySummary"></div>
+          <button id="closeDictionaryBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div id="dictionaryResults" class="resultList"></div>
+      </section>
+
+      <section id="dashboardPanel" class="dashboardPanel"></section>
+      <section id="statusPanel" class="statusPanel" role="status" aria-live="polite" hidden></section>
+
+      <section id="myPanel" class="panel" hidden>
+        <div class="panelHeader">
+          <div>我的收藏与笔记</div>
+          <button id="closeMyPanelBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div class="myFilters">
+          <button type="button" data-my-filter="all" class="active">全部</button>
+          <button type="button" data-my-filter="favorite">收藏</button>
+          <button type="button" data-my-filter="note">笔记</button>
+          <input id="myTagFilter" type="search" placeholder="标签筛选" />
+        </div>
+        <div id="myResults" class="resultList"></div>
+      </section>
+
+      <section id="content" class="content" aria-live="polite"></section>
+      <section id="commentaryContent" class="commentaryContent"></section>
+    </main>
+
+    <div id="verseMenu" class="verseMenu" hidden>
+      <div id="verseMenuTitle" class="verseMenuTitle"></div>
+      <button type="button" data-menu-action="select">多选</button>
+      <button type="button" data-menu-action="favorite">收藏</button>
+      <button type="button" data-menu-action="highlight">高亮</button>
+      <button type="button" data-menu-action="note">笔记</button>
+      <button type="button" data-menu-action="copy">复制</button>
+      <button type="button" data-menu-action="dictionary">查词</button>
+      <button type="button" data-menu-action="commentary">注释</button>
+    </div>
+
+    <div id="selectionBar" class="selectionBar" hidden>
+      <span id="selectionSummary">已选择经文</span>
+      <select id="copyFormatSelect" aria-label="复制格式">
+        <option value="reference">带出处</option>
+        <option value="plain">只复制经文</option>
+        <option value="paragraph">合并成一段</option>
+      </select>
+      <button id="copySelectionBtn" type="button">复制所选</button>
+      <button id="cancelSelectionBtn" type="button">取消</button>
+    </div>
+
+    <nav class="mobileNav" aria-label="移动端导航">
+      <button id="mobilePrevBtn" type="button">上一章</button>
+      <button id="mobileMenuBtn" type="button">目录</button>
+      <button id="mobileMarkReadBtn" type="button">标记</button>
+      <button id="mobileMyBtn" type="button">我的</button>
+      <button id="mobileNextBtn" type="button">下一章</button>
+    </nav>
+
+    <div id="overlay" class="overlay"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

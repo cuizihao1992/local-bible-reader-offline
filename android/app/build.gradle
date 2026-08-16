@@ -1,0 +1,99 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "local.bible.reader"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "local.bible.reader.next"
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            if (project.hasProperty("releaseStoreFile")) {
+                storeFile file(project.property("releaseStoreFile"))
+                storePassword project.property("releaseStorePassword")
+                keyAlias project.property("releaseKeyAlias")
+                keyPassword project.property("releaseKeyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+
+    androidResources {
+        noCompress += ["db"]
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs += ["$buildDir/generated/offlineAssets"]
+        }
+    }
+}
+
+def dataRoot = providers.gradleProperty("bibleDataRoot").orElse("D:/bibleDownload")
+def webSource = rootProject.projectDir.parentFile.toPath().resolve("static").toFile()
+def projectRoot = rootProject.projectDir.parentFile
+def bibleSource = dataRoot.map { new File(it, "bibles") }
+def bundledBibleFiles = [
+        "和合本.db",
+        "和合本修订版.db",
+        "KJV.db",
+        "WEB.db"
+]
+
+tasks.register("syncOfflineAssets") {
+    inputs.dir(webSource)
+    inputs.dir(bibleSource)
+    outputs.dir("$buildDir/generated/offlineAssets")
+    doLast {
+        delete("$buildDir/generated/offlineAssets")
+        def sourceDir = bibleSource.get()
+        if (!sourceDir.exists()) {
+            throw new GradleException("Bible data directory not found: ${sourceDir}. Provide -PbibleDataRoot=<path> with a bibles directory.")
+        }
+        copy {
+            from(webSource)
+            into("$buildDir/generated/offlineAssets/static")
+        }
+        def babelCandidates = [
+                new File(projectRoot, "node_modules/@babel/cli/bin/babel.js"),
+                new File("C:/Users/Administrator/Documents/Codex/2026-08-09/d-bibledownload/work/bible_reader_app/node_modules/@babel/cli/bin/babel.js")
+        ]
+        def babelCli = babelCandidates.find { it.exists() }
+        if (babelCli == null) {
+            throw new GradleException("Babel CLI not found. Run npm install before building Android assets.")
+        }
+        def appJs = file("$buildDir/generated/offlineAssets/static/app.js")
+        def appJsTranspiled = file("$buildDir/generated/offlineAssets/static/app.android.js")
+        exec {
+            workingDir projectRoot
+            commandLine "node", "--max-old-space-size=1024", babelCli.absolutePath, appJs.absolutePath, "--out-file", appJsTranspiled.absolutePath, "--config-file", "./babel.android.json"
+        }
+        if (!appJs.delete() || !appJsTranspiled.renameTo(appJs)) {
+            throw new GradleException("Failed to replace Android app.js with transpiled output.")
+        }
+        copy {
+            from(sourceDir)
+            include(bundledBibleFiles)
+            into("$buildDir/generated/offlineAssets/bibles")
+        }
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("syncOfflineAssets")
+}
