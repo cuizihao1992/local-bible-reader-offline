@@ -502,6 +502,29 @@ public class OfflineApi {
         }
     }
 
+    private String searchLikePattern(String keyword, boolean fuzzy) {
+        String cleaned = keyword == null ? "" : keyword.replaceAll("\\s+", "");
+        String source = cleaned.isEmpty() ? String.valueOf(keyword == null ? "" : keyword) : cleaned;
+        StringBuilder escaped = new StringBuilder();
+        for (int i = 0; i < source.length(); ) {
+            int code = source.codePointAt(i);
+            String ch = new String(Character.toChars(code));
+            if (ch.equals("\\") || ch.equals("%") || ch.equals("_")) escaped.append('\\');
+            escaped.append(ch);
+            i += Character.charCount(code);
+        }
+        if (!fuzzy || cleaned.codePointCount(0, cleaned.length()) < 2) return "%" + escaped + "%";
+        StringBuilder pattern = new StringBuilder("%");
+        for (int i = 0; i < cleaned.length(); ) {
+            int code = cleaned.codePointAt(i);
+            String ch = new String(Character.toChars(code));
+            if (ch.equals("\\") || ch.equals("%") || ch.equals("_")) pattern.append('\\');
+            pattern.append(ch).append('%');
+            i += Character.charCount(code);
+        }
+        return pattern.toString();
+    }
+
     private JSONObject search(Uri uri) throws Exception {
         String version = query(uri, "version");
         String q = query(uri, "q");
@@ -509,12 +532,13 @@ public class OfflineApi {
         int offset = Math.max(0, intQuery(uri, "offset", 0));
         int currentBook = intQuery(uri, "book", 0);
         String scope = query(uri, "scope");
+        boolean fuzzy = "1".equals(query(uri, "fuzzy")) || "true".equalsIgnoreCase(query(uri, "fuzzy"));
         SQLiteDatabase db = openBible(version);
         JSONArray results = new JSONArray();
         boolean hasMore = false;
-        String where = "Scripture like ?";
+        String where = "Scripture like ? escape '\\'";
         List<String> args = new ArrayList<>();
-        args.add("%" + q + "%");
+        args.add(searchLikePattern(q, fuzzy));
         if ("ot".equals(scope)) where += " and Book <= 39";
         if ("nt".equals(scope)) where += " and Book >= 40";
         if ("book".equals(scope) && currentBook > 0) {
@@ -543,6 +567,7 @@ public class OfflineApi {
         }
         return new JSONObject()
                 .put("query", q)
+                .put("fuzzy", fuzzy)
                 .put("scope", scope)
                 .put("limit", limit)
                 .put("offset", offset)
@@ -748,7 +773,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.9.0")
+                .put("version", "1.9.1")
                 .put("versionCount", versions().length());
     }
 

@@ -69,7 +69,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, {
         ok: true,
         app: "bible-reader",
-        version: "1.9.0",
+        version: "1.9.1",
         dataRoot: ROOT,
         biblesDir: BIBLES_DIR,
         commentariesDir: COMMENTARIES_DIR,
@@ -120,6 +120,7 @@ const server = createServer(async (req, res) => {
         reader.searchBible(url.searchParams.get("version") || "", url.searchParams.get("q") || "", {
           scope: url.searchParams.get("scope") || "all",
           book: Number(url.searchParams.get("book") || 0),
+          fuzzy: url.searchParams.get("fuzzy") || "",
           limit: url.searchParams.get("limit") || 40,
           offset: url.searchParams.get("offset") || 0,
         }),

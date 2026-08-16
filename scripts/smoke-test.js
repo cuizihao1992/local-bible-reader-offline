@@ -46,6 +46,9 @@ assert(john.verses.some((verse) => verse.verse === 16 && verse.text.includes("�
 const search = await getJson("/api/search?version=%E5%92%8C%E5%90%88%E6%9C%AC.db&q=%E6%B0%B8%E7%94%9F&scope=nt&limit=2");
 assert(search.results.length > 0, "Search returned no results");
 assert(Number.isInteger(search.nextOffset) && typeof search.hasMore === "boolean", "Search pagination metadata missing");
+const fuzzy = await getJson("/api/search?version=%E5%92%8C%E5%90%88%E6%9C%AC.db&q=%E7%A5%9E%E7%88%B1%E4%B8%96%E4%BA%BA&fuzzy=1&limit=2");
+assert(fuzzy.fuzzy === true, "Fuzzy search flag missing");
+assert(fuzzy.results.length > 0, "Fuzzy search returned no results");
 
 const strong = await getJson("/api/strong?code=H7225");
 assert(strong.definition && strong.occurrences.length > 0, "Strong lookup incomplete");
@@ -63,6 +66,7 @@ const indexHtml = await getText("/index.html");
 const appJs = await getText("/app.js");
 const stylesCss = await getText("/styles.css");
 assert(indexHtml.includes("本地圣经"), "Index title missing");
+assert(indexHtml.includes("id=\"fuzzySearchToggle\""), "Fuzzy search toggle missing");
 assert(appJs.includes("function parseReference"), "Reference parser missing");
 assert(appJs.includes("function parseSpokenCommand"), "Spoken command parser missing");
 assert(appJs.includes("function parseSpokenReference"), "Spoken reference parser missing");

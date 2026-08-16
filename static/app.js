@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.9.0";
+const APP_VERSION = "1.9.1";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -23,6 +23,7 @@ const state = {
   fontSize: 20,
   lineHeight: 2.05,
   keepScreenOn: false,
+  fuzzySearch: false,
   mimoKey: "",
   mimoKeyType: "standard",
   mimoBaseUrl: "https://api.xiaomimimo.com/v1",
@@ -62,6 +63,7 @@ const versionTitle = $("#versionTitle");
 const quickForm = $("#quickForm");
 const quickInput = $("#quickInput");
 const searchScope = $("#searchScope");
+const fuzzySearchToggle = $("#fuzzySearchToggle");
 const readerSettingsBtn = $("#readerSettingsBtn");
 const readerSettingsPanel = $("#readerSettingsPanel");
 const closeReaderSettingsBtn = $("#closeReaderSettingsBtn");
@@ -283,6 +285,7 @@ function restoreState() {
       fontSize: Number(saved.fontSize) || 20,
       lineHeight: Number(saved.lineHeight) || 2.05,
       keepScreenOn: !!saved.keepScreenOn,
+      fuzzySearch: !!saved.fuzzySearch,
       mimoKey: saved.mimoKey || "",
       mimoKeyType: saved.mimoKeyType === "codeplan" || String(saved.mimoKey || "").trim().toLowerCase().startsWith("tp-") ? "codeplan" : "standard",
       mimoBaseUrl: saved.mimoBaseUrl || "https://token-plan-cn.xiaomimimo.com/v1",
@@ -309,6 +312,7 @@ function saveState() {
       fontSize: state.fontSize,
       lineHeight: state.lineHeight,
       keepScreenOn: state.keepScreenOn,
+      fuzzySearch: !!state.fuzzySearch,
       mimoKey: state.mimoKey,
       mimoKeyType: state.mimoKeyType,
       mimoBaseUrl: state.mimoBaseUrl,
@@ -349,6 +353,7 @@ function applySettings() {
   strongToggle.checked = state.showStrong;
   audioAutoNext.checked = state.audioAutoNext;
   if (keepScreenOnToggle) keepScreenOnToggle.checked = state.keepScreenOn;
+  if (fuzzySearchToggle) fuzzySearchToggle.checked = !!state.fuzzySearch;
   if (window.AndroidBibleApi && window.AndroidBibleApi.setKeepScreenOn) {
     window.AndroidBibleApi.setKeepScreenOn(!!state.keepScreenOn);
   }
@@ -1537,6 +1542,39 @@ function bindVoiceButton(button) {
 
 function highlightText(text, query) {
   if (!query) return escapeHtml(text);
+  if (state.fuzzySearch) {
+    const needle = String(query).replace(/\s+/g, "");
+    if (!needle) return escapeHtml(text);
+    let qi = 0;
+    let out = "";
+    let buf = "";
+    let marking = false;
+    const flush = (marked) => {
+      if (!buf) return;
+      out += marked ? `<mark>${escapeHtml(buf)}</mark>` : escapeHtml(buf);
+      buf = "";
+    };
+    for (const char of String(text)) {
+      if (qi < needle.length && char === needle[qi]) {
+        if (!marking) {
+          flush(false);
+          marking = true;
+        }
+        buf += char;
+        qi += 1;
+      } else if (marking && /\s/.test(char)) {
+        buf += char;
+      } else {
+        if (marking) {
+          flush(true);
+          marking = false;
+        }
+        buf += char;
+      }
+    }
+    flush(marking);
+    return out;
+  }
   const safe = escapeHtml(text);
   const needle = escapeHtml(query);
   return safe.replaceAll(needle, `<mark>${needle}</mark>`);
@@ -1548,6 +1586,7 @@ async function runSearch(query, options = {}) {
   if (!append) {
     searchState.query = query;
     searchState.scope = searchScope.value;
+    searchState.fuzzy = !!state.fuzzySearch;
     searchState.book = state.book;
     searchState.results = [];
     searchState.nextOffset = 0;
@@ -1559,7 +1598,7 @@ async function runSearch(query, options = {}) {
   button.disabled = true;
   try {
     const data = await api(
-      `/api/search?version=${encodeURIComponent(state.version)}&q=${encodeURIComponent(query)}&scope=${searchState.scope}&book=${searchState.book}&limit=40&offset=${append ? searchState.nextOffset : 0}`,
+      `/api/search?version=${encodeURIComponent(state.version)}&q=${encodeURIComponent(query)}&scope=${searchState.scope}&book=${searchState.book}&fuzzy=${searchState.fuzzy ? "1" : "0"}&limit=40&offset=${append ? searchState.nextOffset : 0}`,
     );
     if (token !== searchRequestToken) return;
     searchState.results = append ? [...searchState.results, ...data.results] : data.results;
@@ -1581,7 +1620,7 @@ async function runSearch(query, options = {}) {
 }
 
 function renderSearchResults() {
-  searchSummary.textContent = `“${searchState.query}” 找到 ${searchState.results.length}${searchState.hasMore ? "+" : ""} 处`;
+  searchSummary.textContent = `${searchState.fuzzy ? "模糊 · " : ""}“${searchState.query}” 找到 ${searchState.results.length}${searchState.hasMore ? "+" : ""} 处`;
   searchResults.innerHTML =
     searchState.results
       .map(
@@ -2945,6 +2984,11 @@ keepScreenOnToggle?.addEventListener("change", () => {
   state.keepScreenOn = keepScreenOnToggle.checked;
   applySettings();
   saveState();
+});
+fuzzySearchToggle?.addEventListener("change", () => {
+  state.fuzzySearch = !!fuzzySearchToggle.checked;
+  saveState();
+  if (searchState.query && !searchPanel.hidden) runSearch(searchState.query);
 });
 
 packageList?.addEventListener("click", (event) => {
