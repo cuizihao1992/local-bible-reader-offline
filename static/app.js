@@ -1,5 +1,7 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
+const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
+const GITHUB_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
 const state = {
   versions: [],
@@ -84,7 +86,6 @@ const dictionaryPanel = $("#dictionaryPanel");
 const dictionarySummary = $("#dictionarySummary");
 const dictionaryResults = $("#dictionaryResults");
 const closeDictionaryBtn = $("#closeDictionaryBtn");
-const dashboardPanel = $("#dashboardPanel");
 const statusPanel = $("#statusPanel");
 const myPanel = $("#myPanel");
 const myResults = $("#myResults");
@@ -95,14 +96,28 @@ const verseMenu = $("#verseMenu");
 const verseMenuTitle = $("#verseMenuTitle");
 const selectionBar = $("#selectionBar");
 const selectionSummary = $("#selectionSummary");
-const copyFormatSelect = $("#copyFormatSelect");
-const copySelectionBtn = $("#copySelectionBtn");
 const cancelSelectionBtn = $("#cancelSelectionBtn");
-const mobilePrevBtn = $("#mobilePrevBtn");
+const mobileSearchBtn = $("#mobileSearchBtn");
 const mobileMenuBtn = $("#mobileMenuBtn");
-const mobileMarkReadBtn = $("#mobileMarkReadBtn");
 const mobileMyBtn = $("#mobileMyBtn");
-const mobileNextBtn = $("#mobileNextBtn");
+const searchToggleBtn = $("#searchToggleBtn");
+const versionChipBtn = $("#versionChipBtn");
+const versionPickerPanel = $("#versionPickerPanel");
+const versionPickerList = $("#versionPickerList");
+const closeVersionPickerBtn = $("#closeVersionPickerBtn");
+const compareSheet = $("#compareSheet");
+const compareSheetTitle = $("#compareSheetTitle");
+const compareSheetContent = $("#compareSheetContent");
+const closeCompareSheetBtn = $("#closeCompareSheetBtn");
+const myProgressCard = $("#myProgressCard");
+const checkUpdateBtn = $("#checkUpdateBtn");
+const downloadUpdateBtn = $("#downloadUpdateBtn");
+const updateStatus = $("#updateStatus");
+const updateProgress = $("#updateProgress");
+const updateProgressText = $("#updateProgressText");
+const updateProgressBar = $("#updateProgressBar");
+const updateProgressValue = $("#updateProgressValue");
+const myCheckUpdateBtn = $("#myCheckUpdateBtn");
 const overlay = $("#overlay");
 
 let bookFilter = "all";
@@ -121,8 +136,13 @@ let selectedVerseNumbers = [];
 let verseSelectionMode = false;
 let longPressTimer = null;
 let swipeState = null;
+let justSwiped = false;
 let statusTimer = null;
-let lastScrollY = window.scrollY;
+let lastUpdateInfo = null;
+let updateCheckBusy = false;
+let apkDownloadBusy = false;
+let apkPollTimer = null;
+let chromePinnedUntil = 0;
 const markSavingKeys = new Set();
 const searchState = { query: "", scope: "all", book: 1, results: [], nextOffset: 0, hasMore: false };
 
@@ -234,6 +254,12 @@ function applySettings() {
   if (!document.body.dataset.palette) delete document.body.dataset.palette;
   document.documentElement.style.setProperty("--reader-font-size", `${state.fontSize}px`);
   document.documentElement.style.setProperty("--reader-line-height", String(state.lineHeight));
+  const themeColor = state.theme === "dark" ? "#171614" : "#2d6a5f";
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute("content", themeColor);
+  if (window.AndroidBibleApi && window.AndroidBibleApi.setNightMode) {
+    window.AndroidBibleApi.setNightMode(state.theme === "dark");
+  }
   themeSelect.value = state.theme;
   paletteSelect.value = state.palette;
   fontSizeRange.value = String(state.fontSize);
@@ -273,16 +299,24 @@ function showSidebarPanel(name) {
   });
 }
 
+function keepReadingChromeVisible(ms = 1600) {
+  chromePinnedUntil = Date.now() + ms;
+  document.body.classList.remove("chromeHidden");
+}
+
 function closeContentPanels() {
   searchPanel.hidden = true;
   strongPanel.hidden = true;
   dictionaryPanel.hidden = true;
   myPanel.hidden = true;
+  if (compareSheet) compareSheet.hidden = true;
 }
 
 function closeTopPanels(includeSettings = true) {
   bookPickerPanel.hidden = true;
+  if (versionPickerPanel) versionPickerPanel.hidden = true;
   if (includeSettings) readerSettingsPanel.hidden = true;
+  document.body.classList.remove("showSearch");
   closeContentPanels();
   closeVerseMenu();
   closeSelectionBar();
@@ -309,13 +343,9 @@ function renderChrome() {
   const book = currentBook();
   chapterTitle.textContent = book ? `${book.longName} ${state.chapter}` : "加载中";
   const version = currentVersion();
-  const titleHint = version?.titleCount > 0 ? "有小标题" : "可参考小标题";
-  versionTitle.textContent = version ? `${version.name} · ${titleHint}` : "";
+  versionTitle.textContent = version ? version.shortName || version.name : "译本";
   prevBtn.disabled = chapterLoading || atFirstChapter();
   nextBtn.disabled = chapterLoading || atLastChapter();
-  mobilePrevBtn.disabled = chapterLoading || atFirstChapter();
-  mobileNextBtn.disabled = chapterLoading || atLastChapter();
-  mobileMarkReadBtn.textContent = isCurrentChapterRead() ? "已读" : "标记";
 }
 
 function isCurrentChapterRead() {
@@ -329,6 +359,17 @@ function renderVersions() {
       return `<option value="${escapeHtml(version.id)}" ${version.id === state.version ? "selected" : ""}>${escapeHtml(version.name)}${titles}</option>`;
     })
     .join("");
+  if (versionPickerList) {
+    versionPickerList.innerHTML = state.versions
+      .map((version) => {
+        const titles = version.titleCount > 0 ? "有小标题" : "";
+        return `<button type="button" class="versionPickBtn ${version.id === state.version ? "active" : ""}" data-pick-version="${escapeHtml(version.id)}">
+          <span>${escapeHtml(version.name)}</span>
+          <span class="panelHint">${escapeHtml(version.shortName || "")}${titles ? ` · ${titles}` : ""}</span>
+        </button>`;
+      })
+      .join("");
+  }
 }
 
 function renderCompareVersions() {
@@ -396,25 +437,18 @@ function renderChapterGrid() {
   }).join("");
 }
 
-function renderDashboard() {
+function renderMyProgress() {
+  if (!myProgressCard) return;
   const book = currentBook();
   const percent = state.progress?.percent || 0;
-  const historyText = book ? `当前：${book.longName} ${state.chapter}` : "还没有阅读记录";
-  dashboardPanel.innerHTML = `
-    <div class="dashCard">
-      <div class="dashTitle">继续阅读</div>
-      <div class="dashMeta">${escapeHtml(historyText)}</div>
-      <div class="dashActions">
-        <button type="button" data-dash="picker">选择书卷</button>
-        <button type="button" data-dash="unread">下一未读章</button>
-        <button type="button" data-dash="mark">${isCurrentChapterRead() ? "取消已读" : "标记已读"}</button>
-      </div>
+  myProgressCard.innerHTML = `
+    <div><b>${escapeHtml(versionLabel(state.version))}</b> · 已读 ${state.progress?.read || 0} / ${state.progress?.total || 1189} 章（${percent}%）</div>
+    <div class="progressBar" style="margin-top:8px"><span style="width:${percent}%"></span></div>
+    <div class="dashActions" style="margin-top:10px">
+      <button type="button" data-dash="unread">下一未读章</button>
+      <button type="button" data-dash="mark">${isCurrentChapterRead() ? "取消已读" : "标记已读"}</button>
     </div>
-    <div class="dashCard">
-      <div class="dashTitle">阅读进度</div>
-      <div class="dashMeta">${versionLabel(state.version)} · 已读 ${state.progress?.read || 0} / ${state.progress?.total || 1189} 章（${percent}%）</div>
-      <div class="progressBar"><span style="width:${percent}%"></span></div>
-    </div>
+    ${book ? `<div class="panelHint" style="margin-top:8px">当前 ${escapeHtml(book.longName)} ${state.chapter}</div>` : ""}
   `;
 }
 
@@ -684,7 +718,7 @@ async function loadChapter(options = {}) {
     if (token !== chapterLoadToken) return;
     renderVerses(chapterData);
     renderChrome();
-    renderDashboard();
+    renderMyProgress();
     renderBookGrid();
     renderChapterGrid();
     saveReadingHistory(snapshot);
@@ -922,6 +956,7 @@ async function openMyPanel(kind = "all") {
   myPanelLoading = true;
   closeContentPanels();
   myPanel.hidden = false;
+  renderMyProgress();
   myResults.innerHTML = `<div class="loading">正在读取我的收藏与笔记...</div>`;
   document.querySelectorAll("[data-my-filter]").forEach((button) => {
     button.classList.toggle("active", button.dataset.myFilter === kind);
@@ -1080,12 +1115,17 @@ function startVerseSelection(verseNo) {
 }
 
 function toggleVerseSelection(verseNo) {
-  if (!verseSelectionMode) return;
   const value = Number(verseNo);
+  if (!Number.isFinite(value) || value < 1) return;
+  verseSelectionMode = true;
   selectedVerseNumbers = selectedVerseNumbers.includes(value)
     ? selectedVerseNumbers.filter((item) => item !== value)
     : [...selectedVerseNumbers, value];
   updateManualSelectionBar();
+  if (selectedVerseNumbers.length) {
+    state.activeVerse = value;
+    document.body.classList.remove("chromeHidden");
+  }
 }
 
 function closeSelectionBar() {
@@ -1098,9 +1138,8 @@ function closeSelectionBar() {
 
 async function copySelectedVerses() {
   if (!selectedVerseNumbers.length) return;
-  await writeClipboard(formatVerseLines(selectedVerseNumbers, copyFormatSelect.value));
+  await writeClipboard(formatVerseLines(selectedVerseNumbers, "reference"));
   showStatus("已复制所选经文", "success");
-  closeSelectionBar();
 }
 
 async function runVerseAction(action, verseNo = state.activeVerse) {
@@ -1109,6 +1148,10 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
   closeVerseMenu();
   if (action === "select") {
     startVerseSelection(verseNo);
+    return;
+  }
+  if (action === "compare") {
+    await showCompareSheet(verseNo);
     return;
   }
   if (action === "favorite") {
@@ -1153,8 +1196,6 @@ async function setCurrentChapterRead(read) {
     return;
   }
   progressSaving = true;
-  mobileMarkReadBtn.textContent = "保存中";
-  mobileMarkReadBtn.disabled = true;
   try {
     const data = await postJson("/api/user/progress", {
       version: state.version,
@@ -1164,14 +1205,13 @@ async function setCurrentChapterRead(read) {
     });
     state.progress = data.progress;
     renderChrome();
-    renderDashboard();
+    renderMyProgress();
     renderChapterGrid();
     showStatus(read ? "已标记本章为已读" : "已取消已读", "success");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
     progressSaving = false;
-    mobileMarkReadBtn.disabled = false;
     renderChrome();
   }
 }
@@ -1246,24 +1286,222 @@ async function runDiagnostics() {
   }
 }
 
+function hasBlockingOverlayOpen() {
+  return (
+    document.body.classList.contains("sidebarOpen") ||
+    document.body.classList.contains("showSearch") ||
+    !bookPickerPanel.hidden ||
+    (versionPickerPanel && !versionPickerPanel.hidden) ||
+    !readerSettingsPanel.hidden ||
+    !searchPanel.hidden ||
+    !strongPanel.hidden ||
+    !dictionaryPanel.hidden ||
+    !myPanel.hidden ||
+    (compareSheet && !compareSheet.hidden) ||
+    !verseMenu.hidden ||
+    !selectionBar.hidden
+  );
+}
+
 function handleBackIntent() {
   if (!verseMenu.hidden) {
     closeVerseMenu();
+    keepReadingChromeVisible();
     return true;
   }
   if (!selectionBar.hidden) {
     closeSelectionBar();
+    keepReadingChromeVisible();
     return true;
   }
-  if (!bookPickerPanel.hidden || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden) {
+  if (document.body.classList.contains("showSearch")) {
+    document.body.classList.remove("showSearch");
+    keepReadingChromeVisible();
+    return true;
+  }
+  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden)) {
     closeTopPanels();
+    keepReadingChromeVisible();
     return true;
   }
   if (document.body.classList.contains("sidebarOpen")) {
     closeSidebar();
+    keepReadingChromeVisible();
     return true;
   }
   return false;
+}
+
+function toggleSearch(show = !document.body.classList.contains("showSearch")) {
+  closeTopPanels();
+  closeSidebar();
+  document.body.classList.toggle("showSearch", show);
+  if (show) {
+    keepReadingChromeVisible(4000);
+    quickInput.focus();
+  }
+}
+
+function toggleVersionPicker(show = versionPickerPanel.hidden) {
+  closeTopPanels();
+  versionPickerPanel.hidden = !show;
+  if (show) {
+    renderVersions();
+    keepReadingChromeVisible();
+  }
+}
+
+function toggleReadingChrome() {
+  if (Date.now() < chromePinnedUntil) return;
+  if (hasBlockingOverlayOpen()) return;
+  document.body.classList.toggle("chromeHidden");
+}
+
+function compareAppVersions(left, right) {
+  const a = String(left || "").replace(/^v/i, "").split(".").map((part) => Number(part) || 0);
+  const b = String(right || "").replace(/^v/i, "").split(".").map((part) => Number(part) || 0);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i += 1) {
+    const diff = (a[i] || 0) - (b[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+async function showCompareSheet(verseNo) {
+  const verse = Number(verseNo || selectedVerseNumbers[0] || state.activeVerse);
+  if (!verse) return;
+  closeContentPanels();
+  compareSheet.hidden = false;
+  compareSheetTitle.textContent = `${currentBook().longName} ${state.chapter}:${verse}`;
+  compareSheetContent.innerHTML = `<div class="loading">正在读取对照...</div>`;
+  try {
+    const versions = [state.version, ...state.compareVersions, ...state.versions.map((item) => item.id)]
+      .filter((id, index, list) => id && list.indexOf(id) === index)
+      .slice(0, 4);
+    const query = versions.map((id) => `version=${encodeURIComponent(id)}`).join("&");
+    const data = await api(`/api/chapters?${query}&book=${state.book}&chapter=${state.chapter}`);
+    compareSheetContent.innerHTML = (data.chapters || [])
+      .map((chapter) => {
+        const text = chapter.verses.find((item) => item.verse === verse)?.text || "（本节无经文）";
+        return `<article class="resultItem"><div class="resultRef">${escapeHtml(chapter.shortName || chapter.versionName)}</div><div class="resultText">${escapeHtml(text)}</div></article>`;
+      })
+      .join("");
+  } catch (error) {
+    compareSheetContent.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function apkAssetFromRelease(release) {
+  const assets = release?.assets || [];
+  return assets.find((asset) => /\.apk$/i.test(asset.name)) || null;
+}
+
+async function checkForUpdates() {
+  if (updateCheckBusy) {
+    showStatus("正在检查更新，请稍候");
+    return;
+  }
+  updateCheckBusy = true;
+  if (checkUpdateBtn) checkUpdateBtn.textContent = "检查中";
+  if (updateStatus) updateStatus.textContent = "正在检查 GitHub 最新版本...";
+  try {
+    let release;
+    if (window.AndroidUpdateApi && window.AndroidUpdateApi.checkLatest) {
+      release = JSON.parse(window.AndroidUpdateApi.checkLatest());
+      if (release.error) throw new Error(release.error);
+    } else {
+      const response = await fetch(GITHUB_RELEASE_API, { headers: { Accept: "application/vnd.github+json" } });
+      if (!response.ok) throw new Error(`检查更新失败：${response.status}`);
+      const data = await response.json();
+      release = {
+        currentVersion: APP_VERSION,
+        tagName: data.tag_name,
+        version: String(data.tag_name || "").replace(/^v/i, ""),
+        name: data.name,
+        body: data.body,
+        assets: (data.assets || []).map((asset) => ({
+          name: asset.name,
+          size: asset.size,
+          url: asset.browser_download_url,
+        })),
+      };
+    }
+    lastUpdateInfo = release;
+    const latest = release.version || "";
+    const newer = compareAppVersions(latest, APP_VERSION) > 0;
+    const apk = apkAssetFromRelease(release);
+    if (updateStatus) {
+      updateStatus.textContent = newer
+        ? `发现新版本 ${latest}（当前 ${APP_VERSION}）`
+        : `已是最新版本 ${APP_VERSION}`;
+    }
+    if (downloadUpdateBtn) {
+      downloadUpdateBtn.disabled = !apk;
+      downloadUpdateBtn.textContent = apk ? (newer ? "下载更新" : "重新下载 APK") : "暂无 APK";
+    }
+    showStatus(newer ? `发现新版本 ${latest}` : "已是最新版本", newer ? "info" : "success");
+    openSidebar("data");
+  } catch (error) {
+    if (updateStatus) updateStatus.textContent = error.message;
+    showStatus(error.message, "error");
+  } finally {
+    updateCheckBusy = false;
+    if (checkUpdateBtn) checkUpdateBtn.textContent = "检查更新";
+  }
+}
+
+function startApkProgressPolling() {
+  clearInterval(apkPollTimer);
+  apkPollTimer = setInterval(() => {
+    if (!window.AndroidUpdateApi || !window.AndroidUpdateApi.downloadStatus) return;
+    try {
+      const status = JSON.parse(window.AndroidUpdateApi.downloadStatus());
+      const percent = Number(status.percent || 0);
+      if (updateProgress) updateProgress.hidden = false;
+      if (updateProgressText) updateProgressText.textContent = status.message || "正在下载";
+      if (updateProgressValue) updateProgressValue.textContent = `${percent}%`;
+      if (updateProgressBar) updateProgressBar.style.width = `${percent}%`;
+      if (status.state === "done" || status.state === "error" || status.state === "cleared") {
+        clearInterval(apkPollTimer);
+        apkDownloadBusy = false;
+        if (downloadUpdateBtn) downloadUpdateBtn.disabled = false;
+        if (status.state === "error") showStatus(status.message || "下载失败", "error");
+        if (status.state === "done") showStatus("下载完成，请按提示安装", "success");
+      }
+    } catch {
+      clearInterval(apkPollTimer);
+      apkDownloadBusy = false;
+    }
+  }, 400);
+}
+
+async function downloadUpdate() {
+  const apk = apkAssetFromRelease(lastUpdateInfo);
+  if (!apk) {
+    showStatus("没有可下载的 APK");
+    return;
+  }
+  if (window.AndroidUpdateApi && window.AndroidUpdateApi.downloadAndInstall) {
+    if (apkDownloadBusy) {
+      showStatus("正在下载更新，请稍候");
+      return;
+    }
+    apkDownloadBusy = true;
+    downloadUpdateBtn.disabled = true;
+    const result = JSON.parse(window.AndroidUpdateApi.downloadAndInstall(apk.url, apk.name));
+    if (result.error) {
+      apkDownloadBusy = false;
+      downloadUpdateBtn.disabled = false;
+      showStatus(result.error, "error");
+      return;
+    }
+    startApkProgressPolling();
+    showStatus("开始下载 APK");
+    return;
+  }
+  window.open(apk.url, "_blank");
+  showStatus("已打开 APK 下载页");
 }
 
 function verseFromEvent(event) {
@@ -1281,7 +1519,8 @@ function finishSwipeGesture(x, y) {
   const dy = y - swipeState.y;
   swipeState = null;
   if (Math.abs(dx) >= 54 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-    if (!bookPickerPanel.hidden || !readerSettingsPanel.hidden || !searchPanel.hidden || document.body.classList.contains("sidebarOpen")) return;
+    if (hasBlockingOverlayOpen()) return;
+    justSwiped = true;
     moveChapter(dx < 0 ? 1 : -1);
   }
 }
@@ -1289,6 +1528,7 @@ function finishSwipeGesture(x, y) {
 async function init() {
   restoreState();
   applySettings();
+  if (updateStatus) updateStatus.textContent = `当前版本 ${APP_VERSION}`;
   const [versions, commentaries, dictionaries, history] = await Promise.all([
     api("/api/versions"),
     api("/api/commentaries"),
@@ -1399,15 +1639,36 @@ lineHeightRange.addEventListener("input", () => {
 });
 
 menuBtn.addEventListener("click", () => openSidebar("reading"));
-mobileMenuBtn.addEventListener("click", () => openSidebar("reading"));
+mobileMenuBtn.addEventListener("click", () => {
+  const show = bookPickerPanel.hidden;
+  closeTopPanels();
+  closeSidebar();
+  bookPickerPanel.hidden = !show;
+  if (show) {
+    renderBookGrid();
+    renderChapterGrid();
+    keepReadingChromeVisible();
+  }
+});
+mobileSearchBtn.addEventListener("click", () => toggleSearch(true));
+searchToggleBtn.addEventListener("click", () => toggleSearch());
 closeSidebarBtn.addEventListener("click", closeSidebar);
 overlay.addEventListener("click", () => handleBackIntent());
 prevBtn.addEventListener("click", () => moveChapter(-1));
 nextBtn.addEventListener("click", () => moveChapter(1));
-mobilePrevBtn.addEventListener("click", () => moveChapter(-1));
-mobileNextBtn.addEventListener("click", () => moveChapter(1));
-mobileMarkReadBtn.addEventListener("click", () => setCurrentChapterRead(!isCurrentChapterRead()));
 mobileMyBtn.addEventListener("click", () => openMyPanel("all"));
+versionChipBtn.addEventListener("click", () => toggleVersionPicker());
+closeVersionPickerBtn.addEventListener("click", () => {
+  versionPickerPanel.hidden = true;
+  keepReadingChromeVisible();
+});
+closeCompareSheetBtn.addEventListener("click", () => {
+  compareSheet.hidden = true;
+  keepReadingChromeVisible();
+});
+checkUpdateBtn.addEventListener("click", checkForUpdates);
+myCheckUpdateBtn.addEventListener("click", checkForUpdates);
+downloadUpdateBtn.addEventListener("click", downloadUpdate);
 
 chapterTitleBtn.addEventListener("click", () => {
   const show = bookPickerPanel.hidden;
@@ -1416,6 +1677,7 @@ chapterTitleBtn.addEventListener("click", () => {
   if (show) {
     renderBookGrid();
     renderChapterGrid();
+    keepReadingChromeVisible();
   }
 });
 closeBookPickerBtn.addEventListener("click", () => {
@@ -1561,10 +1823,6 @@ document.body.addEventListener("click", async (event) => {
     openMyPanel(myFilter.dataset.myFilter);
     return;
   }
-  if (verseSelectionMode) {
-    const verseNo = verseFromEvent(event);
-    if (verseNo) toggleVerseSelection(verseNo);
-  }
 });
 
 myResults.addEventListener("click", async (event) => {
@@ -1585,6 +1843,25 @@ strongContent.addEventListener("click", async (event) => {
     chapter: Number(button.dataset.jumpChapter),
     verse: Number(button.dataset.jumpVerse),
   });
+});
+
+content.addEventListener("click", (event) => {
+  if (justSwiped) {
+    justSwiped = false;
+    return;
+  }
+  if (event.target.closest("button, a, textarea, input, select, .noteEditor, .strongBtn")) return;
+  const verseNo = verseFromEvent(event);
+  if (verseNo) {
+    toggleVerseSelection(verseNo);
+    return;
+  }
+  if (verseSelectionMode) {
+    closeSelectionBar();
+    keepReadingChromeVisible();
+    return;
+  }
+  toggleReadingChrome();
 });
 
 content.addEventListener("contextmenu", (event) => {
@@ -1621,7 +1898,17 @@ verseMenu.addEventListener("click", (event) => {
   const button = event.target.closest("[data-menu-action]");
   if (button) runVerseAction(button.dataset.menuAction);
 });
-copySelectionBtn.addEventListener("click", copySelectedVerses);
+selectionBar.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-bar-action]");
+  if (!button) return;
+  const action = button.dataset.barAction;
+  const verseNo = state.activeVerse || selectedVerseNumbers[0];
+  if (action === "copy") {
+    copySelectedVerses();
+    return;
+  }
+  runVerseAction(action, verseNo);
+});
 cancelSelectionBtn.addEventListener("click", closeSelectionBar);
 
 exportDataBtn.addEventListener("click", exportUserData);
@@ -1645,11 +1932,23 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-window.addEventListener("scroll", () => {
-  const current = window.scrollY;
-  document.body.classList.toggle("hideChrome", current > lastScrollY + 12 && current > 80);
-  lastScrollY = current;
-}, { passive: true });
+versionPickerList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-pick-version]");
+  if (!button) return;
+  const nextVersion = button.dataset.pickVersion;
+  if (!nextVersion || nextVersion === state.version) {
+    versionPickerPanel.hidden = true;
+    return;
+  }
+  state.version = nextVersion;
+  versionSelect.value = nextVersion;
+  state.compareVersions = state.compareVersions.filter((id) => id !== state.version);
+  renderCompareVersions();
+  versionPickerPanel.hidden = true;
+  resetVerseInteraction();
+  await loadBooks();
+  await loadChapter({ scrollTop: true });
+});
 
 init().catch((error) => {
   content.innerHTML = `<div class="error">启动失败：${escapeHtml(error.message)}</div>`;

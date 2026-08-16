@@ -2,8 +2,11 @@ package local.bible.reader;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -14,13 +17,33 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
+    private static MainActivity instance;
     private OfflineApi offlineApi;
     private WebView webView;
+
+    public static void setNightMode(boolean night) {
+        MainActivity activity = instance;
+        if (activity == null) return;
+        activity.runOnUiThread(() -> {
+            Window window = activity.getWindow();
+            int color = night ? Color.parseColor("#171614") : Color.parseColor("#fbfaf6");
+            window.setStatusBarColor(color);
+            window.setNavigationBarColor(color);
+            int flags = window.getDecorView().getSystemUiVisibility();
+            if (night) {
+                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            } else {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            }
+            window.getDecorView().setSystemUiVisibility(flags);
+        });
+    }
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
         offlineApi = new OfflineApi(this);
 
         webView = new WebView(this);
@@ -37,7 +60,11 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(true);
         settings.setAllowFileAccessFromFileURLs(true);
         settings.setAllowUniversalAccessFromFileURLs(true);
+        settings.setSupportZoom(false);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
         webView.addJavascriptInterface(new AndroidBridge(offlineApi), "AndroidBibleApi");
+        webView.addJavascriptInterface(new UpdateBridge(this), "AndroidUpdateApi");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -51,6 +78,12 @@ public class MainActivity extends Activity {
         });
 
         webView.loadUrl("file:///android_asset/static/index.html");
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (instance == this) instance = null;
+        super.onDestroy();
     }
 
     @Override

@@ -22,6 +22,12 @@ public class AndroidBridge {
     }
 
     @JavascriptInterface
+    public void setNightMode(boolean night) {
+        // Theme is applied from MainActivity via a static hook.
+        MainActivity.setNightMode(night);
+    }
+
+    @JavascriptInterface
     public String postJson(String path, String payload) {
         try {
             return offlineApi.handlePost(path == null ? "" : path, payload == null ? "{}" : payload);

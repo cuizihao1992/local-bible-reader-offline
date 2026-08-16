@@ -3,17 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2d6a5f" />
     <title>本地圣经</title>
+    <link rel="icon" href="icon.png" />
+    <link rel="apple-touch-icon" href="icon.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <aside class="sidebar">
       <div class="sidebarHeader">
         <div class="brand">
-          <div class="mark">读</div>
+          <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>离线阅读 · 1.0</p>
+            <p>离线阅读 · 1.1</p>
           </div>
         </div>
       </div>
@@ -31,7 +34,7 @@
         </label>
         <div class="comparePanel">
           <div class="panelTitle">对照版本</div>
-          <div class="panelHint">最多选择 3 个</div>
+          <div class="panelHint">最多选择 3 个，也可在选节后点「对照」</div>
           <div id="compareVersions" class="compareVersions"></div>
         </div>
         <div class="commentaryPanel">
@@ -63,6 +66,21 @@
 
       <section class="sidebarSection" data-sidebar-panel="data">
         <div class="settingsPanel">
+          <div class="panelTitle">版本更新</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.1.0</div>
+          <div class="dataButtons">
+            <button id="checkUpdateBtn" type="button">检查更新</button>
+            <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
+          </div>
+          <div id="updateProgress" class="downloadProgress" hidden>
+            <div class="downloadProgressTop">
+              <span id="updateProgressText">准备下载</span>
+              <b id="updateProgressValue">0%</b>
+            </div>
+            <div class="downloadProgressTrack"><span id="updateProgressBar"></span></div>
+          </div>
+        </div>
+        <div class="settingsPanel">
           <div class="panelTitle">个人数据</div>
           <div class="dataButtons">
             <button id="exportDataBtn" type="button">导出</button>
@@ -82,11 +100,13 @@
 
     <main class="reader">
       <header class="topbar">
-        <button id="menuBtn" class="iconBtn" aria-label="打开选择栏">☰</button>
+        <button id="menuBtn" class="iconBtn" aria-label="打开菜单">☰</button>
         <button id="prevBtn" class="navBtn">上一章</button>
         <button id="chapterTitleBtn" class="titleBlock" type="button" aria-haspopup="dialog">
           <div id="chapterTitle" class="chapterTitle">加载中</div>
-          <div id="versionTitle" class="versionTitle"></div>
+        </button>
+        <button id="versionChipBtn" class="versionChip" type="button" aria-haspopup="dialog">
+          <span id="versionTitle">译本</span>
         </button>
         <form id="quickForm" class="quickForm" role="search">
           <input id="quickInput" type="search" placeholder="约3:16 或 关键词" autocomplete="off" />
@@ -98,7 +118,8 @@
           </select>
           <button type="submit">查找</button>
         </form>
-        <button id="readerSettingsBtn" class="iconBtn" aria-label="阅读设置">⚙</button>
+        <button id="searchToggleBtn" class="iconBtn searchToggleBtn" type="button" aria-label="搜索">🔍</button>
+        <button id="readerSettingsBtn" class="iconBtn" aria-label="阅读设置">Aa</button>
         <button id="nextBtn" class="navBtn">下一章</button>
       </header>
 
@@ -136,7 +157,18 @@
         </div>
       </section>
 
-      <section id="bookPickerPanel" class="bookPickerPanel" hidden>
+      <section id="versionPickerPanel" class="sheetPanel" hidden>
+        <div class="panelHeader">
+          <div>
+            <div class="panelTitle">选择译本</div>
+            <div class="panelHint">点译本名即可切换</div>
+          </div>
+          <button id="closeVersionPickerBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div id="versionPickerList" class="versionPickerList"></div>
+      </section>
+
+      <section id="bookPickerPanel" class="sheetPanel bookPickerPanel" hidden>
         <div class="bookPickerHeader">
           <div>
             <div class="panelTitle">选择书卷与章节</div>
@@ -165,7 +197,7 @@
         </div>
       </section>
 
-      <section id="searchPanel" class="panel" hidden>
+      <section id="searchPanel" class="sheetPanel panel" hidden>
         <div class="panelHeader">
           <div id="searchSummary"></div>
           <button id="closeSearchBtn" class="textBtn" type="button">关闭</button>
@@ -173,7 +205,7 @@
         <div id="searchResults" class="resultList"></div>
       </section>
 
-      <section id="strongPanel" class="panel" hidden>
+      <section id="strongPanel" class="sheetPanel panel" hidden>
         <div class="panelHeader">
           <div id="strongTitle"></div>
           <button id="closeStrongBtn" class="textBtn" type="button">关闭</button>
@@ -183,7 +215,7 @@
 
       <section id="audioPanel" class="audioPanel" hidden></section>
 
-      <section id="dictionaryPanel" class="panel" hidden>
+      <section id="dictionaryPanel" class="sheetPanel panel" hidden>
         <div class="panelHeader">
           <div id="dictionarySummary"></div>
           <button id="closeDictionaryBtn" class="textBtn" type="button">关闭</button>
@@ -191,14 +223,22 @@
         <div id="dictionaryResults" class="resultList"></div>
       </section>
 
-      <section id="dashboardPanel" class="dashboardPanel"></section>
+      <section id="compareSheet" class="sheetPanel panel" hidden>
+        <div class="panelHeader">
+          <div id="compareSheetTitle">经文对照</div>
+          <button id="closeCompareSheetBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div id="compareSheetContent" class="resultList"></div>
+      </section>
+
       <section id="statusPanel" class="statusPanel" role="status" aria-live="polite" hidden></section>
 
-      <section id="myPanel" class="panel" hidden>
+      <section id="myPanel" class="sheetPanel panel" hidden>
         <div class="panelHeader">
-          <div>我的收藏与笔记</div>
+          <div>我的</div>
           <button id="closeMyPanelBtn" class="textBtn" type="button">关闭</button>
         </div>
+        <div id="myProgressCard" class="myProgressCard"></div>
         <div class="myFilters">
           <button type="button" data-my-filter="all" class="active">全部</button>
           <button type="button" data-my-filter="favorite">收藏</button>
@@ -206,6 +246,9 @@
           <input id="myTagFilter" type="search" placeholder="标签筛选" />
         </div>
         <div id="myResults" class="resultList"></div>
+        <div class="myUpdateRow">
+          <button id="myCheckUpdateBtn" type="button">检查更新</button>
+        </div>
       </section>
 
       <section id="content" class="content" aria-live="polite"></section>
@@ -214,32 +257,31 @@
 
     <div id="verseMenu" class="verseMenu" hidden>
       <div id="verseMenuTitle" class="verseMenuTitle"></div>
-      <button type="button" data-menu-action="select">多选</button>
       <button type="button" data-menu-action="favorite">收藏</button>
       <button type="button" data-menu-action="highlight">高亮</button>
       <button type="button" data-menu-action="note">笔记</button>
       <button type="button" data-menu-action="copy">复制</button>
+      <button type="button" data-menu-action="compare">对照</button>
       <button type="button" data-menu-action="dictionary">查词</button>
       <button type="button" data-menu-action="commentary">注释</button>
     </div>
 
-    <div id="selectionBar" class="selectionBar" hidden>
+    <div id="selectionBar" class="selectionBar actionBar" hidden>
       <span id="selectionSummary">已选择经文</span>
-      <select id="copyFormatSelect" aria-label="复制格式">
-        <option value="reference">带出处</option>
-        <option value="plain">只复制经文</option>
-        <option value="paragraph">合并成一段</option>
-      </select>
-      <button id="copySelectionBtn" type="button">复制所选</button>
-      <button id="cancelSelectionBtn" type="button">取消</button>
+      <div class="actionBarButtons">
+        <button type="button" data-bar-action="favorite">收藏</button>
+        <button type="button" data-bar-action="highlight">高亮</button>
+        <button type="button" data-bar-action="note">笔记</button>
+        <button type="button" data-bar-action="copy">复制</button>
+        <button type="button" data-bar-action="compare">对照</button>
+        <button id="cancelSelectionBtn" type="button">取消</button>
+      </div>
     </div>
 
     <nav class="mobileNav" aria-label="移动端导航">
-      <button id="mobilePrevBtn" type="button">上一章</button>
+      <button id="mobileSearchBtn" type="button">搜索</button>
       <button id="mobileMenuBtn" type="button">目录</button>
-      <button id="mobileMarkReadBtn" type="button">标记</button>
       <button id="mobileMyBtn" type="button">我的</button>
-      <button id="mobileNextBtn" type="button">下一章</button>
     </nav>
 
     <div id="overlay" class="overlay"></div>
