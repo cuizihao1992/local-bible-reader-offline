@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.11.0";
+const APP_VERSION = "1.12.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -28,6 +28,8 @@ const state = {
   mimoKeyType: "standard",
   mimoBaseUrl: "https://api.xiaomimimo.com/v1",
   smartVoice: false,
+  aiProvider: "mimo",
+  aiModel: "mimo-v2.5",
   book: 1,
   chapter: 1,
   targetVerse: null,
@@ -172,6 +174,8 @@ const mimoKeyInput = $("#mimoKeyInput");
 const mimoKeyTypeSelect = $("#mimoKeyTypeSelect");
 const mimoBaseUrlInput = $("#mimoBaseUrlInput");
 const smartVoiceToggle = $("#smartVoiceToggle");
+const aiModelSelect = $("#aiModelSelect");
+const studySearchBtn = $("#studySearchBtn");
 const aiSheet = $("#aiSheet");
 const aiSheetTitle = $("#aiSheetTitle");
 const aiSheetContent = $("#aiSheetContent");
@@ -299,6 +303,8 @@ function restoreState() {
       mimoKeyType: saved.mimoKeyType === "codeplan" || String(saved.mimoKey || "").trim().toLowerCase().startsWith("tp-") ? "codeplan" : "standard",
       mimoBaseUrl: saved.mimoBaseUrl || "https://token-plan-cn.xiaomimimo.com/v1",
       smartVoice: !!saved.smartVoice,
+      aiProvider: saved.aiProvider || "mimo",
+      aiModel: saved.aiModel || "mimo-v2.5",
       book: Number(saved.book) || 1,
       chapter: Number(saved.chapter) || 1,
       recentBooks: Array.isArray(saved.recentBooks) ? saved.recentBooks.slice(0, 8) : [],
@@ -327,6 +333,8 @@ function saveState() {
       mimoKeyType: state.mimoKeyType,
       mimoBaseUrl: state.mimoBaseUrl,
       smartVoice: !!state.smartVoice,
+      aiProvider: state.aiProvider || "mimo",
+      aiModel: state.aiModel || "mimo-v2.5",
       book: state.book,
       chapter: state.chapter,
       recentBooks: state.recentBooks,
@@ -1307,6 +1315,7 @@ function syncMimoSettingsFields() {
     mimoBaseUrlInput.disabled = state.mimoKeyType !== "codeplan";
   }
   if (smartVoiceToggle) smartVoiceToggle.checked = !!state.smartVoice;
+  if (aiModelSelect && state.aiModel) aiModelSelect.value = state.aiModel;
 }
 
 function normalizeMimoChatUrl(value = state.mimoBaseUrl) {
@@ -1443,31 +1452,181 @@ function waitVoiceIntent(timeoutMs = 15000) {
   });
 }
 
-async function mimoChatComplete(systemPrompt, userText) {
-  if (window.AndroidVoiceApi && window.AndroidVoiceApi.completeChat) {
+function getAiProvider() {
+  return {
+    id: state.aiProvider || "mimo",
+    model: state.aiModel || MIMO_CHAT_MODEL,
+    key: state.mimoKey,
+    url: normalizeMimoChatUrl(),
+  };
+}
+
+async function llmChat(messages) {
+  const provider = getAiProvider();
+  if (!provider.key) throw new Error("请先填写模型 Key");
+  if (window.AndroidVoiceApi && window.AndroidVoiceApi.completeChatMessages) {
     const pending = waitVoiceIntent();
-    window.AndroidVoiceApi.completeChat(state.mimoKey, MIMO_CHAT_MODEL, normalizeMimoChatUrl(), systemPrompt, userText);
-    return pending;
+    window.AndroidVoiceApi.completeChatMessages(provider.key, provider.model, provider.url, JSON.stringify(messages));
+    const text = await pending;
+    if (text == null) throw new Error("模型没有返回内容");
+    return text;
   }
-  const response = await fetch(normalizeMimoChatUrl(), {
+  const headers = { "Content-Type": "application/json" };
+  if (provider.id === "mimo") {
+    headers.Authorization = `Bearer ${provider.key}`;
+    headers["api-key"] = provider.key;
+  } else {
+    headers.Authorization = `Bearer ${provider.key}`;
+  }
+  const response = await fetch(provider.url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${state.mimoKey}`,
-      "api-key": state.mimoKey,
-    },
+    headers,
     body: JSON.stringify({
-      model: MIMO_CHAT_MODEL,
+      model: provider.model,
       temperature: 0,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userText },
-      ],
+      messages,
     }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error?.message || payload.message || `理解失败 ${response.status}`);
   return payload.choices?.[0]?.message?.content || "";
+}
+
+async function mimoChatComplete(systemPrompt, userText) {
+  return llmChat([
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userText },
+  ]);
+}
+
+const BIBLE_STUDY_SKILL_FALLBACK = `你是离线圣经阅读器里的查经助手。必须用工具从本机译本取经文，禁止编造章节。
+每轮只输出一个 JSON。
+搜索：{"tool":"search","q":"葡萄","book":"约书亚记"} 或 {"tool":"search","q":"葡萄","scope":"all"}
+取经文：{"tool":"verse","book":"民数记","chapter":13,"verse":23} 或 {"tool":"chapter","book":"民数记","chapter":13}
+结束：{"done":true,"correction":"","answer":"","refs":[{"book":"民数记","chapter":13,"verse":23,"why":""}]}
+用户指错书卷必须纠正。约书亚记抬葡萄实际在民数记13:23。最多4次工具。`;
+
+let bibleStudySkillText = "";
+
+async function loadBibleStudySkill() {
+  if (bibleStudySkillText) return bibleStudySkillText;
+  try {
+    const response = await fetch("skills/bible-lookup.md");
+    if (response.ok) bibleStudySkillText = (await response.text()).trim();
+  } catch {}
+  if (!bibleStudySkillText) bibleStudySkillText = BIBLE_STUDY_SKILL_FALLBACK;
+  return bibleStudySkillText;
+}
+
+function looksLikeStudyQuery(text) {
+  const value = String(text || "").trim();
+  if (value.length < 5) return false;
+  return /帮我|搜一下|找一下|找找|哪(一)?(节|处|章|卷)|经文|抬|关于|故事|谁|在哪/.test(value);
+}
+
+async function runStudyTool(call) {
+  const book = resolveBookName(call.book);
+  if (call.tool === "search") {
+    const scope = book && call.book ? "book" : call.scope || "all";
+    const data = await api(
+      `/api/search?version=${encodeURIComponent(state.version)}&q=${encodeURIComponent(call.q || "")}&scope=${encodeURIComponent(scope)}&book=${book ? book.id : state.book}&fuzzy=1&limit=8&offset=0`,
+    );
+    return {
+      tool: "search",
+      q: call.q,
+      scope,
+      book: book?.longName || "",
+      results: (data.results || []).map((item) => ({
+        book: item.bookName,
+        chapter: item.chapter,
+        verse: item.verse,
+        text: item.text,
+      })),
+    };
+  }
+  if (call.tool === "verse" || call.tool === "chapter") {
+    if (!book) return { error: `未知书卷：${call.book || ""}` };
+    const chapter = resolveChapterSpec(book, call.chapter);
+    const data = await api(`/api/chapter?version=${encodeURIComponent(state.version)}&book=${book.id}&chapter=${chapter}`);
+    const verses = data.verses || [];
+    if (call.tool === "verse") {
+      const verseNo = Number(call.verse);
+      const hit = verses.find((item) => Number(item.verse) === verseNo);
+      return {
+        tool: "verse",
+        book: book.longName,
+        chapter,
+        verse: verseNo,
+        text: hit?.text || "本节没有经文",
+      };
+    }
+    return {
+      tool: "chapter",
+      book: book.longName,
+      chapter,
+      text: verses
+        .slice(0, 18)
+        .map((item) => `${item.verse}.${item.text}`)
+        .join("\n"),
+    };
+  }
+  return { error: `未知工具：${call.tool || ""}` };
+}
+
+function renderStudyResult(result) {
+  if (!aiSheetContent) return;
+  const refs = Array.isArray(result.refs) ? result.refs : [];
+  const cards = refs
+    .map((item) => {
+      const book = resolveBookName(item.book);
+      if (!book || !item.chapter) return "";
+      const verse = Number(item.verse) || 1;
+      return `<button class="resultItem" type="button" data-jump-book="${book.id}" data-jump-chapter="${Number(item.chapter)}" data-jump-verse="${verse}">
+        <div class="resultRef">${escapeHtml(book.longName)} ${Number(item.chapter)}:${verse}</div>
+        <div class="resultText">${escapeHtml(item.why || item.text || "打开这节")}</div>
+      </button>`;
+    })
+    .join("");
+  aiSheetContent.innerHTML = `${
+    result.correction ? `<div class="aiCorrection">${escapeHtml(result.correction)}</div>` : ""
+  }${result.answer ? `<div class="aiAnswer">${escapeHtml(result.answer)}</div>` : ""}<div class="resultList">${cards || `<div class="panelHint">没有可跳转的经文</div>`}</div>`;
+}
+
+async function runBibleStudy(question) {
+  if (!requireMimoKey()) return;
+  const query = String(question || "").trim();
+  if (!query) {
+    showStatus("请先说出或输入要找的经文");
+    return;
+  }
+  openAiSheet("智能查经", state.activeVerse);
+  aiSheetContent.textContent = "正在查经...";
+  const skill = await loadBibleStudySkill();
+  const messages = [
+    { role: "system", content: `${skill}\n当前译本：${versionLabel(state.version)}。当前阅读：${currentBook().longName} ${state.chapter}章。` },
+    { role: "user", content: query },
+  ];
+  try {
+    for (let round = 0; round < 4; round += 1) {
+      const raw = await llmChat(messages);
+      const data = extractJsonObject(raw);
+      if (!data) throw new Error("模型没有给出可用结果");
+      if (data.done) {
+        renderStudyResult(data);
+        showStatus(data.correction || "查经完成", data.correction ? "info" : "success");
+        return;
+      }
+      if (!data.tool) throw new Error("模型没有选择工具");
+      aiSheetContent.textContent = `正在查：${data.q || `${data.book || ""} ${data.chapter || ""}`.trim()}`;
+      const toolResult = await runStudyTool(data);
+      messages.push({ role: "assistant", content: JSON.stringify(data) });
+      messages.push({ role: "user", content: `工具结果：${JSON.stringify(toolResult)}` });
+    }
+    throw new Error("查经轮次过多，请换个说法再试");
+  } catch (error) {
+    aiSheetContent.textContent = error.message || "查经失败";
+    showStatus(error.message || "查经失败", "error");
+  }
 }
 
 async function understandSpokenCommand(spoken) {
@@ -1580,6 +1739,10 @@ function saveMimoSettings() {
   }
   if (state.mimoKeyType !== "codeplan") state.mimoBaseUrl = "https://token-plan-cn.xiaomimimo.com/v1";
   if (smartVoiceToggle) state.smartVoice = !!smartVoiceToggle.checked;
+  if (aiModelSelect) {
+    state.aiModel = aiModelSelect.value || "mimo-v2.5";
+    state.aiProvider = "mimo";
+  }
   syncMimoSettingsFields();
   saveState();
 }
@@ -1591,12 +1754,20 @@ async function handleVoiceText(text) {
     return;
   }
   showStatus(`识别：${spoken}`);
+  if (looksLikeStudyQuery(spoken) && state.mimoKey) {
+    await runBibleStudy(spoken);
+    return;
+  }
   let command = null;
   if (state.smartVoice) {
     showStatus(`识别：${spoken}，正在理解口令...`);
     command = await understandSpokenCommand(spoken);
   }
   if (!command) command = parseSpokenCommand(spoken);
+  if (command?.type === "search" && looksLikeStudyQuery(command.query) && state.mimoKey) {
+    await runBibleStudy(command.query);
+    return;
+  }
   if (!command) {
     showStatus(`识别：${spoken}`);
     return;
@@ -3247,6 +3418,16 @@ smartVoiceToggle?.addEventListener("change", saveMimoSettings);
 aiActionRow?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-ai-action]");
   if (!button) return;
+  if (button.dataset.aiAction === "study") {
+    const question = aiAskInput?.value.trim() || quickInput?.value.trim();
+    if (!question) {
+      showStatus("先输入要找的内容，例如：约书亚记里抬葡萄");
+      aiAskInput?.focus();
+      return;
+    }
+    runBibleStudy(question);
+    return;
+  }
   runAiTask(button.dataset.aiAction, state.activeVerse);
 });
 aiAskForm?.addEventListener("submit", (event) => {
@@ -3256,8 +3437,18 @@ aiAskForm?.addEventListener("submit", (event) => {
     showStatus("请先输入问题");
     return;
   }
-  runAiTask("ask", state.activeVerse, question);
+  if (looksLikeStudyQuery(question)) runBibleStudy(question);
+  else runAiTask("ask", state.activeVerse, question);
 });
+studySearchBtn?.addEventListener("click", () => {
+  const query = quickInput?.value.trim();
+  if (!query) {
+    showStatus("先输入要找的内容，例如：约书亚记里抬葡萄");
+    return;
+  }
+  runBibleStudy(query);
+});
+aiModelSelect?.addEventListener("change", saveMimoSettings);
 saveNoteSheetBtn?.addEventListener("click", saveNoteSheet);
 recentSearchesEl?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-recent-search]");

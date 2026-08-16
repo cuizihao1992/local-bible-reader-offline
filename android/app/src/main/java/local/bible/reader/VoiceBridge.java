@@ -107,6 +107,22 @@ public class VoiceBridge {
     }
 
     @JavascriptInterface
+    public String completeChatMessages(String key, String model, String baseUrl, String messagesJson) {
+        final String safeKey = key == null ? "" : key.trim();
+        final String safeModel = model == null || model.trim().isEmpty() ? "mimo-v2.5" : model.trim();
+        final String safeBase = baseUrl;
+        final String rawMessages = messagesJson == null ? "[]" : messagesJson;
+        new Thread(() -> {
+            try {
+                emit("intent", requestMimoChatMessages(safeKey, safeModel, safeBase, new JSONArray(rawMessages)));
+            } catch (Throwable error) {
+                emit("intentError", message(error));
+            }
+        }, "mimo-chat").start();
+        return "{\"started\":true}";
+    }
+
+    @JavascriptInterface
     public String cancel() {
         activity.runOnUiThread(this::stopRecording);
         return "{\"ok\":true}";
@@ -266,6 +282,10 @@ public class VoiceBridge {
         JSONArray messages = new JSONArray()
                 .put(new JSONObject().put("role", "system").put("content", systemPrompt))
                 .put(new JSONObject().put("role", "user").put("content", userText));
+        return requestMimoChatMessages(key, model, baseUrl, messages);
+    }
+
+    private String requestMimoChatMessages(String key, String model, String baseUrl, JSONArray messages) throws Exception {
         JSONObject body = new JSONObject()
                 .put("model", model == null || model.isEmpty() ? "mimo-v2.5" : model)
                 .put("temperature", 0)

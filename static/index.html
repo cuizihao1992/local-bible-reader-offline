@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.11</p>
+            <p>设置 · 1.12</p>
           </div>
         </div>
       </div>
@@ -54,11 +54,17 @@
           <span>Code Plan Base URL</span>
           <input id="mimoBaseUrlInput" type="url" placeholder="https://token-plan-cn.xiaomimimo.com/v1" />
         </label>
+        <label class="field compactField">
+          <span>对话模型</span>
+          <select id="aiModelSelect">
+            <option value="mimo-v2.5">小米 MiMo 2.5</option>
+          </select>
+        </label>
         <label class="toggleField">
           <input id="smartVoiceToggle" type="checkbox" />
           <span>智能口令（大模型理解，稍慢）</span>
         </label>
-        <div class="panelHint">默认口令本地秒跳。打开智能口令后，听写再用 mimo-v2.5 理解。长按经文可用：讲解、摘要、提问、润色笔记。</div>
+        <div class="panelHint">口令默认本地快跳。智能查经会用大模型纠错并查本地译本，例如「约书亚记里抬葡萄」会纠正到民数记。以后可在此切换模型。</div>
       </div>
       <div class="settingsPanel">
         <div class="panelTitle">本地诊断</div>
@@ -212,6 +218,7 @@
             <span>模糊</span>
           </label>
           <button type="submit">查找</button>
+          <button id="studySearchBtn" type="button">智能查经</button>
         </form>
         <div id="recentSearches" class="recentSearches"></div>
         <div id="searchSummary" class="panelHint"></div>
@@ -287,13 +294,14 @@
           <button id="closeAiSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
         <div id="aiActionRow" class="chipRow">
+          <button type="button" data-ai-action="study">查经</button>
           <button type="button" data-ai-action="explain">讲解本节</button>
           <button type="button" data-ai-action="summary">本章摘要</button>
           <button type="button" data-ai-action="polish">润色笔记</button>
         </div>
         <div id="aiSheetContent" class="aiSheetContent"></div>
         <form id="aiAskForm" class="sheetSearchForm">
-          <input id="aiAskInput" type="search" placeholder="问这节或这章" autocomplete="off" />
+          <input id="aiAskInput" type="search" placeholder="问这节，或搜：约书亚记抬葡萄" autocomplete="off" />
           <button type="submit">提问</button>
         </form>
       </section>
@@ -327,7 +335,7 @@
         </div>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.11.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.12.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

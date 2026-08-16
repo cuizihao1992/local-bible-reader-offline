@@ -509,6 +509,19 @@ select, input[type="search"], input[type="text"] {
   line-height: 1.85;
   font-family: var(--read-font);
 }
+.aiCorrection {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent-2) 16%, var(--soft));
+  color: var(--accent-2);
+  font-family: var(--ui-font);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+.aiAnswer { margin-bottom: 12px; }
+#studySearchBtn { background: var(--soft); color: var(--ink); }
 
 .commentaryContent { display: none; }
 .commentaryBlock { margin-top: 18px; background: var(--panel); border-top: 1px solid var(--line); }
