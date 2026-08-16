@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.8</p>
+            <p>设置 · 1.9</p>
           </div>
         </div>
       </div>
@@ -38,7 +38,7 @@
         <div id="dictionaryHint" class="panelHint"></div>
       </div>
       <div class="settingsPanel">
-        <div class="panelTitle">小米语音跳转</div>
+        <div class="panelTitle">口令（跳转 / 搜索）</div>
         <label class="field compactField">
           <span>MiMo Key</span>
           <input id="mimoKeyInput" type="password" autocomplete="off" placeholder="sk- 普通 Key 或 tp- Code Plan" />
@@ -54,7 +54,7 @@
           <span>Code Plan Base URL</span>
           <input id="mimoBaseUrlInput" type="url" placeholder="https://token-plan-cn.xiaomimimo.com/v1" />
         </label>
-        <div class="panelHint">按住「语音」说「约翰福音三章十六节」。普通 Key 走官方地址；Code Plan 请填后台 OpenAI 兼容 Base URL。Key 只存在本机。</div>
+        <div class="panelHint">按住「口令」可以说：约翰福音三章十六节、诗篇最后一篇、创世记的下一卷、搜索爱人如己。普通 Key 走官方地址；Code Plan 填后台 OpenAI 兼容地址。</div>
       </div>
       <div class="settingsPanel">
         <div class="panelTitle">本地诊断</div>
@@ -82,7 +82,7 @@
         <button id="speakToggleBtn" class="iconBtn" type="button" aria-label="朗读本章" aria-pressed="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h3l5 4V6L7 10H4zM16 9a4 4 0 010 6M18.5 7a7 7 0 010 10"/></svg>
         </button>
-        <button id="voiceBtnDesktop" class="iconBtn voiceBtnTop" type="button" aria-label="按住语音跳转">
+        <button id="voiceBtnDesktop" class="iconBtn voiceBtnTop" type="button" aria-label="按住口令">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 00-3 3v5a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M6 11a6 6 0 0012 0M12 17v3"/></svg>
         </button>
         <button id="searchToggleBtn" class="iconBtn searchToggleBtn" type="button" aria-label="搜索">
@@ -302,7 +302,7 @@
         </div>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.8.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.9.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -376,9 +376,9 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12M6 12h12M6 18h8"/></svg>
         目录
       </button>
-      <button id="voiceBtn" type="button" aria-label="按住语音跳转">
+      <button id="voiceBtn" type="button" aria-label="按住口令">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 00-3 3v5a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M6 11a6 6 0 0012 0M12 17v3"/></svg>
-        语音
+        口令
       </button>
       <button id="mobileMyBtn" type="button" data-nav="my">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M6 19c1.4-3 3.4-4.5 6-4.5S16.6 16 18 19"/></svg>

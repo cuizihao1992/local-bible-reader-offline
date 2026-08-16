@@ -64,6 +64,7 @@ const appJs = await getText("/app.js");
 const stylesCss = await getText("/styles.css");
 assert(indexHtml.includes("本地圣经"), "Index title missing");
 assert(appJs.includes("function parseReference"), "Reference parser missing");
+assert(appJs.includes("function parseSpokenCommand"), "Spoken command parser missing");
 assert(appJs.includes("function parseSpokenReference"), "Spoken reference parser missing");
 assert(appJs.includes("function parseChapterVerseToken"), "Spoken chapter/verse tokenizer missing");
 assert(appJs.includes('level: "book"'), "Spoken book-only jump missing");

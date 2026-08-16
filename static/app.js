@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.9.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -1018,10 +1018,94 @@ function normalizeVoiceText(input) {
     .replace(/[，。？！,.?!、…~～]/g, "")
     .replace(/[:：]/g, ":")
     .replace(/([0-9零〇一二两三四五六七八九十百])比([0-9零〇一二两三四五六七八九十百])/g, "$1:$2")
-    .replace(/请你?|帮我|我想要?|听一下|跳转到|转到|打开|查找|请读|读到|读一下|来读|来听|看看?|阅读|进入|播放|经文|谢谢|啊|嗯|那个/g, "")
+    .replace(/请你?|帮我|我想要?|听一下|跳转到|跳到|转到|打开|请读|读到|读一下|来读|来听|看看?|阅读|进入|播放|经文|谢谢|啊|嗯|那个/g, "")
+    .replace(/的(?=最后|最前|第一|下一|上一|后面|前面)/g, "")
     .replace(/第/g, "")
     .replace(/篇/g, "章")
     .replace(/\s+/g, "");
+}
+
+function lightNormalizeVoice(input) {
+  return String(input || "")
+    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 65248))
+    .replace(/[“”‘’「」『』]/g, "")
+    .replace(/[，。？！,.?!、…~～]/g, "")
+    .replace(/\s+/g, "");
+}
+
+function findSpokenBook(value) {
+  let best = null;
+  for (const [alias, book] of bookAliases()) {
+    const index = value.indexOf(alias);
+    if (index < 0) continue;
+    if (best && (index > best.index || (index === best.index && alias.length <= best.alias.length))) continue;
+    best = { alias, book, index, rest: value.slice(index + alias.length).replace(/^的/, "") };
+  }
+  return best;
+}
+
+function neighborBook(book, delta) {
+  if (!book) return null;
+  const list = state.books || [];
+  const index = list.findIndex((item) => item.id === book.id);
+  return index < 0 ? null : list[index + delta] || null;
+}
+
+function parseRelativeTail(rest, book) {
+  const text = String(rest || "").replace(/^的/, "");
+  if (!text) return clampSpokenRef(book, 1, null, "book");
+  if (/^(最后|末尾|结尾)一?(章|卷)?$/.test(text)) return clampSpokenRef(book, book.chapterCount, null, "chapter");
+  if (/^(开头|最前|第一?)(章|卷)?$/.test(text)) return clampSpokenRef(book, 1, null, "chapter");
+  if (/^(下一|后面一|后一)卷书?$/.test(text)) {
+    const next = neighborBook(book, 1);
+    return next ? clampSpokenRef(next, 1, null, "book") : null;
+  }
+  if (/^(上一|前面一|前一)卷书?$/.test(text)) {
+    const prev = neighborBook(book, -1);
+    return prev ? clampSpokenRef(prev, 1, null, "book") : null;
+  }
+  if (/最后一?节/.test(text)) {
+    const head = text.replace(/最后一?节.*$/, "");
+    if (!head || /^(最后一?章)?$/.test(head)) return { book: book.id, chapter: book.chapterCount, verse: "last", level: "verse" };
+    const cv = parseChapterVerseToken(head.endsWith("章") ? head : `${head}章`);
+    if (cv) return { book: book.id, chapter: Math.min(cv.chapter, book.chapterCount), verse: "last", level: "verse" };
+  }
+  if (/^第一?节$/.test(text)) return clampSpokenRef(book, 1, 1, "verse");
+  return null;
+}
+
+function parseSpokenCommand(input) {
+  const light = lightNormalizeVoice(input);
+  const searchHit = light.match(/^(?:搜索|查找|搜一下|搜)(.+)$/);
+  if (searchHit) return { type: "search", query: searchHit[1] };
+  const value = normalizeVoiceText(input);
+  if (!value) return null;
+  if (/^(下一|后面一|后一)卷书?$/.test(value)) return { type: "moveBook", delta: 1 };
+  if (/^(上一|前面一|前一)卷书?$/.test(value)) return { type: "moveBook", delta: -1 };
+  if (/^(下一|后面一)章$/.test(value)) return { type: "moveChapter", delta: 1 };
+  if (/^(上一|前面一)章$/.test(value)) return { type: "moveChapter", delta: -1 };
+  if (/^(最后|末尾)一?章$/.test(value)) {
+    const book = currentBook();
+    return book ? { type: "jump", ...clampSpokenRef(book, book.chapterCount, null, "chapter") } : null;
+  }
+  if (/^第一?章$/.test(value)) {
+    const book = currentBook();
+    return book ? { type: "jump", ...clampSpokenRef(book, 1, null, "chapter") } : null;
+  }
+  if (/^最后一?节$/.test(value)) {
+    return { type: "jump", book: state.book, chapter: state.chapter, verse: "last", level: "verse" };
+  }
+  const found = findSpokenBook(value);
+  if (found) {
+    const relative = parseRelativeTail(found.rest, found.book);
+    if (relative) return { type: "jump", ...relative };
+    const rest = parseChapterVerseToken(found.rest);
+    if (rest) return { type: "jump", ...clampSpokenRef(found.book, rest.chapter, rest.verse, rest.verse ? "verse" : "chapter") };
+    if (!leftoverHasNumber(found.rest)) return { type: "jump", ...clampSpokenRef(found.book, 1, null, "book") };
+  }
+  const ref = parseSpokenReference(input);
+  if (ref) return { type: "jump", ...ref };
+  return { type: "search", query: String(input || "").trim() };
 }
 
 function chineseNumberToInt(input) {
@@ -1110,6 +1194,29 @@ function parseSpokenReference(input) {
   return parseReference(value);
 }
 
+function lastVerseInContent() {
+  const verses = [...content.querySelectorAll(".verse[data-verse]")];
+  return Number(verses[verses.length - 1]?.dataset.verse) || null;
+}
+
+function formatJumpRef(ref) {
+  const book = state.books.find((item) => item.id === ref.book) || currentBook();
+  if (!book) return "";
+  if (ref.level === "book") return book.longName;
+  if (ref.verse === "last") return `${book.longName} ${ref.chapter}章最后一节`;
+  if (ref.level === "verse" && ref.verse) return `${book.longName} ${ref.chapter}:${ref.verse}`;
+  return `${book.longName} ${ref.chapter}章`;
+}
+
+function moveBook(delta) {
+  const next = neighborBook(currentBook(), delta);
+  if (!next) {
+    showStatus(delta > 0 ? "已经是最后一卷" : "已经是第一卷");
+    return;
+  }
+  return jumpToReference({ book: next.id, chapter: 1, verse: null, level: "book" });
+}
+
 async function jumpToReference(ref) {
   if (jumpBusy) {
     showStatus("正在跳转经文，请稍候");
@@ -1120,14 +1227,21 @@ async function jumpToReference(ref) {
     state.book = ref.book;
     state.chapter = ref.chapter;
     rememberCurrentBook();
-    resetVerseInteraction(ref.verse || null);
+    resetVerseInteraction(ref.verse && ref.verse !== "last" ? ref.verse : null);
     renderBookGrid();
     renderChapterGrid();
     closeTopPanels();
     closeSidebar();
-    await loadChapter({ scrollTop: !state.targetVerse });
+    await loadChapter({ scrollTop: !state.targetVerse && ref.verse !== "last" });
+    if (ref.verse === "last") {
+      const last = lastVerseInContent();
+      if (last) {
+        state.targetVerse = last;
+        focusTargetVerse();
+      }
+    }
     const book = currentBook();
-    showStatus(`${book.longName} ${state.chapter}${state.targetVerse ? `:${state.targetVerse}` : ""}`);
+    showStatus(formatJumpRef({ ...ref, book: book.id }));
   } finally {
     jumpBusy = false;
   }
@@ -1165,7 +1279,7 @@ function setVoiceButtons(mode) {
     if (button.id === "voiceBtn") {
       const label = button.childNodes[button.childNodes.length - 1];
       if (label && label.nodeType === Node.TEXT_NODE) {
-        label.textContent = mode === "record" ? "松手" : mode === "upload" ? "识别" : "语音";
+        label.textContent = mode === "record" ? "松手" : mode === "upload" ? "识别" : "口令";
       }
     }
   });
@@ -1196,23 +1310,32 @@ async function handleVoiceText(text) {
     showStatus("没有听清，请再说一次");
     return;
   }
-  const ref = parseSpokenReference(spoken);
-  if (ref) {
-    const book = state.books.find((item) => item.id === ref.book) || currentBook();
-    const formatted =
-      ref.level === "book"
-        ? book.longName
-        : ref.level === "verse" && ref.verse
-          ? `${book.longName} ${ref.chapter}:${ref.verse}`
-          : `${book.longName} ${ref.chapter}章`;
-    showStatus(`识别：${spoken} → ${formatted}`);
-    await jumpToReference(ref);
+  const command = parseSpokenCommand(spoken);
+  if (!command) {
+    showStatus(`识别：${spoken}`);
     return;
   }
-  showStatus(`识别：${spoken}`);
-  if (quickInput) quickInput.value = spoken;
-  toggleSearch(true);
-  await runSearch(spoken);
+  if (command.type === "search") {
+    showStatus(`搜索：${command.query}`);
+    if (quickInput) quickInput.value = command.query;
+    toggleSearch(true);
+    await runSearch(command.query);
+    return;
+  }
+  if (command.type === "moveBook") {
+    showStatus(`识别：${spoken}`);
+    await moveBook(command.delta);
+    return;
+  }
+  if (command.type === "moveChapter") {
+    showStatus(`识别：${spoken}`);
+    moveChapter(command.delta);
+    return;
+  }
+  if (command.type === "jump") {
+    showStatus(`识别：${spoken} → ${formatJumpRef(command)}`);
+    await jumpToReference(command);
+  }
 }
 
 window.handleAndroidVoice = function handleAndroidVoice(type, text) {
