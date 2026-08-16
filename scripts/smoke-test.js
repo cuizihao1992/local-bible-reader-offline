@@ -86,6 +86,8 @@ assert(indexHtml.includes("id=\"aiSheet\""), "AI sheet missing");
 assert(indexHtml.includes("id=\"studySearchBtn\""), "Study search button missing");
 assert(appJs.includes("function runBibleStudy"), "Bible study agent missing");
 assert(appJs.includes("function getAiProvider"), "AI provider abstraction missing");
+assert(appJs.includes("function beginJob"), "Command job cancel token missing");
+assert(appJs.includes("function finishJob"), "Command finish status missing");
 assert(appJs.includes("function startVoiceInput"), "Voice hold-to-talk missing");
 assert(indexHtml.includes("id=\"voiceBtn\""), "Voice button missing");
 assert(appJs.includes("function loadChapter"), "Chapter loader missing");

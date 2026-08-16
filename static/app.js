@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.12.0";
+const APP_VERSION = "1.12.1";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -379,14 +379,15 @@ function applySettings() {
   syncMimoSettingsFields();
 }
 
-function showStatus(message, tone = "info") {
+function showStatus(message, tone = "info", holdMs = 0) {
   statusPanel.hidden = false;
   statusPanel.className = `statusPanel ${tone}`;
   statusPanel.textContent = message;
   clearTimeout(statusTimer);
+  const wait = holdMs || (tone === "success" ? 3600 : tone === "error" ? 3800 : 2600);
   statusTimer = setTimeout(() => {
     statusPanel.hidden = true;
-  }, 2600);
+  }, wait);
 }
 
 function closeSidebar() {
@@ -1264,20 +1265,17 @@ function formatJumpRef(ref) {
   return `${book.longName} ${ref.chapter}章`;
 }
 
-function moveBook(delta) {
+function moveBook(delta, token = jobToken) {
   const next = neighborBook(currentBook(), delta);
   if (!next) {
-    showStatus(delta > 0 ? "已经是最后一卷" : "已经是第一卷");
+    if (jobAlive(token)) showStatus(delta > 0 ? "已经是最后一卷" : "已经是第一卷");
     return;
   }
-  return jumpToReference({ book: next.id, chapter: 1, verse: null, level: "book" });
+  return jumpToReference({ book: next.id, chapter: 1, verse: null, level: "book" }, token);
 }
 
-async function jumpToReference(ref) {
-  if (jumpBusy) {
-    showStatus("正在跳转经文，请稍候");
-    return;
-  }
+async function jumpToReference(ref, token = jobToken) {
+  if (!jobAlive(token)) return;
   jumpBusy = true;
   try {
     state.book = ref.book;
@@ -1289,6 +1287,7 @@ async function jumpToReference(ref) {
     closeTopPanels();
     closeSidebar();
     await loadChapter({ scrollTop: !state.targetVerse && ref.verse !== "last" });
+    if (!jobAlive(token)) return;
     if (ref.verse === "last") {
       const last = lastVerseInContent();
       if (last) {
@@ -1296,8 +1295,6 @@ async function jumpToReference(ref) {
         focusTargetVerse();
       }
     }
-    const book = currentBook();
-    showStatus(formatJumpRef({ ...ref, book: book.id }));
   } finally {
     jumpBusy = false;
   }
@@ -1337,7 +1334,7 @@ function setVoiceButtons(mode) {
     if (button.id === "voiceBtn") {
       const label = button.childNodes[button.childNodes.length - 1];
       if (label && label.nodeType === Node.TEXT_NODE) {
-        label.textContent = mode === "record" ? "松手" : mode === "upload" ? "识别" : "口令";
+        label.textContent = mode === "record" ? "松手" : mode === "upload" ? "处理中" : "口令";
       }
     }
   });
@@ -1351,6 +1348,33 @@ function resetVoiceState() {
 
 const MIMO_CHAT_MODEL = "mimo-v2.5";
 let voiceIntentWaiter = null;
+let jobToken = 0;
+let voiceSession = 0;
+let pendingResultJob = 0;
+
+function beginJob(message, tone = "info") {
+  jobToken += 1;
+  chapterLoadToken += 1;
+  if (voiceIntentWaiter) {
+    const waiter = voiceIntentWaiter;
+    voiceIntentWaiter = null;
+    waiter(null);
+  }
+  if (message) showStatus(message, tone);
+  return jobToken;
+}
+
+function jobAlive(token) {
+  return token === jobToken;
+}
+
+function finishJob(token, message, tone = "success") {
+  if (!jobAlive(token)) return false;
+  resetVoiceState();
+  setVoiceButtons("idle");
+  if (message) showStatus(message, tone);
+  return true;
+}
 
 function extractJsonObject(text) {
   const raw = String(text || "");
@@ -1592,28 +1616,32 @@ function renderStudyResult(result) {
   }${result.answer ? `<div class="aiAnswer">${escapeHtml(result.answer)}</div>` : ""}<div class="resultList">${cards || `<div class="panelHint">没有可跳转的经文</div>`}</div>`;
 }
 
-async function runBibleStudy(question) {
+async function runBibleStudy(question, token = beginJob("正在查经...")) {
   if (!requireMimoKey()) return;
   const query = String(question || "").trim();
   if (!query) {
-    showStatus("请先说出或输入要找的经文");
+    finishJob(token, "请先说出或输入要找的经文", "info");
     return;
   }
+  if (!jobAlive(token)) return;
   openAiSheet("智能查经", state.activeVerse);
   aiSheetContent.textContent = "正在查经...";
   const skill = await loadBibleStudySkill();
+  if (!jobAlive(token)) return;
   const messages = [
     { role: "system", content: `${skill}\n当前译本：${versionLabel(state.version)}。当前阅读：${currentBook().longName} ${state.chapter}章。` },
     { role: "user", content: query },
   ];
   try {
     for (let round = 0; round < 4; round += 1) {
+      if (!jobAlive(token)) return;
       const raw = await llmChat(messages);
+      if (!jobAlive(token)) return;
       const data = extractJsonObject(raw);
       if (!data) throw new Error("模型没有给出可用结果");
       if (data.done) {
         renderStudyResult(data);
-        showStatus(data.correction || "查经完成", data.correction ? "info" : "success");
+        finishJob(token, data.correction ? `查经完成：${data.correction}` : "查经完成", data.correction ? "info" : "success");
         return;
       }
       if (!data.tool) throw new Error("模型没有选择工具");
@@ -1624,8 +1652,9 @@ async function runBibleStudy(question) {
     }
     throw new Error("查经轮次过多，请换个说法再试");
   } catch (error) {
+    if (!jobAlive(token)) return;
     aiSheetContent.textContent = error.message || "查经失败";
-    showStatus(error.message || "查经失败", "error");
+    finishJob(token, error.message || "查经失败", "error");
   }
 }
 
@@ -1692,6 +1721,7 @@ async function runAiTask(kind, verseNo, question = "") {
     aiSheetContent.textContent = "这一节还没有笔记。先写笔记再润色。";
     return;
   }
+  const token = beginJob("正在生成...");
   aiSheetContent.textContent = "正在生成...";
   const prompts = {
     explain: [
@@ -1714,6 +1744,7 @@ async function runAiTask(kind, verseNo, question = "") {
   const pair = prompts[kind] || prompts.explain;
   try {
     const text = String((await mimoChatComplete(pair[0], pair[1])) || "").trim();
+    if (!jobAlive(token)) return;
     if (!text) throw new Error("没有生成内容");
     aiSheetContent.textContent = text;
     if (kind === "polish") {
@@ -1723,9 +1754,11 @@ async function runAiTask(kind, verseNo, question = "") {
         await saveVerseMark({ ...mark, note: text }, { successMessage: "已写入润色后的笔记" });
       }
     }
+    finishJob(token, kind === "polish" ? "笔记已润色" : "已完成", "success");
   } catch (error) {
+    if (!jobAlive(token)) return;
     aiSheetContent.textContent = error.message || "生成失败";
-    showStatus(error.message || "生成失败", "error");
+    finishJob(token, error.message || "生成失败", "error");
   }
 }
 
@@ -1747,51 +1780,55 @@ function saveMimoSettings() {
   saveState();
 }
 
-async function handleVoiceText(text) {
+async function handleVoiceText(text, token = jobToken) {
   const spoken = String(text || "").trim();
+  if (!jobAlive(token)) return;
   if (!spoken) {
-    showStatus("没有听清，请再说一次");
+    finishJob(token, "没有听清，请再说一次", "info");
     return;
   }
-  showStatus(`识别：${spoken}`);
+  showStatus(`已听清：${spoken}，正在处理...`);
   if (looksLikeStudyQuery(spoken) && state.mimoKey) {
-    await runBibleStudy(spoken);
+    await runBibleStudy(spoken, token);
     return;
   }
   let command = null;
   if (state.smartVoice) {
-    showStatus(`识别：${spoken}，正在理解口令...`);
+    showStatus(`已听清：${spoken}，正在用大模型理解...`);
     command = await understandSpokenCommand(spoken);
+    if (!jobAlive(token)) return;
   }
   if (!command) command = parseSpokenCommand(spoken);
+  if (!jobAlive(token)) return;
   if (command?.type === "search" && looksLikeStudyQuery(command.query) && state.mimoKey) {
-    await runBibleStudy(command.query);
+    await runBibleStudy(command.query, token);
     return;
   }
   if (!command) {
-    showStatus(`识别：${spoken}`);
+    finishJob(token, `已听清：${spoken}，没有对应口令`, "info");
     return;
   }
   if (command.type === "search") {
-    showStatus(`搜索：${command.query}`);
     if (quickInput) quickInput.value = command.query;
     toggleSearch(true);
     await runSearch(command.query);
+    if (jobAlive(token)) finishJob(token, `搜索完成：${command.query}`, "success");
     return;
   }
   if (command.type === "moveBook") {
-    showStatus(`识别：${spoken}`);
-    await moveBook(command.delta);
+    await moveBook(command.delta, token);
+    if (jobAlive(token)) finishJob(token, `已完成：${formatJumpRef({ book: state.book, chapter: 1, level: "book" })}`, "success");
     return;
   }
   if (command.type === "moveChapter") {
-    showStatus(`识别：${spoken}`);
     moveChapter(command.delta);
+    if (jobAlive(token)) finishJob(token, `已完成：${currentBook().longName} ${state.chapter}章`, "success");
     return;
   }
   if (command.type === "jump") {
-    showStatus(`识别：${spoken} → ${formatJumpRef(command)}`);
-    await jumpToReference(command);
+    showStatus(`正在跳到 ${formatJumpRef(command)}...`);
+    await jumpToReference(command, token);
+    if (jobAlive(token)) finishJob(token, `已完成：${formatJumpRef(command)}`, "success");
   }
 }
 
@@ -1818,9 +1855,25 @@ window.handleAndroidVoice = function handleAndroidVoice(type, text) {
     setVoiceButtons("upload");
     return;
   }
+  if (type === "result") {
+    if (!pendingResultJob || pendingResultJob !== jobToken) return;
+    const token = pendingResultJob;
+    pendingResultJob = 0;
+    voiceInputActive = false;
+    voiceStopPending = false;
+    setVoiceButtons("upload");
+    handleVoiceText(text, token).catch((error) => {
+      if (jobAlive(token)) finishJob(token, error.message || "口令失败", "error");
+    });
+    return;
+  }
+  if (type === "error") {
+    if (!pendingResultJob || pendingResultJob !== jobToken) return;
+    finishJob(pendingResultJob, text || "识别失败", "error");
+    pendingResultJob = 0;
+    return;
+  }
   resetVoiceState();
-  if (type === "result") handleVoiceText(text).catch((error) => showStatus(error.message, "error"));
-  else if (type === "error") showStatus(text || "语音识别失败", "error");
 };
 
 function encodeWav(floatChunks, sampleRate) {
@@ -1892,9 +1945,22 @@ async function recognizeMimoInBrowser(blob) {
 
 async function startVoiceInput(event) {
   event.preventDefault();
-  if (voiceInputActive) {
+  if (voiceInputActive && !voiceStopPending) {
     showStatus("正在录音，请先松开");
     return;
+  }
+  if (window.AndroidVoiceApi && window.AndroidVoiceApi.cancel) window.AndroidVoiceApi.cancel();
+  if (browserAudio) {
+    try {
+      browserAudio.processor?.disconnect();
+      browserAudio.source?.disconnect();
+      browserAudio.context?.close();
+    } catch {}
+    browserAudio = null;
+  }
+  if (browserStream) {
+    browserStream.getTracks().forEach((track) => track.stop());
+    browserStream = null;
   }
   saveMimoSettings();
   if (!state.mimoKey) {
@@ -1907,10 +1973,11 @@ async function startVoiceInput(event) {
     showStatus("Code Plan 请填写后台显示的 OpenAI 兼容 Base URL");
     return;
   }
+  voiceSession = beginJob("正在录音，松开后识别");
+  pendingResultJob = 0;
   voiceInputActive = true;
   voiceStopPending = false;
   setVoiceButtons("record");
-  showStatus("正在录音，松开后识别");
   if (window.AndroidVoiceApi && window.AndroidVoiceApi.startCloud) {
     window.AndroidVoiceApi.startCloud("mimo", state.mimoKey, "mimo-v2.5-asr", normalizeMimoChatUrl());
     return;
@@ -1947,10 +2014,13 @@ async function startVoiceInput(event) {
         const blob = encodeWav(chunks, context.sampleRate || 16000);
         if (blob.size < 1024) throw new Error("录音太短，请按住说完后再松开");
         setVoiceButtons("upload");
-        showStatus("正在用小米识别...");
+        pendingResultJob = voiceSession;
+        showStatus("正在识别...");
         const text = await recognizeMimoInBrowser(blob);
-        resetVoiceState();
-        await handleVoiceText(text);
+        if (!pendingResultJob || pendingResultJob !== jobToken) return;
+        const token = pendingResultJob;
+        pendingResultJob = 0;
+        await handleVoiceText(text, token);
       },
     };
   } catch (error) {
@@ -1965,7 +2035,8 @@ function stopVoiceInput(event) {
   voiceStopPending = true;
   if (window.AndroidVoiceApi && window.AndroidVoiceApi.stopCloud) {
     setVoiceButtons("upload");
-    showStatus("正在用小米识别...");
+    pendingResultJob = voiceSession;
+    showStatus("正在识别...");
     window.AndroidVoiceApi.stopCloud();
     return;
   }
