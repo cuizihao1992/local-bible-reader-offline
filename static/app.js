@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.4.0";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
 const GITHUB_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -355,6 +355,11 @@ function closeContentPanels() {
   if (highlightColors) highlightColors.hidden = true;
 }
 
+function syncSheetOverlay() {
+  const open = [...document.querySelectorAll(".sheetPanel, .readerSettingsPanel")].some((el) => el && !el.hidden);
+  document.body.classList.toggle("sheetOpen", open);
+}
+
 function closeTopPanels(includeSettings = true) {
   bookPickerPanel.hidden = true;
   if (versionPickerPanel) versionPickerPanel.hidden = true;
@@ -363,6 +368,7 @@ function closeTopPanels(includeSettings = true) {
   closeContentPanels();
   closeVerseMenu();
   closeSelectionBar();
+  syncSheetOverlay();
 }
 
 function resetVerseInteraction(targetVerse = null) {
@@ -615,9 +621,9 @@ function renderVerses(data) {
         return `
           ${headings[verse.verse] ? `<div class="sectionHeading" data-section-verse="${verse.verse}"><span class="sectionHeadingNo">${verse.verse}</span><span>${escapeHtml(headings[verse.verse])}</span></div>` : ""}
           <article class="verse ${verseMarkClasses(mark)}" data-verse="${verse.verse}">
-            <div class="verseNo" id="v${verse.verse}">${verse.verse}</div>
             <div class="verseBody" data-verse="${verse.verse}">
-              <div class="verseText">${escapeHtml(verse.text)}</div>
+              <span class="verseNo" id="v${verse.verse}">${verse.verse}</span>
+              <span class="verseText">${escapeHtml(verse.text)}</span>
               ${renderStrongList(verse.strongs || [])}
               ${renderNoteEditor(verse.verse)}
             </div>
@@ -1858,6 +1864,9 @@ async function init() {
   applySettings();
   if (updateStatus) updateStatus.textContent = `当前版本 ${APP_VERSION}`;
   loadPackages();
+  document.querySelectorAll(".sheetPanel, .readerSettingsPanel").forEach((el) => {
+    new MutationObserver(syncSheetOverlay).observe(el, { attributes: true, attributeFilter: ["hidden"] });
+  });
   const [versions, commentaries, dictionaries, history] = await Promise.all([
     api("/api/versions"),
     api("/api/commentaries"),
