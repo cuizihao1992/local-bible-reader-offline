@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.13.0</p>
+            <p>设置 · 1.14.0</p>
           </div>
         </div>
       </div>
@@ -107,11 +107,11 @@
       <button id="nextEdge" class="chapterEdge next" type="button" aria-label="下一章"></button>
 
       <section id="readerSettingsPanel" class="readerSettingsPanel" hidden>
-        <div class="readerSettingsHeader">
-          <div>阅读设置</div>
+        <div class="sheetHeader readerSettingsHeader">
+          <div class="sheetTitle">阅读设置</div>
           <button id="closeReaderSettingsBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <div class="readerSettingsGrid">
+        <div class="sheetBody readerSettingsGrid">
           <label class="field compactField">
             <span>主题</span>
             <select id="themeSelect">
@@ -146,28 +146,31 @@
       </section>
 
       <section id="versionPickerPanel" class="sheetPanel" hidden>
-        <div class="panelHeader">
+        <div class="sheetHeader panelHeader">
           <div>
-            <div class="panelTitle">选择译本</div>
-            <div class="panelHint">点译本名切换当前阅读。下面可勾选对照，经文下同时显示。</div>
+            <div class="sheetTitle">选择译本</div>
+            <div class="panelHint">点译本切换阅读；下面勾选后，每节底下对照显示。</div>
           </div>
           <button id="closeVersionPickerBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <div id="versionPickerList" class="versionPickerList"></div>
-        <div class="inlineCompareBlock">
-          <div class="panelTitle">阅读时对照</div>
-          <div id="inlineCompareList" class="chipRow"></div>
+        <div class="sheetBody">
+          <div id="versionPickerList" class="versionPickerList"></div>
+          <div class="sheetSection inlineCompareBlock">
+            <div class="panelTitle">阅读时对照</div>
+            <div id="inlineCompareList" class="chipRow"></div>
+          </div>
         </div>
       </section>
 
       <section id="bookPickerPanel" class="sheetPanel bookPickerPanel" hidden>
-        <div class="bookPickerHeader">
+        <div class="sheetHeader bookPickerHeader">
           <div>
-            <div id="bookPickerTitle" class="panelTitle">选择书卷</div>
+            <div id="bookPickerTitle" class="sheetTitle">选择书卷</div>
             <div id="bookPickerCurrent" class="panelHint">点书卷即读 · 长按选章</div>
           </div>
           <button id="closeBookPickerBtn" class="textBtn" type="button">关闭</button>
         </div>
+        <div class="sheetBody">
         <div class="bookPicker">
           <div class="bookPickerTop">
             <input id="bookSearchInput" type="search" placeholder="搜索书卷" autocomplete="off" />
@@ -202,15 +205,18 @@
           </div>
           <div id="verseGrid" class="chapterGrid"></div>
         </div>
+        </div>
       </section>
 
       <section id="searchPanel" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div>搜索</div>
+        <div class="sheetHeader panelHeader">
+          <div class="sheetTitle">搜索</div>
           <button id="closeSearchBtn" class="textBtn" type="button">关闭</button>
         </div>
+        <div class="sheetBody">
         <form id="quickForm" class="sheetSearchForm" role="search">
           <input id="quickInput" type="search" placeholder="约3:16 或 关键词" autocomplete="off" />
+          <div class="sheetSearchRow">
           <select id="searchScope" aria-label="搜索范围">
             <option value="all">全本</option>
             <option value="ot">旧约</option>
@@ -223,119 +229,159 @@
           </label>
           <button type="submit">查找</button>
           <button id="studySearchBtn" type="button">智能查经</button>
+          </div>
         </form>
         <div id="recentSearches" class="recentSearches"></div>
         <div id="searchSummary" class="panelHint"></div>
         <div id="searchResults" class="resultList"></div>
+        </div>
       </section>
 
       <section id="strongPanel" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div id="strongTitle"></div>
+        <div class="sheetHeader panelHeader">
+          <div id="strongTitle" class="sheetTitle"></div>
           <button id="closeStrongBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <div id="strongContent" class="strongContent"></div>
+        <div class="sheetBody">
+          <div id="strongContent" class="strongContent"></div>
+        </div>
       </section>
 
-      <section id="audioPanel" class="audioPanel" hidden></section>
+      <section id="audioPanel" class="sheetPanel panel audioPanel" hidden>
+        <div class="sheetHeader panelHeader">
+          <div class="sheetTitle">朗读</div>
+          <button id="closeAudioBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div class="sheetBody">
+          <div id="ttsStatus" class="panelHint">用手机系统朗读本章。点喇叭或下面的按钮开始。</div>
+          <div class="dataButtons">
+            <button id="ttsPlayBtn" type="button">朗读本章</button>
+            <button id="ttsStopBtn" type="button">停止</button>
+          </div>
+          <label class="toggleField">
+            <input id="audioAutoNextSheet" type="checkbox" />
+            <span>读完自动下一章</span>
+          </label>
+          <div id="audioFileList" class="audioFileList"></div>
+        </div>
+      </section>
 
       <section id="dictionaryPanel" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div id="dictionarySummary"></div>
+        <div class="sheetHeader panelHeader">
+          <div id="dictionarySummary" class="sheetTitle"></div>
           <button id="closeDictionaryBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <div id="dictionaryResults" class="resultList"></div>
+        <div class="sheetBody">
+          <div id="dictionaryResults" class="resultList"></div>
+        </div>
       </section>
 
       <section id="compareSheet" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div id="compareSheetTitle">经文对照</div>
+        <div class="sheetHeader panelHeader">
+          <div id="compareSheetTitle" class="sheetTitle">经文对照</div>
           <button id="closeCompareSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <div id="compareSourceList" class="chipRow"></div>
-        <div id="compareSheetContent" class="resultList"></div>
+        <div class="sheetBody">
+          <div id="compareSourceList" class="chipRow"></div>
+          <div id="compareSheetContent" class="resultList"></div>
+        </div>
       </section>
 
       <section id="commentarySheet" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div id="commentarySheetTitle">本节注释</div>
+        <div class="sheetHeader panelHeader">
+          <div id="commentarySheetTitle" class="sheetTitle">本节注释</div>
           <button id="closeCommentarySheetBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <div id="commentarySourceList" class="chipRow"></div>
-        <div id="commentaryHint" class="panelHint"></div>
-        <div id="commentarySheetContent" class="resultList"></div>
+        <div class="sheetBody">
+          <div id="commentarySourceList" class="chipRow"></div>
+          <div id="commentaryHint" class="panelHint"></div>
+          <div id="commentarySheetContent" class="resultList"></div>
+        </div>
       </section>
 
       <section id="noteSheet" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div id="noteSheetTitle">笔记</div>
+        <div class="sheetHeader panelHeader">
+          <div id="noteSheetTitle" class="sheetTitle">笔记</div>
           <button id="closeNoteSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <textarea id="noteSheetText" placeholder="写下笔记"></textarea>
-        <input id="noteSheetTags" type="text" placeholder="标签，用逗号分隔" />
-        <div class="dataButtons">
+        <div class="sheetBody">
+          <textarea id="noteSheetText" placeholder="写下笔记"></textarea>
+          <input id="noteSheetTags" type="text" placeholder="标签，用逗号分隔" />
+        </div>
+        <div class="sheetFooter dataButtons">
           <button id="saveNoteSheetBtn" type="button">保存笔记</button>
         </div>
       </section>
 
       <section id="shareSheet" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div>金句分享</div>
+        <div class="sheetHeader panelHeader">
+          <div class="sheetTitle">金句分享</div>
           <button id="closeShareSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <div class="sharePreviewWrap">
-          <canvas id="shareCanvas" width="1080" height="1350"></canvas>
+        <div class="sheetBody">
+          <div class="sharePreviewWrap">
+            <canvas id="shareCanvas" width="1080" height="1350"></canvas>
+          </div>
         </div>
-        <div class="dataButtons">
+        <div class="sheetFooter dataButtons">
           <button id="shareImageBtn" type="button">分享图片</button>
           <button id="saveShareBtn" type="button">保存图片</button>
         </div>
       </section>
 
       <section id="aiSheet" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div id="aiSheetTitle">小米助手</div>
+        <div class="sheetHeader panelHeader">
+          <div id="aiSheetTitle" class="sheetTitle">小米助手</div>
           <button id="closeAiSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <div id="aiActionRow" class="chipRow">
-          <button type="button" data-ai-action="study">查经</button>
-          <button type="button" data-ai-action="explain">讲解本节</button>
-          <button type="button" data-ai-action="summary">本章摘要</button>
-          <button type="button" data-ai-action="polish">润色笔记</button>
+        <div class="sheetBody">
+          <div id="aiActionRow" class="chipRow">
+            <button type="button" data-ai-action="study">查经</button>
+            <button type="button" data-ai-action="explain">讲解本节</button>
+            <button type="button" data-ai-action="summary">本章摘要</button>
+            <button type="button" data-ai-action="polish">润色笔记</button>
+          </div>
+          <div id="aiSheetContent" class="aiSheetContent"></div>
         </div>
-        <div id="aiSheetContent" class="aiSheetContent"></div>
-        <form id="aiAskForm" class="sheetSearchForm">
-          <input id="aiAskInput" type="search" placeholder="问这节，或搜：约书亚记抬葡萄" autocomplete="off" />
-          <button type="submit">提问</button>
-        </form>
+        <div class="sheetFooter">
+          <form id="aiAskForm" class="sheetSearchForm">
+            <input id="aiAskInput" type="search" placeholder="问这节，或搜：约书亚记抬葡萄" autocomplete="off" />
+            <button type="submit">提问</button>
+          </form>
+        </div>
       </section>
 
       <section id="confirmSheet" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div id="confirmSheetTitle">听得不太准</div>
+        <div class="sheetHeader panelHeader">
+          <div id="confirmSheetTitle" class="sheetTitle">听得不太准</div>
           <button id="closeConfirmSheetBtn" class="textBtn" type="button">取消</button>
         </div>
-        <div id="confirmSheetHint" class="panelHint"></div>
-        <div id="confirmSheetChoices" class="resultList"></div>
+        <div class="sheetBody">
+          <div id="confirmSheetHint" class="panelHint"></div>
+          <div id="confirmSheetChoices" class="resultList"></div>
+        </div>
       </section>
 
       <section id="statusPanel" class="statusPanel" role="status" aria-live="polite" hidden></section>
 
       <section id="myPanel" class="sheetPanel panel" hidden>
-        <div class="panelHeader">
-          <div>我的</div>
+        <div class="sheetHeader panelHeader">
+          <div class="sheetTitle">我的</div>
           <button id="closeMyPanelBtn" class="textBtn" type="button">关闭</button>
         </div>
+        <div class="sheetBody">
         <div id="myProgressCard" class="myProgressCard"></div>
         <div class="myFilters">
+          <div class="chipRow myFilterChips">
           <button type="button" data-my-filter="all" class="active">全部</button>
           <button type="button" data-my-filter="favorite">收藏</button>
           <button type="button" data-my-filter="highlight">高亮</button>
           <button type="button" data-my-filter="note">笔记</button>
-          <input id="myTagFilter" type="search" placeholder="标签筛选" />
+          </div>
+          <input id="myTagFilter" type="search" placeholder="按标签筛选" />
         </div>
         <div id="myResults" class="resultList"></div>
-        <div class="settingsPanel">
+        <div class="sheetSection settingsPanel">
           <div class="panelTitle">离线资源</div>
           <div id="packageList" class="packageList"></div>
           <div id="packageProgress" class="downloadProgress" hidden>
@@ -347,9 +393,9 @@
           </div>
           <div id="packageHint" class="panelHint">可下载更多译本和注释库</div>
         </div>
-        <div class="settingsPanel">
+        <div class="sheetSection settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.13.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.14.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -362,9 +408,9 @@
             </div>
             <div class="downloadProgressTrack"><span id="updateProgressBar"></span></div>
           </div>
-          <div id="updateNetworkHint" class="panelHint">下载走系统 HTTP 代理。Clash 等软件开「规则」时，GitHub / githubusercontent 常被直连，只有「全局」才能下；把这两个域名加进代理规则即可。</div>
+          <div id="updateNetworkHint" class="panelHint">下载走系统代理。Clash 用规则模式时，把 github.com 和 githubusercontent.com 加进代理。</div>
         </div>
-        <div class="settingsPanel">
+        <div class="sheetSection settingsPanel">
           <div class="panelTitle">个人数据</div>
           <div class="dataButtons">
             <button id="exportDataBtn" type="button">导出</button>
@@ -372,6 +418,7 @@
             <input id="importDataFile" type="file" accept="application/json" hidden />
           </div>
           <div id="userDataHint" class="panelHint"></div>
+        </div>
         </div>
       </section>
 

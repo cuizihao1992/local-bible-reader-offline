@@ -103,7 +103,7 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new AndroidBridge(offlineApi), "AndroidBibleApi");
         webView.addJavascriptInterface(new UpdateBridge(this), "AndroidUpdateApi");
         webView.addJavascriptInterface(new ShareBridge(this), "AndroidShareApi");
-        ttsBridge = new TtsBridge(this);
+        ttsBridge = new TtsBridge(this, webView);
         webView.addJavascriptInterface(ttsBridge, "AndroidTtsApi");
         webView.addJavascriptInterface(new VoiceBridge(this, webView), "AndroidVoiceApi");
 

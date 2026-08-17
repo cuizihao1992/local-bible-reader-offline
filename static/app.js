@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.13.0";
+const APP_VERSION = "1.14.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -99,6 +99,12 @@ const strongTitle = $("#strongTitle");
 const strongContent = $("#strongContent");
 const closeStrongBtn = $("#closeStrongBtn");
 const audioPanel = $("#audioPanel");
+const audioFileList = $("#audioFileList");
+const ttsStatus = $("#ttsStatus");
+const ttsPlayBtn = $("#ttsPlayBtn");
+const ttsStopBtn = $("#ttsStopBtn");
+const closeAudioBtn = $("#closeAudioBtn");
+const audioAutoNextSheet = $("#audioAutoNextSheet");
 const dictionaryPanel = $("#dictionaryPanel");
 const dictionarySummary = $("#dictionarySummary");
 const dictionaryResults = $("#dictionaryResults");
@@ -381,6 +387,7 @@ function applySettings() {
   lineHeightValue.textContent = Number(state.lineHeight).toFixed(2);
   strongToggle.checked = state.showStrong;
   audioAutoNext.checked = state.audioAutoNext;
+  if (audioAutoNextSheet) audioAutoNextSheet.checked = state.audioAutoNext;
   if (keepScreenOnToggle) keepScreenOnToggle.checked = state.keepScreenOn;
   if (fuzzySearchToggle) fuzzySearchToggle.checked = !!state.fuzzySearch;
   if (window.AndroidBibleApi && window.AndroidBibleApi.setKeepScreenOn) {
@@ -425,6 +432,7 @@ function closeContentPanels() {
   if (noteSheet) noteSheet.hidden = true;
   if (aiSheet) aiSheet.hidden = true;
   if (confirmSheet) confirmSheet.hidden = true;
+  if (audioPanel) audioPanel.hidden = true;
   if (highlightColors) highlightColors.hidden = true;
   closeVerseMenu();
   closeSelectionBar();
@@ -880,39 +888,63 @@ function renderCommentary(data) {
   `;
 }
 
+let chapterAudioFiles = [];
+
 async function loadAudio(snapshot = {}, token = null) {
   try {
     const data = await api(`/api/audio?book=${snapshot.book || state.book}&chapter=${snapshot.chapter || state.chapter}`);
     if (token != null && token !== chapterLoadToken) return;
-    renderAudio(data.audio || []);
+    chapterAudioFiles = data.audio || [];
+    if (audioPanel && !audioPanel.hidden) renderAudioSheet();
   } catch {
     if (token != null && token !== chapterLoadToken) return;
-    audioPanel.hidden = true;
+    chapterAudioFiles = [];
+    if (audioPanel && !audioPanel.hidden) renderAudioSheet();
   }
 }
 
-function renderAudio(items) {
-  if (!items.length) {
-    audioPanel.hidden = true;
-    audioPanel.innerHTML = "";
+function setTtsStatus(text) {
+  if (ttsStatus) ttsStatus.textContent = text;
+}
+
+function renderAudioSheet() {
+  if (audioAutoNextSheet) audioAutoNextSheet.checked = !!state.audioAutoNext;
+  if (!audioFileList) return;
+  if (!chapterAudioFiles.length) {
+    audioFileList.innerHTML = `<div class="panelHint">手机版用系统朗读。本章若有 MP3（电脑 D:\\bibleDownload\\ld），会显示在这里。APK 里不内置音频包。</div>`;
     return;
   }
-  audioPanel.hidden = false;
-  audioPanel.innerHTML = items
+  audioFileList.innerHTML = chapterAudioFiles
     .map(
-      (item, index) => `
-        <div>
-          <div class="panelTitle">${escapeHtml(item.source)} · 音频</div>
-          <audio controls ${index === 0 ? "" : ""} src="${escapeHtml(item.url)}" data-audio></audio>
+      (item) => `
+        <div class="sheetSection">
+          <div class="panelTitle">${escapeHtml(item.source)} · ${escapeHtml(item.fileName || "音频")}</div>
+          <audio controls src="${escapeHtml(item.url)}" data-audio></audio>
         </div>
       `,
     )
     .join("");
-  audioPanel.querySelectorAll("audio").forEach((audio) => {
+  audioFileList.querySelectorAll("audio").forEach((audio) => {
     audio.addEventListener("ended", () => {
       if (state.audioAutoNext) moveChapter(1);
     });
   });
+}
+
+function openAudioSheet() {
+  closeContentPanels();
+  if (audioPanel) audioPanel.hidden = false;
+  renderAudioSheet();
+  syncSheetOverlay();
+}
+
+function ttsReady() {
+  if (!window.AndroidTtsApi || !window.AndroidTtsApi.ready) return true;
+  try {
+    return !!JSON.parse(window.AndroidTtsApi.ready()).ready;
+  } catch {
+    return false;
+  }
 }
 
 async function loadChapter(options = {}) {
@@ -2957,44 +2989,95 @@ function setSpeaking(on) {
 }
 
 function speakChapter() {
+  openAudioSheet();
   if (speaking) {
     stopSpeaking();
     return;
   }
-  const text = `${currentBook().longName} 第 ${state.chapter} 章。${chapterPlainText()}`;
+  const book = currentBook();
+  const text = `${book ? book.longName : ""} 第 ${state.chapter} 章。${chapterPlainText()}`;
   if (!text || text.length < 8) {
+    setTtsStatus("这一章没有可朗读的经文");
     showStatus("没有可朗读的经文");
     return;
   }
   if (window.AndroidTtsApi && window.AndroidTtsApi.speak) {
-    const result = JSON.parse(window.AndroidTtsApi.speak(text));
-    if (result.error) showStatus(result.error, "error");
-    else {
-      setSpeaking(true);
-      showStatus("开始朗读本章");
+    if (!ttsReady()) {
+      setTtsStatus("朗读引擎还在准备，请再点一次");
+      showStatus("朗读引擎还在准备，请再点一次");
+      return;
     }
+    const result = JSON.parse(window.AndroidTtsApi.speak(text));
+    if (result.error) {
+      setTtsStatus(result.error);
+      showStatus(result.error, "error");
+      return;
+    }
+    setSpeaking(true);
+    setTtsStatus(`正在朗读 ${book ? book.longName : ""} ${state.chapter} 章`);
+    showStatus("开始朗读本章");
     return;
   }
   if (!window.speechSynthesis) {
-    showStatus("当前环境不支持朗读");
+    setTtsStatus("当前环境不支持朗读");
+    showStatus("当前环境不支持朗读", "error");
     return;
   }
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "zh-CN";
-  utterance.onend = () => setSpeaking(false);
-  utterance.onerror = () => setSpeaking(false);
-  window.speechSynthesis.speak(utterance);
+  const chunks = text.match(/[^。！？；\n]+[。！？；\n]?/g) || [text];
+  const speakNext = (index) => {
+    if (index >= chunks.length) {
+      setSpeaking(false);
+      setTtsStatus("朗读结束");
+      if (state.audioAutoNext) moveChapter(1);
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(chunks[index]);
+    utterance.lang = "zh-CN";
+    utterance.onend = () => {
+      if (speaking) speakNext(index + 1);
+    };
+    utterance.onerror = () => {
+      setSpeaking(false);
+      setTtsStatus("朗读中断");
+    };
+    window.speechSynthesis.speak(utterance);
+  };
   setSpeaking(true);
+  setTtsStatus(`正在朗读 ${book ? book.longName : ""} ${state.chapter} 章`);
   showStatus("开始朗读本章");
+  speakNext(0);
 }
 
 function stopSpeaking() {
   if (window.AndroidTtsApi && window.AndroidTtsApi.stop) window.AndroidTtsApi.stop();
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   setSpeaking(false);
+  setTtsStatus("已停止朗读");
   showStatus("已停止朗读");
 }
+
+window.handleAndroidTts = function handleAndroidTts(type, text) {
+  if (type === "ready") {
+    if (ttsStatus && /准备/.test(ttsStatus.textContent || "")) setTtsStatus("朗读引擎已就绪，可以开始。");
+    return;
+  }
+  if (type === "start") {
+    setSpeaking(true);
+    return;
+  }
+  if (type === "done") {
+    setSpeaking(false);
+    setTtsStatus("朗读结束");
+    if (state.audioAutoNext) moveChapter(1);
+    return;
+  }
+  if (type === "error") {
+    setSpeaking(false);
+    setTtsStatus(text || "朗读失败");
+    showStatus(text || "朗读失败", "error");
+  }
+};
 
 function renderPackages(packages) {
   if (!packageList) return;
@@ -3122,6 +3205,7 @@ function hasBlockingOverlayOpen() {
     (noteSheet && !noteSheet.hidden) ||
     (aiSheet && !aiSheet.hidden) ||
     (confirmSheet && !confirmSheet.hidden) ||
+    (audioPanel && !audioPanel.hidden) ||
     !verseMenu.hidden ||
     !selectionBar.hidden
   );
@@ -3143,7 +3227,7 @@ function handleBackIntent() {
     keepReadingChromeVisible();
     return true;
   }
-  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden) || (commentarySheet && !commentarySheet.hidden) || (shareSheet && !shareSheet.hidden) || (noteSheet && !noteSheet.hidden) || (aiSheet && !aiSheet.hidden)) {
+  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden) || (commentarySheet && !commentarySheet.hidden) || (shareSheet && !shareSheet.hidden) || (noteSheet && !noteSheet.hidden) || (aiSheet && !aiSheet.hidden) || (audioPanel && !audioPanel.hidden)) {
     closeTopPanels();
     keepReadingChromeVisible();
     return true;
@@ -3587,10 +3671,14 @@ strongToggle.addEventListener("change", () => {
   loadChapter();
 });
 
-audioAutoNext.addEventListener("change", () => {
-  state.audioAutoNext = audioAutoNext.checked;
+function syncAudioAutoNext(checked) {
+  state.audioAutoNext = !!checked;
+  if (audioAutoNext) audioAutoNext.checked = state.audioAutoNext;
+  if (audioAutoNextSheet) audioAutoNextSheet.checked = state.audioAutoNext;
   saveState();
-});
+}
+audioAutoNext.addEventListener("change", () => syncAudioAutoNext(audioAutoNext.checked));
+audioAutoNextSheet?.addEventListener("change", () => syncAudioAutoNext(audioAutoNextSheet.checked));
 
 dictionarySelect.addEventListener("change", () => {
   state.dictionary = dictionarySelect.value;
@@ -3685,6 +3773,12 @@ closeCommentarySheetBtn?.addEventListener("click", dismissSheet);
 closeShareSheetBtn?.addEventListener("click", dismissSheet);
 closeNoteSheetBtn?.addEventListener("click", dismissSheet);
 closeAiSheetBtn?.addEventListener("click", dismissSheet);
+closeAudioBtn?.addEventListener("click", dismissSheet);
+ttsPlayBtn?.addEventListener("click", () => {
+  if (speaking) stopSpeaking();
+  else speakChapter();
+});
+ttsStopBtn?.addEventListener("click", stopSpeaking);
 closeConfirmSheetBtn?.addEventListener("click", () => closeConfirmSheet(true));
 confirmSheetChoices?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-confirm-book]");
