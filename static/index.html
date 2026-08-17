@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.12.3</p>
+            <p>设置 · 1.13.0</p>
           </div>
         </div>
       </div>
@@ -149,11 +149,15 @@
         <div class="panelHeader">
           <div>
             <div class="panelTitle">选择译本</div>
-            <div class="panelHint">点译本名即可切换</div>
+            <div class="panelHint">点译本名切换当前阅读。下面可勾选对照，经文下同时显示。</div>
           </div>
           <button id="closeVersionPickerBtn" class="textBtn" type="button">关闭</button>
         </div>
         <div id="versionPickerList" class="versionPickerList"></div>
+        <div class="inlineCompareBlock">
+          <div class="panelTitle">阅读时对照</div>
+          <div id="inlineCompareList" class="chipRow"></div>
+        </div>
       </section>
 
       <section id="bookPickerPanel" class="sheetPanel bookPickerPanel" hidden>
@@ -306,6 +310,15 @@
         </form>
       </section>
 
+      <section id="confirmSheet" class="sheetPanel panel" hidden>
+        <div class="panelHeader">
+          <div id="confirmSheetTitle">听得不太准</div>
+          <button id="closeConfirmSheetBtn" class="textBtn" type="button">取消</button>
+        </div>
+        <div id="confirmSheetHint" class="panelHint"></div>
+        <div id="confirmSheetChoices" class="resultList"></div>
+      </section>
+
       <section id="statusPanel" class="statusPanel" role="status" aria-live="polite" hidden></section>
 
       <section id="myPanel" class="sheetPanel panel" hidden>
@@ -317,6 +330,7 @@
         <div class="myFilters">
           <button type="button" data-my-filter="all" class="active">全部</button>
           <button type="button" data-my-filter="favorite">收藏</button>
+          <button type="button" data-my-filter="highlight">高亮</button>
           <button type="button" data-my-filter="note">笔记</button>
           <input id="myTagFilter" type="search" placeholder="标签筛选" />
         </div>
@@ -335,7 +349,7 @@
         </div>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.12.3</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.13.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

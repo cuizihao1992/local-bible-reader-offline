@@ -154,6 +154,18 @@ assert(spokenBooks.normalizeChapterSpeech("到数第一章") === "倒数一章",
 assert(mockFindSpokenBook("圣经诗篇") === "诗篇", "圣经诗篇 must jump to Psalms");
 assert(mockFindSpokenBook("圣经真言") === "箴言", "圣经真言 must jump to Proverbs");
 assert(mockFindSpokenBook("真言") === "箴言", "真言 must jump to Proverbs");
+assert(typeof spokenBooks.confusableChoices === "function", "Confusable book helper missing");
+assert(spokenBooks.confusableChoices("以斯")?.books.includes("以斯拉记"), "Ambiguous 以斯 should ask Ezra/Esther");
+assert(spokenBooks.confusableChoices("以斯")?.books.includes("以斯帖记"), "Ambiguous 以斯 should include Esther");
+assert(spokenBooks.confusableChoices("以斯拉记") == null, "Clear Ezra must not ask");
+assert(spokenBooks.confusableChoices("以斯帖记") == null, "Clear Esther must not ask");
+assert(spokenBooks.confusableChoices("伊斯拉") == null, "伊斯拉 should resolve to Ezra without asking");
+assert(appJs.includes("lastVerse"), "Resume last verse missing");
+assert(appJs.includes("renderStudyProgress"), "Study progress log missing");
+assert(appJs.includes("data-dash=\"continue\""), "Continue reading button missing");
+assert(appJs.includes("inlineCompareList") || appJs.includes("data-toggle-compare"), "Inline compare missing");
+assert(indexHtml.includes("id=\"confirmSheet\""), "Voice confirm sheet missing");
+assert(indexHtml.includes("data-my-filter=\"highlight\""), "Highlight filter missing");
 assert(appJs.includes("leftoverIsFiller"), "Spoken leftover filler guard missing");
 assert(appJs.includes("normalizeRelativeText"), "Relative chapter normalizer missing");
 assert(appJs.includes("模型超时，没有返回内容") || appJs.includes("waitVoiceIntent(60000)"), "Study chat timeout too short");

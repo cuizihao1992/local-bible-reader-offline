@@ -594,6 +594,9 @@ public class OfflineApi {
         List<String> where = new ArrayList<>();
         if ("favorite".equals(kind)) where.add("favorite = 1");
         if ("note".equals(kind)) where.add("(note <> '' or tags <> '')");
+        if ("highlight".equals(kind) || "highlighted".equals(kind)) {
+            where.add("(highlighted = 1 or ifnull(highlight_color, '') <> '')");
+        }
         if (!tag.isEmpty()) {
             where.add("tags like ?");
             args.add("%" + tag + "%");
@@ -773,7 +776,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.12.3")
+                .put("version", "1.13.0")
                 .put("versionCount", versions().length());
     }
 

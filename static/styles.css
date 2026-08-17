@@ -484,6 +484,14 @@ select, input[type="search"], input[type="text"] {
 .compareText { padding: 10px 12px; background: var(--soft); border-left: 2px solid var(--line); }
 .compareName { color: var(--accent); font-size: 12px; font-weight: 600; margin-bottom: 4px; }
 .compareVerse { font-family: var(--read-font); font-size: 16px; line-height: 1.8; }
+.verse .compareList { margin-top: 6px; gap: 4px; }
+.verse .compareText { padding: 6px 10px; }
+.verse .compareVerse { font-size: 0.92em; line-height: 1.7; }
+.inlineCompareBlock { margin-top: 16px; }
+.inlineCompareBlock .panelTitle { margin-bottom: 8px; }
+.studyLog { display: grid; gap: 6px; margin-bottom: 12px; font-family: var(--ui-font); }
+.studyStep { font-size: 13px; line-height: 1.55; color: var(--muted); padding: 6px 10px; background: var(--soft); border-radius: var(--radius); }
+.studyStep.done { color: var(--ink); }
 .strongList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .strongBtn {
   min-height: 26px; border: 0; border-radius: 999px;

@@ -196,6 +196,70 @@
     return canonicalizeSpokenBooks(value);
   }
 
+  const CONFUSABLE_GROUPS = [
+    {
+      id: "ezra-esther",
+      test: /以斯|伊斯|以司/,
+      strip: /以斯拉记|以斯帖记|伊斯拉记|以斯贴记|伊斯拉|以司拉|以斯啦|以斯贴|伊斯特|以司帖|以斯铁|以斯碟|以斯拉|以斯帖|以斯|伊斯|以司/g,
+      options: [
+        { book: "以斯拉记", hints: /拉|啦|ezra/i },
+        { book: "以斯帖记", hints: /帖|贴|特|铁|碟|esther/i },
+      ],
+    },
+    {
+      id: "hab-hag",
+      test: /哈(巴|八|该|改|盖)|圣经哈|(?:^|[^\\u4e00-\\u9fff])哈$/,
+      strip: /哈巴谷书|哈该书|哈巴古|哈八谷|哈改|哈盖|哈巴谷|哈该/g,
+      options: [
+        { book: "哈巴谷书", hints: /巴|八|谷|古/ },
+        { book: "哈该书", hints: /该|改|盖/ },
+      ],
+    },
+    {
+      id: "phil-philem",
+      test: /腓|菲/,
+      strip: /腓立比书|腓利门书|腓力比|菲立比|腓力门|菲利门|腓立比|腓利门/g,
+      options: [
+        { book: "腓立比书", hints: /立比|力比|菲立/ },
+        { book: "腓利门书", hints: /利门|力门|门书|腓利门|菲利门/ },
+      ],
+    },
+    {
+      id: "matt-mark",
+      test: /马(太|泰|可)|圣经马|(?:^|[^\\u4e00-\\u9fff])马(?:福音)?$/,
+      strip: /马太福音|马可福音|马泰福音|马太|马泰|马可/g,
+      options: [
+        { book: "马太福音", hints: /太|泰/ },
+        { book: "马可福音", hints: /可/ },
+      ],
+    },
+    {
+      id: "ruth-luke",
+      test: /路(得|德|加)|圣经路|(?:^|[^\\u4e00-\\u9fff])路$/,
+      strip: /路得记|路加福音|路德记|路得|路德|路加/g,
+      options: [
+        { book: "路得记", hints: /得|德/ },
+        { book: "路加福音", hints: /加/ },
+      ],
+    },
+  ];
+
+  function confusableChoices(text) {
+    const raw = String(text || "");
+    if (!raw) return null;
+    for (const group of CONFUSABLE_GROUPS) {
+      if (!group.test.test(raw)) continue;
+      const hits = group.options.filter((item) => item.hints.test(raw));
+      if (hits.length === 1) return null;
+      return {
+        id: group.id,
+        books: group.options.map((item) => item.book),
+        tail: prepareSpokenText(raw.replace(group.strip, "")),
+      };
+    }
+    return null;
+  }
+
   root.SpokenBooks = {
     extras: BOOK_SPEECH_EXTRAS,
     normalizeTraditional,
@@ -205,5 +269,6 @@
     stripBibleFiller,
     normalizeChapterSpeech,
     prepareSpokenText,
+    confusableChoices,
   };
 })(typeof globalThis !== "undefined" ? globalThis : this);

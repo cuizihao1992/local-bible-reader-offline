@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.12.3";
+const APP_VERSION = "1.13.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -34,6 +34,7 @@ const state = {
   chapter: 1,
   targetVerse: null,
   activeVerse: null,
+  lastVerse: null,
   recentBooks: [],
   recentSearches: [],
 };
@@ -121,6 +122,11 @@ const versionChipBtn = $("#versionChipBtn");
 const versionPickerPanel = $("#versionPickerPanel");
 const versionPickerList = $("#versionPickerList");
 const closeVersionPickerBtn = $("#closeVersionPickerBtn");
+const inlineCompareList = $("#inlineCompareList");
+const confirmSheet = $("#confirmSheet");
+const confirmSheetHint = $("#confirmSheetHint");
+const confirmSheetChoices = $("#confirmSheetChoices");
+const closeConfirmSheetBtn = $("#closeConfirmSheetBtn");
 const compareSheet = $("#compareSheet");
 const compareSheetTitle = $("#compareSheetTitle");
 const compareSheetContent = $("#compareSheetContent");
@@ -216,6 +222,8 @@ let swipeState = null;
 let justSwiped = false;
 let statusTimer = null;
 let lastUpdateInfo = null;
+let pendingConfirm = null;
+let scrollSaveTimer = null;
 let updateCheckBusy = false;
 let apkDownloadBusy = false;
 let apkPollTimer = null;
@@ -307,6 +315,7 @@ function restoreState() {
       aiModel: saved.aiModel || "mimo-v2.5",
       book: Number(saved.book) || 1,
       chapter: Number(saved.chapter) || 1,
+      lastVerse: Number(saved.lastVerse) || null,
       recentBooks: Array.isArray(saved.recentBooks) ? saved.recentBooks.slice(0, 8) : [],
       recentSearches: Array.isArray(saved.recentSearches) ? saved.recentSearches.slice(0, 8) : [],
     });
@@ -337,6 +346,7 @@ function saveState() {
       aiModel: state.aiModel || "mimo-v2.5",
       book: state.book,
       chapter: state.chapter,
+      lastVerse: state.lastVerse,
       recentBooks: state.recentBooks,
       recentSearches: state.recentSearches,
     }),
@@ -414,6 +424,7 @@ function closeContentPanels() {
   if (shareSheet) shareSheet.hidden = true;
   if (noteSheet) noteSheet.hidden = true;
   if (aiSheet) aiSheet.hidden = true;
+  if (confirmSheet) confirmSheet.hidden = true;
   if (highlightColors) highlightColors.hidden = true;
   closeVerseMenu();
   closeSelectionBar();
@@ -484,13 +495,44 @@ function renderVersions() {
 }
 
 function renderCompareVersions() {
-  compareVersionsEl.innerHTML = state.versions
+  const html = state.versions
     .filter((version) => version.id !== state.version)
     .map((version) => {
       const checked = state.compareVersions.includes(version.id) ? "checked" : "";
-      return `<label><input type="checkbox" data-compare="${escapeHtml(version.id)}" ${checked} /> ${escapeHtml(version.shortName || version.name)}</label>`;
-    })
-    .join("");
+      const active = state.compareVersions.includes(version.id) ? "active" : "";
+      return {
+        box: `<label><input type="checkbox" data-compare="${escapeHtml(version.id)}" ${checked} /> ${escapeHtml(version.shortName || version.name)}</label>`,
+        chip: `<button type="button" class="${active}" data-toggle-compare="${escapeHtml(version.id)}">${escapeHtml(version.shortName || version.name)}</button>`,
+      };
+    });
+  if (compareVersionsEl) compareVersionsEl.innerHTML = html.map((item) => item.box).join("");
+  if (inlineCompareList) inlineCompareList.innerHTML = html.map((item) => item.chip).join("") || `<div class="panelHint">没有可对照的译本</div>`;
+}
+
+function rememberReadingPosition(verse = state.activeVerse || state.targetVerse) {
+  const n = Number(verse);
+  if (Number.isFinite(n) && n >= 1) state.lastVerse = n;
+  saveState();
+}
+
+function visibleVerseNumber() {
+  const verses = [...content.querySelectorAll(".verse[data-verse]")];
+  if (!verses.length) return null;
+  const top = (document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0) + 28;
+  let current = Number(verses[0].dataset.verse);
+  for (const el of verses) {
+    if (el.getBoundingClientRect().top <= top) current = Number(el.dataset.verse);
+  }
+  return current;
+}
+
+function onReaderScroll() {
+  if (chapterLoading || jumpBusy || !content.querySelector(".verse")) return;
+  const verse = visibleVerseNumber();
+  if (!verse) return;
+  state.lastVerse = verse;
+  clearTimeout(scrollSaveTimer);
+  scrollSaveTimer = setTimeout(saveState, 400);
 }
 
 function renderCommentaries() {
@@ -617,14 +659,17 @@ function renderMyProgress() {
   if (!myProgressCard) return;
   const book = currentBook();
   const percent = state.progress?.percent || 0;
+  const verse = state.lastVerse || state.activeVerse || 1;
+  const resumeLabel = book ? `${book.longName} ${state.chapter}:${verse}` : "上次位置";
   myProgressCard.innerHTML = `
     <div><b>${escapeHtml(versionLabel(state.version))}</b> · 已读 ${state.progress?.read || 0} / ${state.progress?.total || 1189} 章（${percent}%）</div>
     <div class="progressBar" style="margin-top:8px"><span style="width:${percent}%"></span></div>
     <div class="dashActions" style="margin-top:10px">
+      <button type="button" data-dash="continue">继续读 ${escapeHtml(resumeLabel)}</button>
       <button type="button" data-dash="unread">下一未读章</button>
       <button type="button" data-dash="mark">${isCurrentChapterRead() ? "取消已读" : "标记已读"}</button>
     </div>
-    ${book ? `<div class="panelHint" style="margin-top:8px">当前 ${escapeHtml(book.longName)} ${state.chapter}</div>` : ""}
+    ${book ? `<div class="panelHint" style="margin-top:8px">上次读到 ${escapeHtml(book.longName)} ${state.chapter}${verse ? `:${verse}` : ""}</div>` : ""}
   `;
 }
 
@@ -711,6 +756,7 @@ function renderVerses(data) {
               <span class="verseNo" id="v${verse.verse}">${verse.verse}</span>
               <span class="verseText">${escapeHtml(verse.text)}</span>
               ${renderStrongList(verse.strongs || [])}
+              ${renderCompareList(verse.verse, compareByVersion)}
               ${renderNoteEditor(verse.verse)}
             </div>
           </article>
@@ -878,7 +924,7 @@ async function loadChapter(options = {}) {
   renderChrome();
   if (!content.querySelector(".verse")) content.innerHTML = `<div class="loading">正在读取经文...</div>`;
   try {
-    const versions = [state.version];
+    const versions = [state.version, ...state.compareVersions.filter((id) => id && id !== state.version)].slice(0, 4);
     const query = versions.map((id) => `version=${encodeURIComponent(id)}`).join("&");
     const [chapterData] = await Promise.all([
       api(`/api/chapters?${query}&book=${snapshot.book}&chapter=${snapshot.chapter}`),
@@ -892,8 +938,10 @@ async function loadChapter(options = {}) {
     renderBookGrid();
     renderChapterGrid();
     saveReadingHistory(snapshot);
-    saveState();
+    if (state.targetVerse) rememberReadingPosition(state.targetVerse);
+    else saveState();
     if (options.scrollTop) scrollReaderToTop();
+    else if (state.targetVerse) focusTargetVerse();
     await loadAudio(snapshot, token);
   } catch (error) {
     if (token !== chapterLoadToken) return;
@@ -933,6 +981,7 @@ function moveChapter(delta) {
   }
   state.book = nextBook;
   state.chapter = nextChapter;
+  state.lastVerse = 1;
   rememberCurrentBook();
   resetVerseInteraction();
   const nextInfo = state.books.find((item) => item.id === nextBook) || currentBook();
@@ -1329,6 +1378,7 @@ async function jumpToReference(ref, token = jobToken) {
       const last = lastVerseInContent();
       if (last) {
         state.targetVerse = last;
+        rememberReadingPosition(last);
         focusTargetVerse();
       }
     }
@@ -1392,6 +1442,7 @@ let pendingResultJob = 0;
 function beginJob(message, tone = "info") {
   jobToken += 1;
   chapterLoadToken += 1;
+  if (pendingConfirm) closeConfirmSheet(false);
   if (voiceIntentWaiter) {
     const waiter = voiceIntentWaiter;
     voiceIntentWaiter = null;
@@ -1644,7 +1695,17 @@ async function runStudyTool(call) {
   return { error: `未知工具：${call.tool || ""}` };
 }
 
-function renderStudyResult(result) {
+function renderStudyProgress(steps, waiting = "") {
+  if (!aiSheetContent) return;
+  const log = (steps || [])
+    .map((item, index) => `<div class="studyStep${item.done ? " done" : ""}">${index + 1}. ${escapeHtml(item.text)}</div>`)
+    .join("");
+  aiSheetContent.innerHTML = `<div class="studyLog">${log || `<div class="studyStep">正在理解问题</div>`}</div>${
+    waiting ? `<div class="panelHint">${escapeHtml(waiting)}</div>` : ""
+  }`;
+}
+
+function renderStudyResult(result, steps = []) {
   if (!aiSheetContent) return;
   const refs = Array.isArray(result.refs) ? result.refs : [];
   const cards = refs
@@ -1658,7 +1719,10 @@ function renderStudyResult(result) {
       </button>`;
     })
     .join("");
-  aiSheetContent.innerHTML = `${
+  const log = (steps || [])
+    .map((item, index) => `<div class="studyStep done">${index + 1}. ${escapeHtml(item.text)}</div>`)
+    .join("");
+  aiSheetContent.innerHTML = `${log ? `<div class="studyLog">${log}</div>` : ""}${
     result.correction ? `<div class="aiCorrection">${escapeHtml(result.correction)}</div>` : ""
   }${result.answer ? `<div class="aiAnswer">${escapeHtml(result.answer)}</div>` : ""}<div class="resultList">${cards || `<div class="panelHint">没有可跳转的经文</div>`}</div>`;
 }
@@ -1672,7 +1736,8 @@ async function runBibleStudy(question, token = beginJob("正在查经...")) {
   }
   if (!jobAlive(token)) return;
   openAiSheet("智能查经", state.activeVerse);
-  aiSheetContent.textContent = "正在查经...";
+  const steps = [{ text: `正在理解：${query}` }];
+  renderStudyProgress(steps, "等待模型...");
   const skill = await loadBibleStudySkill();
   if (!jobAlive(token)) return;
   const messages = [
@@ -1682,18 +1747,29 @@ async function runBibleStudy(question, token = beginJob("正在查经...")) {
   try {
     for (let round = 0; round < 4; round += 1) {
       if (!jobAlive(token)) return;
+      renderStudyProgress(steps, "等待模型...");
       const raw = await llmChat(messages);
       if (!jobAlive(token)) return;
       const data = extractJsonObject(raw) || (String(raw || "").trim() ? { done: true, correction: "", answer: String(raw).trim(), refs: [] } : null);
       if (!data) throw new Error("模型没有给出可用结果");
       if (data.done) {
-        renderStudyResult(data);
+        steps.push({ text: data.correction ? `完成，并纠正：${data.correction}` : "查经完成", done: true });
+        renderStudyResult(data, steps);
         finishJob(token, data.correction ? `查经完成：${data.correction}` : "查经完成", data.correction ? "info" : "success");
         return;
       }
       if (!data.tool) throw new Error("模型没有选择工具");
-      aiSheetContent.textContent = `正在查：${data.q || `${data.book || ""} ${data.chapter || ""}`.trim()}`;
+      const action = data.tool === "search"
+        ? `搜索「${data.q || ""}」${data.book ? ` · ${data.book}` : data.scope === "all" ? " · 全本" : ""}`
+        : data.tool === "verse"
+          ? `取经文 ${data.book || ""} ${data.chapter || ""}:${data.verse || ""}`
+          : `读章 ${data.book || ""} ${data.chapter || ""}`;
+      steps.push({ text: action });
+      renderStudyProgress(steps, "正在查本地译本...");
       const toolResult = await runStudyTool(data);
+      const found = Array.isArray(toolResult.results) ? toolResult.results.length : toolResult.text ? 1 : 0;
+      steps[steps.length - 1] = { text: `${action} → ${toolResult.error || (found ? `找到 ${found} 条` : "没有结果")}`, done: true };
+      renderStudyProgress(steps, "继续让模型判断...");
       messages.push({ role: "assistant", content: JSON.stringify(data) });
       messages.push({ role: "user", content: `工具结果：${JSON.stringify(toolResult)}` });
     }
@@ -1831,6 +1907,53 @@ function isDirectJumpCommand(command) {
   return command && (command.type === "jump" || command.type === "moveBook" || command.type === "moveChapter");
 }
 
+function heardSuffix(spoken) {
+  const raw = String(spoken || "").trim();
+  return raw ? ` · 听成「${raw}」` : "";
+}
+
+function closeConfirmSheet(cancel = false) {
+  if (confirmSheet) confirmSheet.hidden = true;
+  const pending = pendingConfirm;
+  pendingConfirm = null;
+  if (cancel && pending && jobAlive(pending.token)) finishJob(pending.token, "已取消，请再说一次", "info");
+}
+
+function openBookConfirm(spoken, ambiguous, token) {
+  const books = (ambiguous.books || [])
+    .map((name) => state.books.find((item) => item.longName === name))
+    .filter(Boolean);
+  if (books.length < 2) return false;
+  pendingConfirm = { spoken, tail: ambiguous.tail || "", token };
+  if (confirmSheetHint) confirmSheetHint.textContent = `听成：${spoken}。请选一下是哪一卷。`;
+  if (confirmSheetChoices) {
+    confirmSheetChoices.innerHTML = books
+      .map((book) => `<button class="resultItem" type="button" data-confirm-book="${book.id}"><div class="resultRef">${escapeHtml(book.longName)}</div><div class="resultText">${escapeHtml(book.shortName)} · ${book.chapterCount}章</div></button>`)
+      .join("");
+  }
+  if (confirmSheet) confirmSheet.hidden = false;
+  showStatus("听得不太准，请选一下是哪一卷", "info");
+  return true;
+}
+
+async function applyConfirmedBook(bookId) {
+  const pending = pendingConfirm;
+  if (!pending) return;
+  pendingConfirm = null;
+  if (confirmSheet) confirmSheet.hidden = true;
+  const book = state.books.find((item) => item.id === Number(bookId));
+  if (!book || !jobAlive(pending.token)) return;
+  const tail = pending.tail || "";
+  const relative = parseRelativeTail(tail, book);
+  const cv = relative || parseChapterVerseToken(tail);
+  const command = relative
+    ? { type: "jump", ...relative }
+    : cv
+      ? { type: "jump", ...clampSpokenRef(book, cv.chapter, cv.verse, cv.verse ? "verse" : "chapter") }
+      : { type: "jump", ...clampSpokenRef(book, 1, null, "book") };
+  await applySpokenCommand(command, pending.token, pending.spoken);
+}
+
 async function applySpokenCommand(command, token, spoken) {
   if (!command) {
     finishJob(token, `已听清：${spoken}，没有对应口令`, "info");
@@ -1840,23 +1963,23 @@ async function applySpokenCommand(command, token, spoken) {
     if (quickInput) quickInput.value = command.query;
     toggleSearch(true);
     await runSearch(command.query);
-    if (jobAlive(token)) finishJob(token, `搜索完成：${command.query}`, "success");
+    if (jobAlive(token)) finishJob(token, `搜索完成：${command.query}${heardSuffix(spoken)}`, "success");
     return;
   }
   if (command.type === "moveBook") {
     await moveBook(command.delta, token);
-    if (jobAlive(token)) finishJob(token, `已完成：${formatJumpRef({ book: state.book, chapter: 1, level: "book" })}`, "success");
+    if (jobAlive(token)) finishJob(token, `已完成：${formatJumpRef({ book: state.book, chapter: 1, level: "book" })}${heardSuffix(spoken)}`, "success");
     return;
   }
   if (command.type === "moveChapter") {
     moveChapter(command.delta);
-    if (jobAlive(token)) finishJob(token, `已完成：${currentBook().longName} ${state.chapter}章`, "success");
+    if (jobAlive(token)) finishJob(token, `已完成：${currentBook().longName} ${state.chapter}章${heardSuffix(spoken)}`, "success");
     return;
   }
   if (command.type === "jump") {
     showStatus(`正在跳到 ${formatJumpRef(command)}...`);
     await jumpToReference(command, token);
-    if (jobAlive(token)) finishJob(token, `已完成：${formatJumpRef(command)}`, "success");
+    if (jobAlive(token)) finishJob(token, `已完成：${formatJumpRef(command)}${heardSuffix(spoken)}`, "success");
   }
 }
 
@@ -1869,6 +1992,13 @@ async function handleVoiceText(text, token = jobToken) {
   }
   showStatus(`已听清：${spoken}，正在处理...`);
   let command = parseSpokenCommand(spoken);
+  const ambiguous = typeof SpokenBooks !== "undefined" && SpokenBooks.confusableChoices
+    ? SpokenBooks.confusableChoices(spoken)
+    : null;
+  if (ambiguous && !looksLikeStudyQuery(spoken)) {
+    const previewBook = command?.type === "jump" ? state.books.find((item) => item.id === command.book) : null;
+    if ((!previewBook || ambiguous.books.includes(previewBook.longName)) && openBookConfirm(spoken, ambiguous, token)) return;
+  }
   if (isDirectJumpCommand(command)) {
     await applySpokenCommand(command, token, spoken);
     return;
@@ -2032,7 +2162,7 @@ async function startVoiceInput(event) {
     showStatus("Code Plan 请填写后台显示的 OpenAI 兼容 Base URL");
     return;
   }
-  voiceSession = beginJob("正在录音，松开后识别");
+  voiceSession = beginJob("正在录音 · 诗篇最后一章 / 圣经箴言");
   pendingResultJob = 0;
   voiceInputActive = true;
   voiceStopPending = false;
@@ -2339,12 +2469,12 @@ function renderMyResults(marks) {
           (item) => `
             <button class="resultItem" type="button" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">
               <div class="resultRef">${escapeHtml(item.bookName)} ${item.chapter}:${item.verse} ${item.favorite ? "★" : ""} ${item.highlighted ? "高亮" : ""}</div>
-              <div class="resultText">${escapeHtml(item.note || item.tags || "收藏")}</div>
+              <div class="resultText">${escapeHtml(item.note || item.tags || (item.highlighted ? "高亮经文" : "收藏"))}</div>
             </button>
           `,
         )
         .join("")
-    : `<div class="panelHint">还没有收藏或笔记</div>`;
+    : `<div class="panelHint">这里还是空的</div>`;
 }
 
 function updateVerseMarkDom(mark) {
@@ -2424,6 +2554,7 @@ async function writeClipboard(text) {
 function openVerseMenu(verseNo, x, y) {
   const mark = markForVerse(verseNo);
   state.activeVerse = Number(verseNo);
+  rememberReadingPosition(verseNo);
   verseMenuTitle.textContent = `${currentBook().longName} ${state.chapter}:${verseNo}`;
   verseMenu.querySelector('[data-menu-action="favorite"]').textContent = mark.favorite ? "取消收藏" : "收藏";
   verseMenu.querySelector('[data-menu-action="highlight"]').textContent = mark.highlighted ? "取消高亮" : "高亮";
@@ -2990,6 +3121,7 @@ function hasBlockingOverlayOpen() {
     (shareSheet && !shareSheet.hidden) ||
     (noteSheet && !noteSheet.hidden) ||
     (aiSheet && !aiSheet.hidden) ||
+    (confirmSheet && !confirmSheet.hidden) ||
     !verseMenu.hidden ||
     !selectionBar.hidden
   );
@@ -3003,6 +3135,11 @@ function handleBackIntent() {
   }
   if (!selectionBar.hidden) {
     closeSelectionBar();
+    keepReadingChromeVisible();
+    return true;
+  }
+  if (confirmSheet && !confirmSheet.hidden) {
+    closeConfirmSheet(true);
     keepReadingChromeVisible();
     return true;
   }
@@ -3405,7 +3542,8 @@ async function init() {
   renderCommentaries();
   renderDictionaries();
   await loadBooks();
-  await loadChapter({ scrollTop: true });
+  if (state.lastVerse) state.targetVerse = state.lastVerse;
+  await loadChapter({ scrollTop: !state.targetVerse });
 }
 
 versionSelect.addEventListener("change", async () => {
@@ -3432,6 +3570,9 @@ compareVersionsEl?.addEventListener("change", (event) => {
     state.compareVersions = state.compareVersions.filter((item) => item !== id);
   }
   saveState();
+  renderCompareVersions();
+  state.targetVerse = state.lastVerse || visibleVerseNumber();
+  loadChapter({ scrollTop: false });
 });
 
 commentarySelect?.addEventListener("change", () => {
@@ -3544,6 +3685,29 @@ closeCommentarySheetBtn?.addEventListener("click", dismissSheet);
 closeShareSheetBtn?.addEventListener("click", dismissSheet);
 closeNoteSheetBtn?.addEventListener("click", dismissSheet);
 closeAiSheetBtn?.addEventListener("click", dismissSheet);
+closeConfirmSheetBtn?.addEventListener("click", () => closeConfirmSheet(true));
+confirmSheetChoices?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-confirm-book]");
+  if (button) applyConfirmedBook(button.dataset.confirmBook);
+});
+inlineCompareList?.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-toggle-compare]");
+  if (!button) return;
+  const id = button.dataset.toggleCompare;
+  if (state.compareVersions.includes(id)) {
+    state.compareVersions = state.compareVersions.filter((item) => item !== id);
+  } else if (state.compareVersions.length >= 3) {
+    showStatus("最多对照 3 个译本");
+    return;
+  } else {
+    state.compareVersions.push(id);
+  }
+  saveState();
+  renderCompareVersions();
+  state.targetVerse = state.lastVerse || visibleVerseNumber();
+  await loadChapter({ scrollTop: false });
+});
+window.addEventListener("scroll", onReaderScroll, { passive: true });
 smartVoiceToggle?.addEventListener("change", saveMimoSettings);
 aiActionRow?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-ai-action]");
@@ -3832,6 +3996,14 @@ document.body.addEventListener("click", async (event) => {
     if (dash.dataset.dash === "picker") {
       closeTopPanels();
       bookPickerPanel.hidden = false;
+    } else if (dash.dataset.dash === "continue") {
+      closeTopPanels();
+      await jumpToReference({
+        book: state.book,
+        chapter: state.chapter,
+        verse: state.lastVerse || 1,
+        level: state.lastVerse ? "verse" : "chapter",
+      });
     } else if (dash.dataset.dash === "unread") {
       const next = findNextUnreadChapter();
       if (!next) showStatus("已经读完所有章节");
