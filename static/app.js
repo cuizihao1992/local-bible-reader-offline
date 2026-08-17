@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.14.0";
+const APP_VERSION = "1.14.1";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -854,6 +854,41 @@ async function loadCommentary(snapshot = {}, token = null) {
   }
 }
 
+function verseRefRegex() {
+  const names = bookAliases()
+    .map(([alias]) => String(alias || "").trim())
+    .filter((alias) => alias.length >= 1)
+    .sort((left, right) => right.length - left.length)
+    .map((alias) => alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!names.length) return null;
+  return new RegExp(`(?:参(?:看|照|考)?)?\\s*(${names.join("|")})\\s*([0-9]+)\\s*(?:[:：]|章)\\s*([0-9]+)?(?:\\s*节)?(?:\\s*[-–—至到]\\s*[0-9]+)?`, "g");
+}
+
+function linkVerseRefs(text) {
+  const raw = String(text || "");
+  if (!raw) return "";
+  const pattern = verseRefRegex();
+  if (!pattern) return escapeHtml(raw);
+  let html = "";
+  let last = 0;
+  let match;
+  pattern.lastIndex = 0;
+  while ((match = pattern.exec(raw))) {
+    html += escapeHtml(raw.slice(last, match.index));
+    const book = resolveBookName(match[1]);
+    const chapter = Number(match[2]);
+    const verse = match[3] ? Number(match[3]) : 1;
+    if (book && chapter >= 1) {
+      html += `<button type="button" class="refLink" data-jump-book="${book.id}" data-jump-chapter="${chapter}" data-jump-verse="${verse}">${escapeHtml(match[0].trim())}</button>`;
+    } else {
+      html += escapeHtml(match[0]);
+    }
+    last = match.index + match[0].length;
+  }
+  html += escapeHtml(raw.slice(last));
+  return html;
+}
+
 function formatCommentaryRef(entry) {
   if (entry.chapter === 0) return "全书";
   if (!entry.fromVerse) return `${entry.chapter} 章`;
@@ -876,9 +911,9 @@ function renderCommentary(data) {
       ${data.entries
         .map(
           (entry) => `
-            <article class="commentaryEntry" data-from="${entry.fromVerse}" data-to="${entry.toVerse}">
+            <article class="commentaryEntry" data-from="${entry.fromVerse}" data-to="${entry.toVerse}" data-jump-book="${state.book}" data-jump-chapter="${Number(entry.chapter || state.chapter) || state.chapter}" data-jump-verse="${Number(entry.fromVerse || 1)}">
               <div class="commentaryRef">${escapeHtml(formatCommentaryRef(entry))}</div>
-              <div class="commentaryText">${escapeHtml(entry.text || "（无文本）")}</div>
+              <div class="commentaryText">${linkVerseRefs(entry.text || "（无文本）")}</div>
               ${entry.hasImages ? `<div class="imageNote">本条含图片，当前版本先显示文字</div>` : ""}
             </article>
           `,
@@ -936,15 +971,6 @@ function openAudioSheet() {
   if (audioPanel) audioPanel.hidden = false;
   renderAudioSheet();
   syncSheetOverlay();
-}
-
-function ttsReady() {
-  if (!window.AndroidTtsApi || !window.AndroidTtsApi.ready) return true;
-  try {
-    return !!JSON.parse(window.AndroidTtsApi.ready()).ready;
-  } catch {
-    return false;
-  }
 }
 
 async function loadChapter(options = {}) {
@@ -1755,8 +1781,8 @@ function renderStudyResult(result, steps = []) {
     .map((item, index) => `<div class="studyStep done">${index + 1}. ${escapeHtml(item.text)}</div>`)
     .join("");
   aiSheetContent.innerHTML = `${log ? `<div class="studyLog">${log}</div>` : ""}${
-    result.correction ? `<div class="aiCorrection">${escapeHtml(result.correction)}</div>` : ""
-  }${result.answer ? `<div class="aiAnswer">${escapeHtml(result.answer)}</div>` : ""}<div class="resultList">${cards || `<div class="panelHint">没有可跳转的经文</div>`}</div>`;
+    result.correction ? `<div class="aiCorrection">${linkVerseRefs(result.correction)}</div>` : ""
+  }${result.answer ? `<div class="aiAnswer">${linkVerseRefs(result.answer)}</div>` : ""}<div class="resultList">${cards || `<div class="panelHint">没有可跳转的经文</div>`}</div>`;
 }
 
 async function runBibleStudy(question, token = beginJob("正在查经...")) {
@@ -1901,7 +1927,7 @@ async function runAiTask(kind, verseNo, question = "") {
     const text = String((await mimoChatComplete(pair[0], pair[1])) || "").trim();
     if (!jobAlive(token)) return;
     if (!text) throw new Error("没有生成内容");
-    aiSheetContent.textContent = text;
+    aiSheetContent.innerHTML = `<div class="aiAnswer">${linkVerseRefs(text)}</div>`;
     if (kind === "polish") {
       const verses = aiVerseNumbers(verseNo);
       if (verses[0]) {
@@ -2811,7 +2837,7 @@ async function showCommentarySheet(verseNo) {
       ? `<div class="resultRef" style="margin-bottom:8px">${escapeHtml(data.title || "")}</div>` +
         entries
           .map(
-            (entry) => `<article class="resultItem"><div class="resultRef">${escapeHtml(formatCommentaryRef(entry))}</div><div class="resultText">${escapeHtml(entry.text || "（无文本）")}</div></article>`,
+            (entry) => `<article class="resultItem" data-jump-book="${state.book}" data-jump-chapter="${Number(entry.chapter || state.chapter) || state.chapter}" data-jump-verse="${Number(entry.fromVerse || 1)}"><div class="resultRef">${escapeHtml(formatCommentaryRef(entry))}</div><div class="resultText">${linkVerseRefs(entry.text || "（无文本）")}</div></article>`,
           )
           .join("")
       : `<div class="panelHint">这一节没有对应注释。</div>`;
@@ -3002,18 +3028,24 @@ function speakChapter() {
     return;
   }
   if (window.AndroidTtsApi && window.AndroidTtsApi.speak) {
-    if (!ttsReady()) {
-      setTtsStatus("朗读引擎还在准备，请再点一次");
-      showStatus("朗读引擎还在准备，请再点一次");
-      return;
+    let result = {};
+    try {
+      result = JSON.parse(window.AndroidTtsApi.speak(text));
+    } catch {
+      result = { error: "朗读接口异常" };
     }
-    const result = JSON.parse(window.AndroidTtsApi.speak(text));
     if (result.error) {
+      setSpeaking(false);
       setTtsStatus(result.error);
       showStatus(result.error, "error");
       return;
     }
     setSpeaking(true);
+    if (result.queued) {
+      setTtsStatus("正在启动朗读引擎…");
+      showStatus("正在启动朗读引擎");
+      return;
+    }
     setTtsStatus(`正在朗读 ${book ? book.longName : ""} ${state.chapter} 章`);
     showStatus("开始朗读本章");
     return;
@@ -3059,7 +3091,8 @@ function stopSpeaking() {
 
 window.handleAndroidTts = function handleAndroidTts(type, text) {
   if (type === "ready") {
-    if (ttsStatus && /准备/.test(ttsStatus.textContent || "")) setTtsStatus("朗读引擎已就绪，可以开始。");
+    if (speaking) setTtsStatus(`正在朗读 ${currentBook()?.longName || ""} ${state.chapter} 章`);
+    else setTtsStatus("朗读引擎已就绪，可以开始。");
     return;
   }
   if (type === "start") {

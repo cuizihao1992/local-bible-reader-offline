@@ -22,59 +22,22 @@ public class TtsBridge {
     private volatile boolean speaking = false;
     private volatile boolean cancelled = false;
     private volatile int pendingCount = 0;
+    private volatile String pendingSpeak = null;
 
     public TtsBridge(Activity activity, WebView webView) {
         this.activity = activity;
         this.webView = webView;
-        activity.runOnUiThread(() -> {
-            tts = new TextToSpeech(activity.getApplicationContext(), status -> {
-                ready = status == TextToSpeech.SUCCESS;
-                if (!ready || tts == null) {
-                    emit("error", "系统没有可用的朗读引擎");
-                    return;
-                }
-                int zh = tts.setLanguage(Locale.SIMPLIFIED_CHINESE);
-                if (zh == TextToSpeech.LANG_MISSING_DATA || zh == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    zh = tts.setLanguage(Locale.CHINA);
-                }
-                if (zh == TextToSpeech.LANG_MISSING_DATA || zh == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts.setLanguage(Locale.CHINESE);
-                }
-                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                    @Override
-                    public void onStart(String utteranceId) {
-                        speaking = true;
-                        emit("start", utteranceId == null ? "" : utteranceId);
-                    }
-
-                    @Override
-                    public void onDone(String utteranceId) {
-                        if (cancelled) return;
-                        pendingCount -= 1;
-                        if (pendingCount <= 0) {
-                            speaking = false;
-                            pendingCount = 0;
-                            emit("done", utteranceId == null ? "" : utteranceId);
-                        }
-                    }
-
-                    @Override
-                    public void onError(String utteranceId) {
-                        if (cancelled) return;
-                        speaking = false;
-                        pendingCount = 0;
-                        emit("error", "朗读失败");
-                    }
-                });
-                emit("ready", "");
-            });
-        });
+        activity.runOnUiThread(this::ensureTts);
     }
 
     @JavascriptInterface
-    public String ready() {
+    public String getStatus() {
         try {
-            return new JSONObject().put("ok", true).put("ready", ready).put("speaking", speaking).toString();
+            return new JSONObject()
+                    .put("ok", true)
+                    .put("ready", ready)
+                    .put("speaking", speaking)
+                    .toString();
         } catch (Exception error) {
             return "{\"ok\":true,\"ready\":false,\"speaking\":false}";
         }
@@ -84,7 +47,12 @@ public class TtsBridge {
     public String speak(String text) {
         try {
             if (text == null || text.trim().isEmpty()) throw new IllegalArgumentException("没有可朗读的经文");
-            if (!ready || tts == null) throw new IllegalStateException("朗读引擎还在准备，请再点一次");
+            if (!ready || tts == null) {
+                pendingSpeak = text.trim();
+                activity.runOnUiThread(this::ensureTts);
+                return new JSONObject().put("ok", true).put("queued", true).toString();
+            }
+            pendingSpeak = null;
             final List<String> parts = splitText(text);
             activity.runOnUiThread(() -> speakParts(parts));
             return new JSONObject().put("ok", true).put("parts", parts.size()).toString();
@@ -96,16 +64,16 @@ public class TtsBridge {
     @JavascriptInterface
     public String speakQueue(String jsonArray) {
         try {
-            if (!ready || tts == null) throw new IllegalStateException("朗读引擎还在准备，请再点一次");
             JSONArray raw = new JSONArray(jsonArray == null ? "[]" : jsonArray);
-            List<String> parts = new ArrayList<>();
+            StringBuilder joined = new StringBuilder();
             for (int i = 0; i < raw.length(); i++) {
                 String item = raw.optString(i, "").trim();
-                if (!item.isEmpty()) parts.addAll(splitText(item));
+                if (!item.isEmpty()) {
+                    if (joined.length() > 0) joined.append("。");
+                    joined.append(item);
+                }
             }
-            if (parts.isEmpty()) throw new IllegalArgumentException("没有可朗读的经文");
-            activity.runOnUiThread(() -> speakParts(parts));
-            return new JSONObject().put("ok", true).put("parts", parts.size()).toString();
+            return speak(joined.toString());
         } catch (Throwable error) {
             return errorJson(error);
         }
@@ -115,6 +83,7 @@ public class TtsBridge {
     public String stop() {
         activity.runOnUiThread(() -> {
             cancelled = true;
+            pendingSpeak = null;
             pendingCount = 0;
             speaking = false;
             if (tts != null) tts.stop();
@@ -123,10 +92,61 @@ public class TtsBridge {
     }
 
     public void shutdown() {
+        pendingSpeak = null;
         if (tts != null) {
             tts.stop();
             tts.shutdown();
+            tts = null;
         }
+    }
+
+    private void ensureTts() {
+        if (tts != null) return;
+        tts = new TextToSpeech(activity.getApplicationContext(), status -> {
+            ready = status == TextToSpeech.SUCCESS && tts != null;
+            if (!ready) {
+                emit("error", "系统没有可用的朗读引擎，请到系统设置安装中文语音");
+                pendingSpeak = null;
+                return;
+            }
+            int zh = tts.setLanguage(Locale.SIMPLIFIED_CHINESE);
+            if (zh == TextToSpeech.LANG_MISSING_DATA || zh == TextToSpeech.LANG_NOT_SUPPORTED) {
+                zh = tts.setLanguage(Locale.CHINA);
+            }
+            if (zh == TextToSpeech.LANG_MISSING_DATA || zh == TextToSpeech.LANG_NOT_SUPPORTED) {
+                tts.setLanguage(Locale.CHINESE);
+            }
+            tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override
+                public void onStart(String utteranceId) {
+                    speaking = true;
+                    emit("start", utteranceId == null ? "" : utteranceId);
+                }
+
+                @Override
+                public void onDone(String utteranceId) {
+                    if (cancelled) return;
+                    pendingCount -= 1;
+                    if (pendingCount <= 0) {
+                        speaking = false;
+                        pendingCount = 0;
+                        emit("done", utteranceId == null ? "" : utteranceId);
+                    }
+                }
+
+                @Override
+                public void onError(String utteranceId) {
+                    if (cancelled) return;
+                    speaking = false;
+                    pendingCount = 0;
+                    emit("error", "朗读失败");
+                }
+            });
+            emit("ready", "");
+            String queued = pendingSpeak;
+            pendingSpeak = null;
+            if (queued != null && !queued.isEmpty()) speakParts(splitText(queued));
+        });
     }
 
     private void speakParts(List<String> parts) {

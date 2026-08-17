@@ -776,7 +776,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.14.0")
+                .put("version", "1.14.1")
                 .put("versionCount", versions().length());
     }
 

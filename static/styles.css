@@ -365,6 +365,7 @@ select, input[type="search"], input[type="text"] {
   display: grid; gap: 4px; width: 100%;
   text-align: left; border: 0; border-radius: var(--radius);
   background: var(--soft); color: inherit; padding: 10px 12px;
+  cursor: pointer;
 }
 .resultRef { color: var(--accent); font-size: 13px; font-weight: 600; }
 .resultText { font-size: 14px; line-height: 1.7; font-family: var(--read-font); }
@@ -557,6 +558,18 @@ select, input[type="search"], input[type="text"] {
 .commentaryEntry { display: grid; gap: 7px; padding: 14px 0; border-top: 1px solid var(--line); }
 .commentaryEntry.activeCommentary { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .commentaryRef { color: var(--accent); font-size: 13px; font-weight: 600; }
+.refLink {
+  display: inline;
+  margin: 0 1px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+}
+.commentaryEntry { cursor: pointer; }
 .commentaryText { white-space: pre-wrap; font-size: 15px; line-height: 1.85; font-family: var(--read-font); }
 .imageNote { color: var(--accent-2); font-size: 12px; }
 
