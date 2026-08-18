@@ -23,6 +23,8 @@ public class TtsBridge {
     private volatile boolean cancelled = false;
     private volatile int pendingCount = 0;
     private volatile String pendingSpeak = null;
+    private volatile String pendingQueue = null;
+    private volatile float speechRate = 1f;
 
     public TtsBridge(Activity activity, WebView webView) {
         this.activity = activity;
@@ -40,6 +42,20 @@ public class TtsBridge {
                     .toString();
         } catch (Exception error) {
             return "{\"ok\":true,\"ready\":false,\"speaking\":false}";
+        }
+    }
+
+    @JavascriptInterface
+    public String setRate(String rate) {
+        try {
+            float value = Float.parseFloat(String.valueOf(rate == null ? "1" : rate));
+            if (value < 0.6f) value = 0.6f;
+            if (value > 1.8f) value = 1.8f;
+            speechRate = value;
+            if (tts != null && ready) tts.setSpeechRate(speechRate);
+            return new JSONObject().put("ok", true).put("rate", speechRate).toString();
+        } catch (Exception error) {
+            return errorJson(error);
         }
     }
 
@@ -64,16 +80,18 @@ public class TtsBridge {
     @JavascriptInterface
     public String speakQueue(String jsonArray) {
         try {
-            JSONArray raw = new JSONArray(jsonArray == null ? "[]" : jsonArray);
-            StringBuilder joined = new StringBuilder();
-            for (int i = 0; i < raw.length(); i++) {
-                String item = raw.optString(i, "").trim();
-                if (!item.isEmpty()) {
-                    if (joined.length() > 0) joined.append("。");
-                    joined.append(item);
-                }
+            if (jsonArray == null || jsonArray.trim().isEmpty() || "[]".equals(jsonArray.trim())) {
+                throw new IllegalArgumentException("没有可朗读的经文");
             }
-            return speak(joined.toString());
+            if (!ready || tts == null) {
+                pendingQueue = jsonArray;
+                pendingSpeak = null;
+                activity.runOnUiThread(this::ensureTts);
+                return new JSONObject().put("ok", true).put("queued", true).toString();
+            }
+            pendingQueue = null;
+            activity.runOnUiThread(() -> speakQueueNow(jsonArray));
+            return new JSONObject().put("ok", true).toString();
         } catch (Throwable error) {
             return errorJson(error);
         }
@@ -84,6 +102,7 @@ public class TtsBridge {
         activity.runOnUiThread(() -> {
             cancelled = true;
             pendingSpeak = null;
+            pendingQueue = null;
             pendingCount = 0;
             speaking = false;
             if (tts != null) tts.stop();
@@ -93,6 +112,7 @@ public class TtsBridge {
 
     public void shutdown() {
         pendingSpeak = null;
+        pendingQueue = null;
         if (tts != null) {
             tts.stop();
             tts.shutdown();
@@ -143,15 +163,53 @@ public class TtsBridge {
                 }
             });
             emit("ready", "");
+            String queuedJson = pendingQueue;
             String queued = pendingSpeak;
+            pendingQueue = null;
             pendingSpeak = null;
-            if (queued != null && !queued.isEmpty()) speakParts(splitText(queued));
+            if (queuedJson != null && !queuedJson.isEmpty()) speakQueueNow(queuedJson);
+            else if (queued != null && !queued.isEmpty()) speakParts(splitText(queued));
         });
+    }
+
+    private void speakQueueNow(String jsonArray) {
+        try {
+            JSONArray raw = new JSONArray(jsonArray);
+            List<String> texts = new ArrayList<>();
+            List<String> ids = new ArrayList<>();
+            for (int i = 0; i < raw.length(); i++) {
+                JSONObject item = raw.optJSONObject(i);
+                String text;
+                String id;
+                if (item != null) {
+                    text = item.optString("text", "").trim();
+                    id = item.optString("id", "part-" + i);
+                } else {
+                    text = raw.optString(i, "").trim();
+                    id = "part-" + i;
+                }
+                if (text.isEmpty()) continue;
+                texts.add(text);
+                ids.add(id);
+            }
+            if (texts.isEmpty()) return;
+            cancelled = false;
+            tts.setSpeechRate(speechRate);
+            tts.stop();
+            pendingCount = texts.size();
+            speaking = true;
+            for (int i = 0; i < texts.size(); i++) {
+                tts.speak(texts.get(i), i == 0 ? TextToSpeech.QUEUE_FLUSH : TextToSpeech.QUEUE_ADD, new Bundle(), ids.get(i));
+            }
+        } catch (Exception error) {
+            emit("error", error.getMessage() == null ? "朗读失败" : error.getMessage());
+        }
     }
 
     private void speakParts(List<String> parts) {
         if (tts == null || parts.isEmpty()) return;
         cancelled = false;
+        tts.setSpeechRate(speechRate);
         tts.stop();
         pendingCount = parts.size();
         speaking = true;

@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.14.1";
+const APP_VERSION = "1.15.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -22,6 +22,10 @@ const state = {
   palette: "classic",
   fontSize: 20,
   lineHeight: 2.05,
+  readFont: "serif",
+  pageMargin: 22,
+  copyFormat: "reference",
+  ttsRate: 1,
   keepScreenOn: false,
   fuzzySearch: false,
   mimoKey: "",
@@ -148,6 +152,14 @@ const updateProgressText = $("#updateProgressText");
 const updateProgressBar = $("#updateProgressBar");
 const updateProgressValue = $("#updateProgressValue");
 const keepScreenOnToggle = $("#keepScreenOnToggle");
+const readFontSelect = $("#readFontSelect");
+const pageMarginRange = $("#pageMarginRange");
+const pageMarginValue = $("#pageMarginValue");
+const copyFormatSelect = $("#copyFormatSelect");
+const strongToggleReader = $("#strongToggleReader");
+const ttsRateSelect = $("#ttsRateSelect");
+const verseMenuMore = $("#verseMenuMore");
+const verseMenuMoreBtn = $("#verseMenuMoreBtn");
 const verseStepPanel = $("#verseStepPanel");
 const verseGrid = $("#verseGrid");
 const versePanelTitle = $("#versePanelTitle");
@@ -311,6 +323,10 @@ function restoreState() {
       palette: saved.palette || "classic",
       fontSize: Number(saved.fontSize) || 20,
       lineHeight: Number(saved.lineHeight) || 2.05,
+      readFont: saved.readFont === "sans" ? "sans" : "serif",
+      pageMargin: Number(saved.pageMargin) || 22,
+      copyFormat: saved.copyFormat === "plain" || saved.copyFormat === "numbered" ? saved.copyFormat : "reference",
+      ttsRate: [0.8, 1, 1.25, 1.5].includes(Number(saved.ttsRate)) ? Number(saved.ttsRate) : 1,
       keepScreenOn: !!saved.keepScreenOn,
       fuzzySearch: !!saved.fuzzySearch,
       mimoKey: saved.mimoKey || "",
@@ -342,6 +358,10 @@ function saveState() {
       palette: state.palette,
       fontSize: state.fontSize,
       lineHeight: state.lineHeight,
+      readFont: state.readFont,
+      pageMargin: state.pageMargin,
+      copyFormat: state.copyFormat,
+      ttsRate: state.ttsRate,
       keepScreenOn: state.keepScreenOn,
       fuzzySearch: !!state.fuzzySearch,
       mimoKey: state.mimoKey,
@@ -373,6 +393,8 @@ function applySettings() {
   if (!document.body.dataset.palette) delete document.body.dataset.palette;
   document.documentElement.style.setProperty("--reader-font-size", `${state.fontSize}px`);
   document.documentElement.style.setProperty("--reader-line-height", String(state.lineHeight));
+  document.documentElement.style.setProperty("--reader-pad", `${state.pageMargin}px`);
+  document.body.dataset.readFont = state.readFont === "sans" ? "sans" : "serif";
   const themeColor = night ? "#1b1815" : "#3d6b5c";
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) themeMeta.setAttribute("content", themeColor);
@@ -385,8 +407,14 @@ function applySettings() {
   lineHeightRange.value = String(state.lineHeight);
   fontSizeValue.textContent = `${state.fontSize}px`;
   lineHeightValue.textContent = Number(state.lineHeight).toFixed(2);
+  if (pageMarginValue) pageMarginValue.textContent = String(state.pageMargin);
+  if (pageMarginRange) pageMarginRange.value = String(state.pageMargin);
+  if (readFontSelect) readFontSelect.value = state.readFont === "sans" ? "sans" : "serif";
+  if (copyFormatSelect) copyFormatSelect.value = state.copyFormat;
+  if (ttsRateSelect) ttsRateSelect.value = String(state.ttsRate);
   strongToggle.checked = state.showStrong;
-  audioAutoNext.checked = state.audioAutoNext;
+  if (strongToggleReader) strongToggleReader.checked = state.showStrong;
+  if (audioAutoNext) audioAutoNext.checked = state.audioAutoNext;
   if (audioAutoNextSheet) audioAutoNextSheet.checked = state.audioAutoNext;
   if (keepScreenOnToggle) keepScreenOnToggle.checked = state.keepScreenOn;
   if (fuzzySearchToggle) fuzzySearchToggle.checked = !!state.fuzzySearch;
@@ -534,7 +562,15 @@ function visibleVerseNumber() {
   return current;
 }
 
+let lastScrollY = window.scrollY || 0;
+
 function onReaderScroll() {
+  const y = window.scrollY || 0;
+  if (!chapterLoading && !jumpBusy && Date.now() >= chromePinnedUntil && !hasBlockingOverlayOpen()) {
+    if (y > lastScrollY + 10 && y > 48) document.body.classList.add("chromeHidden");
+    else if (y < lastScrollY - 10) document.body.classList.remove("chromeHidden");
+  }
+  lastScrollY = y;
   if (chapterLoading || jumpBusy || !content.querySelector(".verse")) return;
   const verse = visibleVerseNumber();
   if (!verse) return;
@@ -2574,20 +2610,28 @@ function verseTextForNumber(verseNo) {
   return content.querySelector(`.verse[data-verse="${verseNo}"] .verseText`)?.textContent.trim() || "";
 }
 
-function formatVerseLines(verseNumbers, format = "reference") {
+function formatVerseLines(verseNumbers, format = state.copyFormat || "reference") {
   const book = currentBook();
-  const lines = verseNumbers
+  const nums = verseNumbers.map(Number).filter((n) => n >= 1);
+  const lines = nums
     .map((verseNo) => {
       const verse = verseTextForNumber(verseNo);
       if (!verse) return "";
-      if (format === "plain" || format === "paragraph") return verse;
+      if (format === "plain") return verse;
+      if (format === "numbered") return `${verseNo} ${verse}`;
       return `${book.longName} ${state.chapter}:${verseNo} ${verse}`;
     })
     .filter(Boolean);
+  if (format === "numbered" && nums.length) {
+    const first = nums[0];
+    const last = nums[nums.length - 1];
+    const ref = nums.length === 1 ? `${book.longName} ${state.chapter}:${first}` : `${book.longName} ${state.chapter}:${first}-${last}`;
+    return `${ref}\n${lines.join("\n")}`;
+  }
   if (format === "paragraph") {
-    const first = verseNumbers[0];
-    const last = verseNumbers[verseNumbers.length - 1];
-    const ref = verseNumbers.length === 1 ? `${book.longName} ${state.chapter}:${first}` : `${book.longName} ${state.chapter}:${first}-${last}`;
+    const first = nums[0];
+    const last = nums[nums.length - 1];
+    const ref = nums.length === 1 ? `${book.longName} ${state.chapter}:${first}` : `${book.longName} ${state.chapter}:${first}-${last}`;
     return `${ref} ${lines.join("")}`;
   }
   return lines.join("\n");
@@ -2609,13 +2653,19 @@ async function writeClipboard(text) {
   area.remove();
 }
 
-function openVerseMenu(verseNo, x, y) {
+function setVerseMenuMore(show) {
+  if (verseMenuMore) verseMenuMore.hidden = !show;
+  if (verseMenuMoreBtn) verseMenuMoreBtn.textContent = show ? "收起" : "更多";
+}
+
+function openVerseMenu(verseNo, x, y, expandMore = false) {
   const mark = markForVerse(verseNo);
   state.activeVerse = Number(verseNo);
   rememberReadingPosition(verseNo);
   verseMenuTitle.textContent = `${currentBook().longName} ${state.chapter}:${verseNo}`;
   verseMenu.querySelector('[data-menu-action="favorite"]').textContent = mark.favorite ? "取消收藏" : "收藏";
   verseMenu.querySelector('[data-menu-action="highlight"]').textContent = mark.highlighted ? "取消高亮" : "高亮";
+  setVerseMenuMore(expandMore);
   verseMenu.hidden = false;
   const rect = verseMenu.getBoundingClientRect();
   verseMenu.style.left = `${Math.max(10, Math.min(x, window.innerWidth - rect.width - 10))}px`;
@@ -2624,6 +2674,7 @@ function openVerseMenu(verseNo, x, y) {
 
 function closeVerseMenu() {
   verseMenu.hidden = true;
+  setVerseMenuMore(false);
 }
 
 function renderVerseSelectionState() {
@@ -2682,14 +2733,24 @@ function closeSelectionBar() {
   renderVerseSelectionState();
 }
 
+async function copyVerses(verseNumbers, format = state.copyFormat) {
+  const nums = (verseNumbers || []).map(Number).filter((n) => n >= 1);
+  if (!nums.length) return;
+  await writeClipboard(formatVerseLines(nums, format));
+  const label = format === "plain" ? "只要经文" : format === "numbered" ? "带节号" : "带出处";
+  showStatus(`已复制（${label}）`, "success");
+}
+
 async function copySelectedVerses() {
-  if (!selectedVerseNumbers.length) return;
-  await writeClipboard(formatVerseLines(selectedVerseNumbers, "reference"));
-  showStatus("已复制所选经文", "success");
+  await copyVerses(selectedVerseNumbers.length ? selectedVerseNumbers : [state.activeVerse], state.copyFormat);
 }
 
 async function runVerseAction(action, verseNo = state.activeVerse) {
   if (!verseNo) return;
+  if (action === "more") {
+    setVerseMenuMore(verseMenuMore ? verseMenuMore.hidden : true);
+    return;
+  }
   const mark = markForVerse(verseNo);
   closeVerseMenu();
   if (action === "select") {
@@ -2739,9 +2800,19 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     showStatus("再点经文可连选");
     return;
   }
-  if (action === "copy") {
-    await writeClipboard(formatVerseLines([verseNo], "reference"));
-    showStatus("已复制经文", "success");
+  if (action === "more") {
+    setVerseMenuMore(verseMenuMore ? verseMenuMore.hidden : true);
+    return;
+  }
+  if (action === "copy" || action === "copy-reference" || action === "copy-plain" || action === "copy-numbered") {
+    const format = action === "copy-plain" ? "plain" : action === "copy-numbered" ? "numbered" : action === "copy-reference" ? "reference" : state.copyFormat;
+    if (action !== "copy") {
+      state.copyFormat = format;
+      if (copyFormatSelect) copyFormatSelect.value = format;
+      saveState();
+    }
+    const nums = selectedVerseNumbers.length ? selectedVerseNumbers : [verseNo];
+    await copyVerses(nums, format);
     return;
   }
   if (action === "dictionary") {
@@ -3007,10 +3078,44 @@ function chapterPlainText() {
 
 function setSpeaking(on) {
   speaking = !!on;
+  if (!speaking) clearSpeakingVerse();
   if (speakToggleBtn) {
     speakToggleBtn.classList.toggle("active", speaking);
     speakToggleBtn.setAttribute("aria-pressed", speaking ? "true" : "false");
     speakToggleBtn.setAttribute("aria-label", speaking ? "停止朗读" : "朗读本章");
+  }
+}
+
+function clearSpeakingVerse() {
+  content?.querySelectorAll(".speakingVerse").forEach((el) => el.classList.remove("speakingVerse"));
+}
+
+function setSpeakingVerse(id) {
+  const verseNo = String(id || "").replace(/^v/, "");
+  if (!/^\d+$/.test(verseNo)) return;
+  clearSpeakingVerse();
+  const el = content.querySelector(`.verse[data-verse="${verseNo}"]`);
+  if (!el) return;
+  el.classList.add("speakingVerse");
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  rememberReadingPosition(Number(verseNo));
+}
+
+function chapterSpeakItems() {
+  return [...content.querySelectorAll(".verse[data-verse]")]
+    .map((el) => {
+      const verse = Number(el.dataset.verse);
+      const text = el.querySelector(".verseText")?.textContent.trim() || "";
+      return text ? { id: `v${verse}`, verse, text } : null;
+    })
+    .filter(Boolean);
+}
+
+function applyTtsRate() {
+  if (window.AndroidTtsApi && window.AndroidTtsApi.setRate) {
+    try {
+      window.AndroidTtsApi.setRate(String(state.ttsRate || 1));
+    } catch {}
   }
 }
 
@@ -3021,16 +3126,21 @@ function speakChapter() {
     return;
   }
   const book = currentBook();
-  const text = `${book ? book.longName : ""} 第 ${state.chapter} 章。${chapterPlainText()}`;
-  if (!text || text.length < 8) {
+  const items = chapterSpeakItems();
+  if (!items.length) {
     setTtsStatus("这一章没有可朗读的经文");
     showStatus("没有可朗读的经文");
     return;
   }
-  if (window.AndroidTtsApi && window.AndroidTtsApi.speak) {
+  applyTtsRate();
+  if (window.AndroidTtsApi && (window.AndroidTtsApi.speakQueue || window.AndroidTtsApi.speak)) {
     let result = {};
     try {
-      result = JSON.parse(window.AndroidTtsApi.speak(text));
+      result = JSON.parse(
+        window.AndroidTtsApi.speakQueue
+          ? window.AndroidTtsApi.speakQueue(JSON.stringify(items))
+          : window.AndroidTtsApi.speak(`${book ? book.longName : ""} 第 ${state.chapter} 章。${items.map((item) => item.text).join("。")}`),
+      );
     } catch {
       result = { error: "朗读接口异常" };
     }
@@ -3056,16 +3166,17 @@ function speakChapter() {
     return;
   }
   window.speechSynthesis.cancel();
-  const chunks = text.match(/[^。！？；\n]+[。！？；\n]?/g) || [text];
   const speakNext = (index) => {
-    if (index >= chunks.length) {
+    if (index >= items.length) {
       setSpeaking(false);
       setTtsStatus("朗读结束");
       if (state.audioAutoNext) moveChapter(1);
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(chunks[index]);
+    setSpeakingVerse(items[index].id);
+    const utterance = new SpeechSynthesisUtterance(items[index].text);
     utterance.lang = "zh-CN";
+    utterance.rate = Number(state.ttsRate) || 1;
     utterance.onend = () => {
       if (speaking) speakNext(index + 1);
     };
@@ -3097,6 +3208,7 @@ window.handleAndroidTts = function handleAndroidTts(type, text) {
   }
   if (type === "start") {
     setSpeaking(true);
+    setSpeakingVerse(text);
     return;
   }
   if (type === "done") {
@@ -3700,6 +3812,7 @@ commentarySelect?.addEventListener("change", () => {
 
 strongToggle.addEventListener("change", () => {
   state.showStrong = strongToggle.checked;
+  if (strongToggleReader) strongToggleReader.checked = state.showStrong;
   saveState();
   loadChapter();
 });
@@ -3710,7 +3823,7 @@ function syncAudioAutoNext(checked) {
   if (audioAutoNextSheet) audioAutoNextSheet.checked = state.audioAutoNext;
   saveState();
 }
-audioAutoNext.addEventListener("change", () => syncAudioAutoNext(audioAutoNext.checked));
+audioAutoNext?.addEventListener("change", () => syncAudioAutoNext(audioAutoNext.checked));
 audioAutoNextSheet?.addEventListener("change", () => syncAudioAutoNext(audioAutoNextSheet.checked));
 
 dictionarySelect.addEventListener("change", () => {
@@ -3745,6 +3858,32 @@ lineHeightRange.addEventListener("input", () => {
   state.lineHeight = Number(lineHeightRange.value);
   applySettings();
   saveState();
+});
+readFontSelect?.addEventListener("change", () => {
+  state.readFont = readFontSelect.value === "sans" ? "sans" : "serif";
+  applySettings();
+  saveState();
+});
+pageMarginRange?.addEventListener("input", () => {
+  state.pageMargin = Number(pageMarginRange.value);
+  applySettings();
+  saveState();
+});
+copyFormatSelect?.addEventListener("change", () => {
+  state.copyFormat = copyFormatSelect.value;
+  saveState();
+});
+ttsRateSelect?.addEventListener("change", () => {
+  state.ttsRate = Number(ttsRateSelect.value) || 1;
+  applyTtsRate();
+  saveState();
+});
+strongToggleReader?.addEventListener("change", () => {
+  state.showStrong = strongToggleReader.checked;
+  if (strongToggle) strongToggle.checked = state.showStrong;
+  applySettings();
+  saveState();
+  loadChapter({ scrollTop: false });
 });
 
 menuBtn.addEventListener("click", () => openSidebar());
@@ -4193,8 +4332,43 @@ content.addEventListener("contextmenu", (event) => {
   openVerseMenu(verseNo, event.clientX, event.clientY);
 });
 
+let pinchState = null;
+
+function pinchDistance(event) {
+  if (!event.touches || event.touches.length < 2) return 0;
+  const a = event.touches[0];
+  const b = event.touches[1];
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+function clampFontSize(value) {
+  return Math.max(16, Math.min(32, Math.round(value)));
+}
+
+content.addEventListener("touchstart", (event) => {
+  if (event.touches.length !== 2) return;
+  pinchState = { dist: pinchDistance(event), font: state.fontSize };
+  swipeState = null;
+  clearTimeout(longPressTimer);
+}, { passive: true });
+content.addEventListener("touchmove", (event) => {
+  if (!pinchState || event.touches.length !== 2) return;
+  const dist = pinchDistance(event);
+  if (!pinchState.dist) return;
+  const next = clampFontSize(pinchState.font * (dist / pinchState.dist));
+  if (next === state.fontSize) return;
+  state.fontSize = next;
+  applySettings();
+}, { passive: true });
+content.addEventListener("touchend", () => {
+  if (!pinchState) return;
+  pinchState = null;
+  saveState();
+}, { passive: true });
+
 const swipeRoot = readerEl || content;
 swipeRoot.addEventListener("pointerdown", (event) => {
+  if (pinchState) return;
   startSwipeGesture(event.clientX, event.clientY, event.target);
   const verseNo = verseFromEvent(event);
   if (!verseNo || event.pointerType === "mouse") return;
@@ -4233,6 +4407,11 @@ selectionBar.addEventListener("click", (event) => {
   const verseNo = state.activeVerse || selectedVerseNumbers[0];
   if (action === "copy") {
     copySelectedVerses();
+    return;
+  }
+  if (action === "more") {
+    const rect = selectionBar.getBoundingClientRect();
+    openVerseMenu(verseNo, rect.left + 24, Math.max(12, rect.top - 8), true);
     return;
   }
   runVerseAction(action, verseNo);
