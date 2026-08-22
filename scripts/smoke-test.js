@@ -97,6 +97,12 @@ assert(indexHtml.includes("id=\"smartVoiceToggle\""), "Smart voice toggle missin
 assert(indexHtml.includes("id=\"aiSheet\""), "AI sheet missing");
 assert(indexHtml.includes("id=\"studySearchBtn\""), "Study search button missing");
 assert(appJs.includes("function runBibleStudy"), "Bible study agent missing");
+assert(appJs.includes("function runAgent"), "Unified bible agent missing");
+assert(appJs.includes("function rememberFact"), "Long-term memory facts missing");
+assert(appJs.includes("function compactAgentTurns"), "Conversation compaction missing");
+assert(appJs.includes("function renderAgentMemoryBar"), "Memory bar renderer missing");
+assert(appJs.includes('{"tool":"remember"') || appJs.includes('tool === "remember"'), "Memory remember tool missing");
+assert(indexHtml.includes("id=\"aiMemoryBar\""), "Memory bar missing");
 assert(appJs.includes("function getAiProvider"), "AI provider abstraction missing");
 assert(appJs.includes("function beginJob"), "Command job cancel token missing");
 assert(appJs.includes("function finishJob"), "Command finish status missing");

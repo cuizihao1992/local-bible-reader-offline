@@ -5,14 +5,14 @@
 - 仓库：https://github.com/cuizihao1992/local-bible-reader-offline
 - 默认网页端口：`8766`
 - Android 包名：`local.bible.reader.next`
-- 当前版本：`1.18.0`
+- 当前版本：`1.19.0`
 
 ## 下载 Android APK
 
 从 [Releases](https://github.com/cuizihao1992/local-bible-reader-offline/releases) 下载：
 
 ```text
-local-bible-reader-offline-1.18.0-release.apk
+local-bible-reader-offline-1.19.0-release.apk
 ```
 
 内置译本：和合本、和合本修订版、KJV、WEB。
@@ -58,7 +58,7 @@ npm run dist:android
 生成文件：
 
 ```text
-D:\bible-reader\dist\android\local-bible-reader-offline-1.18.0-release.apk
+D:\bible-reader\dist\android\local-bible-reader-offline-1.19.0-release.apk
 ```
 
 APK 内置 `和合本`、`和合本修订版`、`KJV`、`WEB` 四个译本。安装后独立运行，不读电脑 D 盘。包名是 `local.bible.reader.next`，可以和原版同时安装。
@@ -93,7 +93,7 @@ npm start
 - 打开后回到上次读到的节；我的里可继续读、看高亮
 - 易混书卷口令会弹出确认（以斯拉/以斯帖等）
 - 智能查经过程可见；阅读时可并排对照译本
-- 助手记住最近对话，并结合当前经文回答；记忆只存在本机
+- 圣经智能体：长期记忆（偏好/在读/查过的主题）、近期对话、溢出摘要；查经与讲解走同一套工具循环；经文只从本机译本取
 - 对话模型可切换小米 / DeepSeek / Grok / GPT / Claude / 自定义兼容接口；口令识别仍用小米
 - 导入 / 导出个人数据
 - 本地诊断

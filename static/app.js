@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.18.0";
+const APP_VERSION = "1.19.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -220,6 +220,7 @@ const studySearchBtn = $("#studySearchBtn");
 const aiSheet = $("#aiSheet");
 const aiSheetTitle = $("#aiSheetTitle");
 const aiSheetContent = $("#aiSheetContent");
+const aiMemoryBar = $("#aiMemoryBar");
 const aiAskForm = $("#aiAskForm");
 const aiAskInput = $("#aiAskInput");
 const closeAiSheetBtn = $("#closeAiSheetBtn");
@@ -1990,12 +1991,12 @@ async function mimoChatComplete(systemPrompt, userText) {
   ]);
 }
 
-const BIBLE_STUDY_SKILL_FALLBACK = `你是离线圣经阅读器里的查经助手。必须用工具从本机译本取经文，禁止编造章节。
-每轮只输出一个 JSON，禁止空回复，禁止 Markdown。
-搜索：{"tool":"search","q":"葡萄","book":"约书亚记"} 或 {"tool":"search","q":"葡萄","scope":"all"}
+const BIBLE_STUDY_SKILL_FALLBACK = `你是离线圣经阅读器里的助手。要接上刚才的话。经文必须用工具或当前经文，禁止编造。
+每轮只输出一个 JSON。搜索：{"tool":"search","q":"葡萄","book":"约书亚记"} 或 {"tool":"search","q":"葡萄","scope":"all"}
 取经文：{"tool":"verse","book":"民数记","chapter":13,"verse":23} 或 {"tool":"chapter","book":"民数记","chapter":13}
+记忆：{"tool":"remember","fact":"用户常读约翰福音","kind":"reading"} 或 {"tool":"forget","q":"约翰福音"}
 结束：{"done":true,"correction":"","answer":"","refs":[{"book":"民数记","chapter":13,"verse":23,"why":""}]}
-还不知道章节时先 search，不要直接空 done。用户指错书卷必须纠正。约书亚记抬葡萄实际在民数记13:23。最多4次工具。`;
+kind 只能是 profile、reading、preference、topic。不要把经文原文写入记忆。约书亚记抬葡萄实际在民数记13:23。最多6次工具。`;
 
 let bibleStudySkillText = "";
 
@@ -2062,6 +2063,8 @@ async function runStudyTool(call) {
         .join("\n"),
     };
   }
+  if (call.tool === "remember") return rememberFact(call.fact, call.kind);
+  if (call.tool === "forget") return forgetFact(call.q || call.fact || call.id);
   return { error: `未知工具：${call.tool || ""}` };
 }
 
@@ -2095,72 +2098,148 @@ function renderStudyResult(result, steps = []) {
   renderAgentChat(
     `${log ? `<div class="studyLog">${log}</div>` : ""}${
       result.correction ? `<div class="aiCorrection">${linkVerseRefs(result.correction)}</div>` : ""
-    }${result.answer ? `<div class="aiAnswer">${linkVerseRefs(result.answer)}</div>` : ""}<div class="resultList">${cards || `<div class="panelHint">没有可跳转的经文</div>`}</div>`,
+    }${
+      result.answer ? `<div class="aiAnswer">${linkVerseRefs(result.answer)}</div>` : ""
+    }${cards ? `<div class="resultList">${cards}</div>` : ""}`,
   );
 }
 
-async function runBibleStudy(question, token = beginJob("正在查经...")) {
+function agentToolLabel(call) {
+  if (call.tool === "search") {
+    return `搜索「${call.q || ""}」${call.book ? ` · ${call.book}` : call.scope === "all" ? " · 全本" : ""}`;
+  }
+  if (call.tool === "verse") return `取经文 ${call.book || ""} ${call.chapter || ""}:${call.verse || ""}`;
+  if (call.tool === "chapter") return `读章 ${call.book || ""} ${call.chapter || ""}`;
+  if (call.tool === "remember") return `记住：${call.fact || ""}`;
+  if (call.tool === "forget") return `忘掉：${call.q || call.fact || call.id || ""}`;
+  return call.tool || "工具";
+}
+
+function agentSystemPrompt(skill, mode = "ask") {
+  const ctx = aiContext();
+  const facts = (agentMemory.facts || []).slice(-40);
+  const factLines = facts.length
+    ? facts.map((item) => `- (${item.kind || "topic"}) ${item.text}`).join("\n")
+    : "（暂无长期记忆）";
+  const modeLine =
+    mode === "study"
+      ? "这次用户在查经，必须用工具取经文后再回答，不要直接编章节。"
+      : mode === "explain"
+        ? "请讲解当前经文。引用其它章节时先用工具。"
+        : mode === "summary"
+          ? "请概括本章。只根据当前章摘录，不要编其它章。"
+          : mode === "polish"
+            ? "请润色本节笔记，保持原意，用中文。"
+            : "闲聊或讲解可以直接答；一旦要引用具体章节，必须先用工具或当前经文。";
+  return [
+    skill,
+    modeLine,
+    `当前译本：${ctx.version}`,
+    `当前阅读：${ctx.ref}`,
+    ctx.verseText && ctx.verseText !== "（未选中经文）" ? `当前经文：\n${ctx.verseText}` : "",
+    ctx.note ? `本节笔记：${ctx.note}` : "",
+    ctx.chapterText ? `本章摘录：${ctx.chapterText.slice(0, 700)}` : "",
+    `长期记忆（跨会话，只信任这些条目）：\n${factLines}`,
+    agentMemory.summary ? `更早对话摘要：\n${agentMemory.summary}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function runAgent(question, options = {}) {
   if (!requireAiKey()) return;
   const query = String(question || "").trim();
+  const mode = options.mode || (looksLikeStudyQuery(query) ? "study" : "ask");
+  const token = options.token || beginJob(mode === "study" ? "正在查经..." : "正在想...");
   if (!query) {
-    finishJob(token, "请先说出或输入要找的经文", "info");
+    finishJob(token, mode === "study" ? "请先说出或输入要找的经文" : "请先输入问题", "info");
     return;
   }
   if (!jobAlive(token)) return;
+  if (options.verseNo) state.activeVerse = Number(options.verseNo);
+  if (mode === "polish") {
+    const ctx = aiContext(options.verseNo);
+    if (!ctx.note) {
+      openAiSheet("助手", options.verseNo);
+      renderAgentChat(`<div class="panelHint">这一节还没有笔记。先写笔记再润色。</div>`);
+      finishJob(token, "这一节还没有笔记", "info");
+      return;
+    }
+  }
   rememberAgentTurn("user", query);
-  openAiSheet("助手", state.activeVerse);
-  const steps = [{ text: `正在理解：${query}` }];
+  openAiSheet("助手", options.verseNo || state.activeVerse);
+  const steps = [{ text: `正在理解：${query.slice(0, 40)}` }];
   renderStudyProgress(steps, "等待模型...");
   const skill = await loadBibleStudySkill();
   if (!jobAlive(token)) return;
-  const memoryHint = agentMemory.turns
-    .slice(-6, -1)
-    .map((item) => `${item.role === "user" ? "用户" : "助手"}：${item.text}`)
-    .join("\n");
-  const messages = [
-    {
-      role: "system",
-      content: `${skill}\n当前译本：${versionLabel(state.version)}。当前阅读：${readingRefLabel()}。\n${memoryHint ? `最近对话：\n${memoryHint}` : ""}`,
-    },
-    { role: "user", content: query },
-  ];
+  const messages = [{ role: "system", content: agentSystemPrompt(skill, mode) }];
+  agentMemory.turns.slice(-10).forEach((item) => {
+    messages.push({ role: item.role === "user" ? "user" : "assistant", content: item.text });
+  });
   try {
-    for (let round = 0; round < 4; round += 1) {
+    for (let round = 0; round < 6; round += 1) {
       if (!jobAlive(token)) return;
       renderStudyProgress(steps, "等待模型...");
       const raw = await llmChat(messages);
       if (!jobAlive(token)) return;
-      const data = extractJsonObject(raw) || (String(raw || "").trim() ? { done: true, correction: "", answer: String(raw).trim(), refs: [] } : null);
+      const data =
+        extractJsonObject(raw) ||
+        (String(raw || "").trim() ? { done: true, correction: "", answer: String(raw).trim(), refs: [] } : null);
       if (!data) throw new Error("模型没有给出可用结果");
       if (data.done) {
-        steps.push({ text: data.correction ? `完成，并纠正：${data.correction}` : "查经完成", done: true });
         const answer = [data.correction, data.answer].filter(Boolean).join("\n");
-        rememberAgentTurn("assistant", answer || "查经完成");
+        steps.push({ text: data.correction ? `完成，并纠正：${data.correction}` : "完成", done: true });
+        rememberAgentTurn("assistant", answer || "好的");
+        if ((mode === "study" || looksLikeStudyQuery(query)) && data.refs && data.refs[0]) {
+          const hit = data.refs[0];
+          rememberFact(`查过「${query.slice(0, 24)}」→ ${hit.book} ${hit.chapter}:${hit.verse || 1}`, "topic");
+        }
         renderStudyResult(data, steps);
-        finishJob(token, data.correction ? `查经完成：${data.correction}` : "查经完成", data.correction ? "info" : "success");
+        if (mode === "polish") {
+          const verses = aiVerseNumbers(options.verseNo);
+          if (verses[0] && answer) {
+            const mark = markForVerse(verses[0]);
+            await saveVerseMark({ ...mark, note: answer }, { successMessage: "已写入润色后的笔记" });
+          }
+        }
+        finishJob(
+          token,
+          data.correction ? `完成：${data.correction}` : mode === "polish" ? "笔记已润色" : "已完成",
+          data.correction ? "info" : "success",
+        );
         return;
       }
       if (!data.tool) throw new Error("模型没有选择工具");
-      const action = data.tool === "search"
-        ? `搜索「${data.q || ""}」${data.book ? ` · ${data.book}` : data.scope === "all" ? " · 全本" : ""}`
-        : data.tool === "verse"
-          ? `取经文 ${data.book || ""} ${data.chapter || ""}:${data.verse || ""}`
-          : `读章 ${data.book || ""} ${data.chapter || ""}`;
+      const action = agentToolLabel(data);
       steps.push({ text: action });
-      renderStudyProgress(steps, "正在查本地译本...");
+      renderStudyProgress(steps, data.tool === "remember" || data.tool === "forget" ? "正在更新记忆..." : "正在查本地译本...");
       const toolResult = await runStudyTool(data);
-      const found = Array.isArray(toolResult.results) ? toolResult.results.length : toolResult.text ? 1 : 0;
-      steps[steps.length - 1] = { text: `${action} → ${toolResult.error || (found ? `找到 ${found} 条` : "没有结果")}`, done: true };
+      const found = Array.isArray(toolResult.results)
+        ? toolResult.results.length
+        : toolResult.text || toolResult.fact || toolResult.ok
+          ? 1
+          : 0;
+      let resultLabel = "没有结果";
+      if (toolResult.error) resultLabel = toolResult.error;
+      else if (toolResult.fact) resultLabel = toolResult.updated ? "已更新" : "已记住";
+      else if (toolResult.tool === "forget") resultLabel = `去掉 ${toolResult.removed || 0} 条`;
+      else if (found) resultLabel = `找到 ${found} 条`;
+      steps[steps.length - 1] = { text: `${action} → ${resultLabel}`, done: true };
+      renderAgentMemoryBar();
       renderStudyProgress(steps, "继续让模型判断...");
       messages.push({ role: "assistant", content: JSON.stringify(data) });
       messages.push({ role: "user", content: `工具结果：${JSON.stringify(toolResult)}` });
     }
-    throw new Error("查经轮次过多，请换个说法再试");
+    throw new Error("回合过多，请换个说法再试");
   } catch (error) {
     if (!jobAlive(token)) return;
-    renderAgentChat(`<div class="error">${escapeHtml(error.message || "查经失败")}</div>`);
-    finishJob(token, error.message || "查经失败", "error");
+    renderAgentChat(`<div class="error">${escapeHtml(error.message || "助手失败")}</div>`);
+    finishJob(token, error.message || "助手失败", "error");
   }
+}
+
+async function runBibleStudy(question, token) {
+  return runAgent(question, { mode: "study", token });
 }
 
 async function understandSpokenCommand(spoken) {
@@ -2173,19 +2252,78 @@ async function understandSpokenCommand(spoken) {
   }
 }
 
-const agentMemory = { turns: [] };
+const FACT_KINDS = ["profile", "reading", "preference", "topic"];
+const agentMemory = { facts: [], summary: "", turns: [] };
+
+function newFactId() {
+  return `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function rememberFact(text, kind = "topic") {
+  const clean = String(text || "").replace(/\s+/g, " ").trim().slice(0, 160);
+  if (!clean) return { error: "记忆内容为空" };
+  const factKind = FACT_KINDS.includes(kind) ? kind : "topic";
+  const existing = (agentMemory.facts || []).find(
+    (item) => item.text === clean || item.text.includes(clean) || clean.includes(item.text),
+  );
+  if (existing) {
+    existing.text = clean.length >= existing.text.length ? clean : existing.text;
+    existing.kind = factKind;
+    existing.at = Date.now();
+    saveAgentMemory();
+    return { tool: "remember", ok: true, updated: true, fact: existing.text };
+  }
+  agentMemory.facts.push({ id: newFactId(), text: clean, kind: factKind, at: Date.now() });
+  if (agentMemory.facts.length > 40) agentMemory.facts = agentMemory.facts.slice(-40);
+  saveAgentMemory();
+  return { tool: "remember", ok: true, fact: clean };
+}
+
+function forgetFact(query) {
+  const q = String(query || "").trim();
+  if (!q) return { error: "没有要忘掉的内容" };
+  const before = agentMemory.facts.length;
+  agentMemory.facts = agentMemory.facts.filter((item) => item.id !== q && !String(item.text || "").includes(q));
+  saveAgentMemory();
+  return { tool: "forget", ok: true, removed: before - agentMemory.facts.length };
+}
+
+function compactAgentTurns() {
+  if (agentMemory.turns.length <= 24) return;
+  const keep = 16;
+  const dropped = agentMemory.turns.slice(0, -keep);
+  const chunk = dropped
+    .map((item) => `${item.role === "user" ? "用户" : "助手"}：${String(item.text || "").slice(0, 80)}`)
+    .join("\n");
+  agentMemory.summary = `${agentMemory.summary ? `${agentMemory.summary}\n` : ""}${chunk}`.slice(-1800);
+  agentMemory.turns = agentMemory.turns.slice(-keep);
+}
 
 function loadAgentMemory() {
   try {
     const saved = JSON.parse(localStorage.getItem(MEMORY_KEY) || "{}");
     agentMemory.turns = Array.isArray(saved.turns) ? saved.turns.slice(-24) : [];
+    agentMemory.facts = Array.isArray(saved.facts)
+      ? saved.facts.filter((item) => item && item.text).slice(-40)
+      : [];
+    agentMemory.summary = String(saved.summary || "").slice(-2000);
   } catch {
     agentMemory.turns = [];
+    agentMemory.facts = [];
+    agentMemory.summary = "";
   }
 }
 
 function saveAgentMemory() {
-  localStorage.setItem(MEMORY_KEY, JSON.stringify({ turns: agentMemory.turns.slice(-24) }));
+  compactAgentTurns();
+  localStorage.setItem(
+    MEMORY_KEY,
+    JSON.stringify({
+      turns: agentMemory.turns.slice(-24),
+      facts: (agentMemory.facts || []).slice(-40),
+      summary: String(agentMemory.summary || "").slice(-2000),
+    }),
+  );
 }
 
 function readingRefLabel() {
@@ -2204,19 +2342,39 @@ function rememberAgentTurn(role, text) {
     ref: readingRefLabel(),
     at: Date.now(),
   });
-  if (agentMemory.turns.length > 24) agentMemory.turns = agentMemory.turns.slice(-24);
+  compactAgentTurns();
   saveAgentMemory();
 }
 
 function clearAgentMemory() {
   agentMemory.turns = [];
+  agentMemory.facts = [];
+  agentMemory.summary = "";
   saveAgentMemory();
   renderAgentChat();
   showStatus("已清空助手记忆", "info");
 }
 
+function renderAgentMemoryBar() {
+  if (!aiMemoryBar) return;
+  const facts = (agentMemory.facts || []).slice(-8);
+  if (!facts.length) {
+    aiMemoryBar.hidden = true;
+    aiMemoryBar.innerHTML = "";
+    return;
+  }
+  aiMemoryBar.hidden = false;
+  aiMemoryBar.innerHTML = facts
+    .map(
+      (item) =>
+        `<span class="aiFact"><span class="aiFactText">${escapeHtml(item.text)}</span><button type="button" data-forget-id="${escapeHtml(item.id)}" aria-label="忘掉这条">×</button></span>`,
+    )
+    .join("");
+}
+
 function renderAgentChat(extraHtml = "") {
   if (!aiSheetContent) return;
+  renderAgentMemoryBar();
   const turns = agentMemory.turns.slice(-16);
   const html = turns
     .map((item) => {
@@ -2226,28 +2384,12 @@ function renderAgentChat(extraHtml = "") {
     })
     .join("");
   aiSheetContent.innerHTML =
-    (html || `<div class="panelHint">可以问这节的意思，或说「帮我找抬葡萄」。助手会记住这次对话，经文仍只从本机译本取。</div>`) + extraHtml;
+    (html || `<div class="panelHint">可以问这节的意思，或说「帮我找抬葡萄」。助手会记住你的偏好和查过的主题，经文仍只从本机译本取。</div>`) + extraHtml;
   aiSheetContent.scrollTop = aiSheetContent.scrollHeight;
 }
 
 function agentChatMessages(userText) {
-  const ctx = aiContext();
-  const messages = [
-    {
-      role: "system",
-      content: [
-        "你是离线圣经阅读器里的助手。要接上用户刚才说的话，不要每次当新对话。",
-        "经文必须以当前经文或工具结果为准，禁止编造章节和原文。用中文，简洁。引用写成 书名 章:节。",
-        `当前译本：${ctx.version}`,
-        `当前阅读：${ctx.ref}`,
-        ctx.verseText && ctx.verseText !== "（未选中经文）" ? `当前经文：\n${ctx.verseText}` : "",
-        ctx.note ? `本节笔记：${ctx.note}` : "",
-        `本章摘录：${ctx.chapterText.slice(0, 700)}`,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    },
-  ];
+  const messages = [{ role: "system", content: agentSystemPrompt(bibleStudySkillText || BIBLE_STUDY_SKILL_FALLBACK, "ask") }];
   agentMemory.turns.slice(-10).forEach((item) => {
     messages.push({ role: item.role === "user" ? "user" : "assistant", content: item.text });
   });
@@ -2310,37 +2452,9 @@ function openAiSheet(title, verseNo, focusAsk = false) {
 }
 
 async function runAiTask(kind, verseNo, question = "") {
-  if (!requireAiKey()) return;
-  const ctx = aiContext(verseNo);
   const labels = { summary: "请概括本章", polish: "请润色我的笔记", ask: question, explain: "请讲解这节经文" };
   const userText = String(labels[kind] || question || "请讲解这节经文").trim();
-  openAiSheet("助手", verseNo);
-  if (kind === "polish" && !ctx.note) {
-    renderAgentChat(`<div class="panelHint">这一节还没有笔记。先写笔记再润色。</div>`);
-    return;
-  }
-  rememberAgentTurn("user", userText);
-  renderAgentChat(`<div class="panelHint">正在想…</div>`);
-  const token = beginJob("正在生成...");
-  try {
-    const text = String((await llmChat(agentChatMessages())) || "").trim();
-    if (!jobAlive(token)) return;
-    if (!text) throw new Error("没有生成内容");
-    rememberAgentTurn("assistant", text);
-    renderAgentChat();
-    if (kind === "polish") {
-      const verses = aiVerseNumbers(verseNo);
-      if (verses[0]) {
-        const mark = markForVerse(verses[0]);
-        await saveVerseMark({ ...mark, note: text }, { successMessage: "已写入润色后的笔记" });
-      }
-    }
-    finishJob(token, kind === "polish" ? "笔记已润色" : "已完成", "success");
-  } catch (error) {
-    if (!jobAlive(token)) return;
-    renderAgentChat(`<div class="error">${escapeHtml(error.message || "生成失败")}</div>`);
-    finishJob(token, error.message || "生成失败", "error");
-  }
+  return runAgent(userText, { mode: kind || "ask", verseNo });
 }
 
 function saveAiSettings() {
@@ -4373,6 +4487,13 @@ closeShareSheetBtn?.addEventListener("click", dismissSheet);
 closeNoteSheetBtn?.addEventListener("click", dismissSheet);
 closeAiSheetBtn?.addEventListener("click", dismissSheet);
 clearAiMemoryBtn?.addEventListener("click", clearAgentMemory);
+aiMemoryBar?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-forget-id]");
+  if (!button) return;
+  forgetFact(button.dataset.forgetId);
+  renderAgentChat();
+  showStatus("已忘掉这条", "info");
+});
 closeAudioBtn?.addEventListener("click", dismissSheet);
 ttsPlayBtn?.addEventListener("click", () => {
   if (speaking) stopSpeaking();
@@ -4425,8 +4546,7 @@ aiAskForm?.addEventListener("submit", (event) => {
     showStatus("请先输入问题");
     return;
   }
-  if (looksLikeStudyQuery(question)) runBibleStudy(question);
-  else runAiTask("ask", state.activeVerse, question);
+  runAgent(question, { mode: looksLikeStudyQuery(question) ? "study" : "ask", verseNo: state.activeVerse });
   if (aiAskInput) aiAskInput.value = "";
 });
 searchScope?.addEventListener("change", () => {
