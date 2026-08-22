@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.17.0</p>
+            <p>设置 · 1.18.0</p>
           </div>
         </div>
       </div>
@@ -34,33 +34,50 @@
         <div id="dictionaryHint" class="panelHint"></div>
       </div>
       <div class="settingsPanel">
-        <div class="panelTitle">小米智能</div>
+        <div class="panelTitle">对话模型</div>
         <label class="field compactField">
-          <span>MiMo Key</span>
-          <input id="mimoKeyInput" type="password" autocomplete="off" placeholder="sk- 普通 Key 或 tp- Code Plan" />
+          <span>供应商</span>
+          <select id="aiProviderSelect">
+            <option value="mimo">小米 MiMo</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="xai">xAI Grok</option>
+            <option value="openai">OpenAI GPT</option>
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="custom">自定义（OpenAI 兼容）</option>
+          </select>
         </label>
         <label class="field compactField">
+          <span>模型</span>
+          <select id="aiModelSelect"></select>
+        </label>
+        <label id="aiCustomModelField" class="field compactField" hidden>
+          <span>模型名</span>
+          <input id="aiCustomModelInput" type="text" autocomplete="off" placeholder="例如 grok-4、deepseek-chat" />
+        </label>
+        <label class="field compactField">
+          <span id="aiKeyLabel">API Key</span>
+          <input id="aiKeyInput" type="password" autocomplete="off" placeholder="sk- …" />
+        </label>
+        <label id="mimoKeyTypeField" class="field compactField">
           <span>Key 类型</span>
           <select id="mimoKeyTypeSelect">
             <option value="standard">普通 Key（sk-）</option>
             <option value="codeplan">Code Plan / Token Plan（tp-）</option>
           </select>
         </label>
-        <label class="field compactField">
-          <span>Code Plan Base URL</span>
-          <input id="mimoBaseUrlInput" type="url" placeholder="https://token-plan-cn.xiaomimimo.com/v1" />
+        <label id="aiBaseUrlField" class="field compactField">
+          <span id="aiBaseUrlLabel">Base URL</span>
+          <input id="aiBaseUrlInput" type="url" placeholder="https://api.xiaomimimo.com/v1" />
         </label>
-        <label class="field compactField">
-          <span>对话模型</span>
-          <select id="aiModelSelect">
-            <option value="mimo-v2.5">小米 MiMo 2.5</option>
-          </select>
+        <label id="mimoAsrKeyField" class="field compactField" hidden>
+          <span>语音识别（小米 MiMo Key）</span>
+          <input id="mimoAsrKeyInput" type="password" autocomplete="off" placeholder="口令识别仍用小米 sk- 或 tp-" />
         </label>
         <label class="toggleField">
           <input id="smartVoiceToggle" type="checkbox" />
           <span>智能口令（大模型理解，稍慢）</span>
         </label>
-        <div class="panelHint">口令默认本地快跳。智能查经会用大模型纠错并查本地译本，例如「约书亚记里抬葡萄」会纠正到民数记。以后可在此切换模型。</div>
+        <div class="panelHint">查经和讲解用上面选的模型，经文仍只从本机译本取。口令识别继续用小米。Claude Code / Codex 订阅登不进 App，请填对应 API Key；中转站选自定义。</div>
       </div>
       <div class="settingsPanel">
         <div class="panelTitle">本地诊断</div>
@@ -430,7 +447,7 @@
         </div>
         <div class="sheetSection settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.17.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.18.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

@@ -107,18 +107,19 @@ public class VoiceBridge {
     }
 
     @JavascriptInterface
-    public String completeChatMessages(String key, String model, String baseUrl, String messagesJson) {
+    public String completeChatMessages(String key, String model, String baseUrl, String messagesJson, String api) {
         final String safeKey = key == null ? "" : key.trim();
         final String safeModel = model == null || model.trim().isEmpty() ? "mimo-v2.5" : model.trim();
         final String safeBase = baseUrl;
         final String rawMessages = messagesJson == null ? "[]" : messagesJson;
+        final String safeApi = api == null || api.trim().isEmpty() ? "openai-completions" : api.trim();
         new Thread(() -> {
             try {
-                emit("intent", requestMimoChatMessages(safeKey, safeModel, safeBase, new JSONArray(rawMessages)));
+                emit("intent", requestChatMessages(safeKey, safeModel, safeBase, new JSONArray(rawMessages), safeApi));
             } catch (Throwable error) {
                 emit("intentError", message(error));
             }
-        }, "mimo-chat").start();
+        }, "llm-chat").start();
         return "{\"started\":true}";
     }
 
@@ -282,20 +283,29 @@ public class VoiceBridge {
         JSONArray messages = new JSONArray()
                 .put(new JSONObject().put("role", "system").put("content", systemPrompt))
                 .put(new JSONObject().put("role", "user").put("content", userText));
-        return requestMimoChatMessages(key, model, baseUrl, messages);
+        return requestChatMessages(key, model, baseUrl, messages, "openai-completions");
     }
 
-    private String requestMimoChatMessages(String key, String model, String baseUrl, JSONArray messages) throws Exception {
-        JSONObject body = new JSONObject()
-                .put("model", model == null || model.isEmpty() ? "mimo-v2.5" : model)
-                .put("temperature", 0)
-                .put("messages", messages);
-        HttpURLConnection connection = HttpSupport.open(activity, normalizeChatUrl(baseUrl, key), 20000, 60000);
+    private String requestChatMessages(String key, String model, String baseUrl, JSONArray messages, String api) throws Exception {
+        boolean anthropic = "anthropic-messages".equals(api);
+        JSONObject body = anthropic
+                ? anthropicBody(model, messages)
+                : new JSONObject()
+                    .put("model", model == null || model.isEmpty() ? "mimo-v2.5" : model)
+                    .put("temperature", 0)
+                    .put("messages", messages);
+        String url = anthropic ? normalizeAnthropicUrl(baseUrl) : normalizeChatUrl(baseUrl, key);
+        HttpURLConnection connection = HttpSupport.open(activity, url, 20000, 60000);
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
-        connection.setRequestProperty("Authorization", "Bearer " + key);
-        connection.setRequestProperty("api-key", key);
         connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+        connection.setRequestProperty("Authorization", "Bearer " + key);
+        if (anthropic) {
+            connection.setRequestProperty("x-api-key", key);
+            connection.setRequestProperty("anthropic-version", "2023-06-01");
+        } else {
+            connection.setRequestProperty("api-key", key);
+        }
         byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
         try (OutputStream output = connection.getOutputStream()) {
             output.write(payload);
@@ -306,10 +316,78 @@ public class VoiceBridge {
             responseBytes = readAll(connection.getInputStream());
         } else {
             responseBytes = readAll(connection.getErrorStream());
-            throw new RuntimeException(new String(responseBytes, StandardCharsets.UTF_8));
+            throw new RuntimeException(chatErrorText(new String(responseBytes, StandardCharsets.UTF_8), code));
         }
         JSONObject response = new JSONObject(new String(responseBytes, StandardCharsets.UTF_8));
-        return chatMessageContent(response);
+        return anthropic ? anthropicMessageContent(response) : chatMessageContent(response);
+    }
+
+    private JSONObject anthropicBody(String model, JSONArray messages) throws Exception {
+        StringBuilder system = new StringBuilder();
+        JSONArray out = new JSONArray();
+        for (int i = 0; i < messages.length(); i++) {
+            JSONObject item = messages.optJSONObject(i);
+            if (item == null) continue;
+            String role = item.optString("role", "user");
+            String content = item.optString("content", "");
+            if ("system".equals(role)) {
+                if (system.length() > 0) system.append('\n');
+                system.append(content);
+                continue;
+            }
+            if (!"assistant".equals(role)) role = "user";
+            if (out.length() > 0) {
+                JSONObject prev = out.getJSONObject(out.length() - 1);
+                if (role.equals(prev.optString("role"))) {
+                    prev.put("content", prev.optString("content") + "\n" + content);
+                    continue;
+                }
+            }
+            out.put(new JSONObject().put("role", role).put("content", content));
+        }
+        if (out.length() == 0) {
+            out.put(new JSONObject().put("role", "user").put("content", "请继续"));
+        } else if (!"user".equals(out.getJSONObject(0).optString("role"))) {
+            JSONArray prefixed = new JSONArray();
+            prefixed.put(new JSONObject().put("role", "user").put("content", "请根据系统说明回答。"));
+            for (int i = 0; i < out.length(); i++) prefixed.put(out.get(i));
+            out = prefixed;
+        }
+        JSONObject body = new JSONObject()
+                .put("model", model == null || model.isEmpty() ? "claude-sonnet-4-6" : model)
+                .put("max_tokens", 8192)
+                .put("temperature", 0)
+                .put("messages", out);
+        if (system.length() > 0) body.put("system", system.toString());
+        return body;
+    }
+
+    private String anthropicMessageContent(JSONObject response) {
+        JSONArray content = response.optJSONArray("content");
+        if (content != null) {
+            StringBuilder text = new StringBuilder();
+            for (int i = 0; i < content.length(); i++) {
+                JSONObject block = content.optJSONObject(i);
+                if (block != null && "text".equals(block.optString("type"))) {
+                    text.append(block.optString("text", ""));
+                }
+            }
+            if (text.length() > 0) return text.toString().trim();
+        }
+        return "";
+    }
+
+    private String chatErrorText(String raw, int code) {
+        try {
+            JSONObject error = new JSONObject(raw).optJSONObject("error");
+            if (error != null) {
+                String message = error.optString("message", "").trim();
+                if (!message.isEmpty()) return message;
+            }
+        } catch (Exception ignored) {
+        }
+        if (raw != null && !raw.trim().isEmpty()) return raw.trim();
+        return "理解失败 " + code;
     }
 
     private String chatMessageContent(JSONObject response) throws Exception {
@@ -337,9 +415,18 @@ public class VoiceBridge {
         String raw = value == null ? "" : value.trim();
         if (raw.isEmpty()) raw = isCodePlanKey(key) ? MIMO_CODEPLAN_CHAT_URL : MIMO_CHAT_URL;
         while (raw.endsWith("/")) raw = raw.substring(0, raw.length() - 1);
-        if (raw.endsWith("/chat/completions")) return raw;
+        if (raw.endsWith("/chat/completions") || raw.endsWith("/messages")) return raw;
         if (raw.endsWith("/v1")) return raw + "/chat/completions";
         return raw + "/v1/chat/completions";
+    }
+
+    private String normalizeAnthropicUrl(String value) {
+        String raw = value == null ? "" : value.trim();
+        if (raw.isEmpty()) raw = "https://api.anthropic.com";
+        while (raw.endsWith("/")) raw = raw.substring(0, raw.length() - 1);
+        if (raw.endsWith("/messages")) return raw;
+        if (raw.endsWith("/v1")) return raw + "/messages";
+        return raw + "/v1/messages";
     }
 
     private byte[] readAll(InputStream input) throws Exception {

@@ -80,6 +80,16 @@ assert(appJs.includes("function setBookPickerStep"), "Book picker step view miss
 assert(appJs.includes("篇"), "Psalm spoken chapter alias missing");
 assert(appJs.includes("mimo-v2.5-asr"), "MiMo ASR model missing");
 assert(appJs.includes("MIMO_CHAT_MODEL"), "MiMo chat model missing");
+assert(appJs.includes("AI_PROVIDERS"), "Multi-provider registry missing");
+assert(appJs.includes("anthropic-messages"), "Anthropic Messages API missing");
+assert(appJs.includes("openai-completions"), "OpenAI-compatible API missing");
+assert(appJs.includes('id: "deepseek"'), "DeepSeek provider missing");
+assert(appJs.includes('id: "xai"'), "Grok provider missing");
+assert(appJs.includes('id: "openai"'), "OpenAI provider missing");
+assert(appJs.includes('id: "custom"'), "Custom OpenAI-compatible provider missing");
+assert(indexHtml.includes("id=\"aiProviderSelect\""), "Provider select missing");
+assert(indexHtml.includes("id=\"aiKeyInput\""), "Provider key input missing");
+assert(indexHtml.includes("id=\"mimoAsrKeyInput\""), "MiMo ASR key field missing");
 assert(appJs.includes("function understandSpokenCommand"), "Spoken LLM understand missing");
 assert(appJs.includes("smartVoice"), "Smart voice toggle state missing");
 assert(appJs.includes("function runAiTask"), "AI reading tasks missing");

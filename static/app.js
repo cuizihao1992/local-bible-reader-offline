@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.17.0";
+const APP_VERSION = "1.18.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -35,6 +35,9 @@ const state = {
   smartVoice: false,
   aiProvider: "mimo",
   aiModel: "mimo-v2.5",
+  aiCustomModel: "",
+  aiKeys: {},
+  aiBaseUrls: {},
   book: 1,
   chapter: 1,
   targetVerse: null,
@@ -199,11 +202,20 @@ const saveNoteSheetBtn = $("#saveNoteSheetBtn");
 const overlay = $("#overlay");
 const voiceBtn = $("#voiceBtn");
 const voiceBtnDesktop = $("#voiceBtnDesktop");
-const mimoKeyInput = $("#mimoKeyInput");
-const mimoKeyTypeSelect = $("#mimoKeyTypeSelect");
-const mimoBaseUrlInput = $("#mimoBaseUrlInput");
-const smartVoiceToggle = $("#smartVoiceToggle");
+const aiProviderSelect = $("#aiProviderSelect");
 const aiModelSelect = $("#aiModelSelect");
+const aiCustomModelField = $("#aiCustomModelField");
+const aiCustomModelInput = $("#aiCustomModelInput");
+const aiKeyInput = $("#aiKeyInput");
+const aiKeyLabel = $("#aiKeyLabel");
+const mimoKeyTypeField = $("#mimoKeyTypeField");
+const mimoKeyTypeSelect = $("#mimoKeyTypeSelect");
+const aiBaseUrlField = $("#aiBaseUrlField");
+const aiBaseUrlLabel = $("#aiBaseUrlLabel");
+const aiBaseUrlInput = $("#aiBaseUrlInput");
+const mimoAsrKeyField = $("#mimoAsrKeyField");
+const mimoAsrKeyInput = $("#mimoAsrKeyInput");
+const smartVoiceToggle = $("#smartVoiceToggle");
 const studySearchBtn = $("#studySearchBtn");
 const aiSheet = $("#aiSheet");
 const aiSheetTitle = $("#aiSheetTitle");
@@ -338,18 +350,23 @@ function restoreState() {
       ttsRate: [0.8, 1, 1.25, 1.5].includes(Number(saved.ttsRate)) ? Number(saved.ttsRate) : 1,
       keepScreenOn: !!saved.keepScreenOn,
       fuzzySearch: !!saved.fuzzySearch,
-      mimoKey: saved.mimoKey || "",
+      mimoKey: saved.mimoKey || (saved.aiKeys && saved.aiKeys.mimo) || "",
       mimoKeyType: saved.mimoKeyType === "codeplan" || String(saved.mimoKey || "").trim().toLowerCase().startsWith("tp-") ? "codeplan" : "standard",
-      mimoBaseUrl: saved.mimoBaseUrl || "https://token-plan-cn.xiaomimimo.com/v1",
+      mimoBaseUrl: saved.mimoBaseUrl || (saved.aiBaseUrls && saved.aiBaseUrls.mimo) || "https://token-plan-cn.xiaomimimo.com/v1",
       smartVoice: !!saved.smartVoice,
-      aiProvider: saved.aiProvider || "mimo",
+      aiProvider: AI_PROVIDERS.some((item) => item.id === saved.aiProvider) ? saved.aiProvider : "mimo",
       aiModel: saved.aiModel || "mimo-v2.5",
+      aiCustomModel: saved.aiCustomModel || "",
+      aiKeys: saved.aiKeys && typeof saved.aiKeys === "object" ? { ...saved.aiKeys } : {},
+      aiBaseUrls: saved.aiBaseUrls && typeof saved.aiBaseUrls === "object" ? { ...saved.aiBaseUrls } : {},
       book: Number(saved.book) || 1,
       chapter: Number(saved.chapter) || 1,
       lastVerse: Number(saved.lastVerse) || null,
       recentBooks: Array.isArray(saved.recentBooks) ? saved.recentBooks.slice(0, 8) : [],
       recentSearches: Array.isArray(saved.recentSearches) ? saved.recentSearches.slice(0, 8) : [],
     });
+    state.aiKeys = { ...(state.aiKeys || {}), mimo: state.mimoKey };
+    state.aiBaseUrls = { ...(state.aiBaseUrls || {}), mimo: state.mimoBaseUrl };
   } catch {}
 }
 
@@ -379,6 +396,9 @@ function saveState() {
       smartVoice: !!state.smartVoice,
       aiProvider: state.aiProvider || "mimo",
       aiModel: state.aiModel || "mimo-v2.5",
+      aiCustomModel: state.aiCustomModel || "",
+      aiKeys: { ...(state.aiKeys || {}), mimo: state.mimoKey },
+      aiBaseUrls: { ...(state.aiBaseUrls || {}), mimo: state.mimoBaseUrl },
       book: state.book,
       chapter: state.chapter,
       lastVerse: state.lastVerse,
@@ -430,7 +450,7 @@ function applySettings() {
   if (window.AndroidBibleApi && window.AndroidBibleApi.setKeepScreenOn) {
     window.AndroidBibleApi.setKeepScreenOn(!!state.keepScreenOn);
   }
-  syncMimoSettingsFields();
+  syncAiSettingsFields();
 }
 
 function showStatus(message, tone = "info", holdMs = 0) {
@@ -1518,27 +1538,176 @@ function isCodePlanKey(key = state.mimoKey) {
   return String(key || "").trim().toLowerCase().startsWith("tp-");
 }
 
-function syncMimoSettingsFields() {
-  if (mimoKeyInput) mimoKeyInput.value = state.mimoKey;
-  if (mimoKeyTypeSelect) mimoKeyTypeSelect.value = state.mimoKeyType;
-  if (mimoBaseUrlInput) {
-    mimoBaseUrlInput.value = state.mimoBaseUrl || "https://token-plan-cn.xiaomimimo.com/v1";
-    mimoBaseUrlInput.disabled = state.mimoKeyType !== "codeplan";
+const CUSTOM_MODEL_VALUE = "__custom__";
+const MIMO_CHAT_MODEL = "mimo-v2.5";
+const AI_PROVIDERS = [
+  {
+    id: "mimo",
+    name: "小米 MiMo",
+    api: "openai-completions",
+    keyLabel: "MiMo Key",
+    keyPlaceholder: "sk- 普通 Key 或 tp- Code Plan",
+    defaultBaseUrl: "https://api.xiaomimimo.com/v1",
+    codePlanBaseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+    extraApiKeyHeader: true,
+    models: [{ id: "mimo-v2.5", name: "MiMo 2.5" }],
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    api: "openai-completions",
+    keyLabel: "DeepSeek Key",
+    keyPlaceholder: "sk- …",
+    defaultBaseUrl: "https://api.deepseek.com/v1",
+    models: [
+      { id: "deepseek-chat", name: "DeepSeek Chat" },
+      { id: "deepseek-reasoner", name: "DeepSeek Reasoner" },
+    ],
+  },
+  {
+    id: "xai",
+    name: "xAI Grok",
+    api: "openai-completions",
+    keyLabel: "xAI Key",
+    keyPlaceholder: "xai- …",
+    defaultBaseUrl: "https://api.x.ai/v1",
+    models: [
+      { id: "grok-4", name: "Grok 4" },
+      { id: "grok-3", name: "Grok 3" },
+      { id: "grok-3-mini", name: "Grok 3 Mini" },
+    ],
+  },
+  {
+    id: "openai",
+    name: "OpenAI GPT",
+    api: "openai-completions",
+    keyLabel: "OpenAI Key",
+    keyPlaceholder: "sk- …",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    models: [
+      { id: "gpt-4.1", name: "GPT-4.1" },
+      { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" },
+      { id: "gpt-4o", name: "GPT-4o" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini" },
+    ],
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic Claude",
+    api: "anthropic-messages",
+    keyLabel: "Anthropic Key",
+    keyPlaceholder: "sk-ant- …",
+    defaultBaseUrl: "https://api.anthropic.com",
+    models: [
+      { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
+      { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
+      { id: "claude-haiku-4-5", name: "Claude Haiku 4.5" },
+    ],
+  },
+  {
+    id: "custom",
+    name: "自定义（OpenAI 兼容）",
+    api: "openai-completions",
+    keyLabel: "API Key",
+    keyPlaceholder: "中转站或兼容接口的 Key",
+    defaultBaseUrl: "",
+    custom: true,
+    models: [],
+  },
+];
+
+function aiSpec(id = state.aiProvider) {
+  return AI_PROVIDERS.find((item) => item.id === id) || AI_PROVIDERS[0];
+}
+
+function providerStoredKey(id = state.aiProvider) {
+  if (id === "mimo") return state.mimoKey || "";
+  return String((state.aiKeys && state.aiKeys[id]) || "");
+}
+
+function providerStoredUrl(id = state.aiProvider) {
+  if (id === "mimo") return state.mimoBaseUrl || "";
+  return String((state.aiBaseUrls && state.aiBaseUrls[id]) || "");
+}
+
+function setProviderStoredKey(id, value) {
+  const key = String(value || "").trim();
+  state.aiKeys = { ...(state.aiKeys || {}), [id]: key };
+  if (id === "mimo") state.mimoKey = key;
+}
+
+function setProviderStoredUrl(id, value) {
+  const url = String(value || "").trim();
+  state.aiBaseUrls = { ...(state.aiBaseUrls || {}), [id]: url };
+  if (id === "mimo") state.mimoBaseUrl = url;
+}
+
+function fillAiModelSelect() {
+  if (!aiModelSelect) return;
+  const spec = aiSpec();
+  const models = spec.models || [];
+  const current = state.aiModel || spec.models[0]?.id || "";
+  const known = models.some((item) => item.id === current);
+  aiModelSelect.innerHTML = `${models
+    .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`)
+    .join("")}<option value="${CUSTOM_MODEL_VALUE}">其他（自己填）</option>`;
+  if (spec.custom || !known) aiModelSelect.value = CUSTOM_MODEL_VALUE;
+  else aiModelSelect.value = current;
+}
+
+function syncAiSettingsFields() {
+  const spec = aiSpec();
+  const usingCustomModel = spec.custom || !spec.models.some((item) => item.id === state.aiModel);
+  if (aiProviderSelect) aiProviderSelect.value = spec.id;
+  fillAiModelSelect();
+  if (aiCustomModelField) aiCustomModelField.hidden = !usingCustomModel;
+  if (aiCustomModelInput) aiCustomModelInput.value = usingCustomModel ? state.aiModel || state.aiCustomModel || "" : "";
+  if (aiKeyLabel) aiKeyLabel.textContent = spec.keyLabel || "API Key";
+  if (aiKeyInput) {
+    aiKeyInput.value = providerStoredKey(spec.id);
+    aiKeyInput.placeholder = spec.keyPlaceholder || "sk- …";
   }
+  if (mimoKeyTypeField) mimoKeyTypeField.hidden = spec.id !== "mimo";
+  if (mimoKeyTypeSelect) mimoKeyTypeSelect.value = state.mimoKeyType;
+  const showBase = spec.custom || spec.id === "mimo" && (state.mimoKeyType === "codeplan" || isCodePlanKey());
+  if (aiBaseUrlField) aiBaseUrlField.hidden = !showBase;
+  if (aiBaseUrlLabel) aiBaseUrlLabel.textContent = spec.id === "mimo" ? "Code Plan Base URL" : "Base URL";
+  if (aiBaseUrlInput) {
+    let urlValue = providerStoredUrl(spec.id);
+    if (spec.id === "mimo" && (state.mimoKeyType === "codeplan" || isCodePlanKey()) && (!urlValue || /api\.xiaomimimo\.com/i.test(urlValue))) {
+      urlValue = spec.codePlanBaseUrl;
+    }
+    aiBaseUrlInput.value = urlValue || spec.codePlanBaseUrl || spec.defaultBaseUrl || "";
+    aiBaseUrlInput.placeholder = spec.codePlanBaseUrl || spec.defaultBaseUrl || "https://api.example.com/v1";
+    aiBaseUrlInput.disabled = spec.id === "mimo" && state.mimoKeyType !== "codeplan" && !isCodePlanKey();
+  }
+  if (mimoAsrKeyField) mimoAsrKeyField.hidden = spec.id === "mimo";
+  if (mimoAsrKeyInput) mimoAsrKeyInput.value = state.mimoKey || "";
   if (smartVoiceToggle) smartVoiceToggle.checked = !!state.smartVoice;
-  if (aiModelSelect && state.aiModel) aiModelSelect.value = state.aiModel;
+}
+
+function normalizeOpenAiChatUrl(value, fallback) {
+  const raw = String(value || fallback || "").trim() || String(fallback || "").trim();
+  const base = raw.replace(/\/+$/, "");
+  if (!base) return "";
+  if (/\/chat\/completions$/i.test(base) || /\/messages$/i.test(base)) return base;
+  if (/\/v1$/i.test(base)) return `${base}/chat/completions`;
+  return `${base}/v1/chat/completions`;
+}
+
+function normalizeAnthropicUrl(value, fallback = "https://api.anthropic.com") {
+  const raw = String(value || fallback || "").trim() || fallback;
+  const base = raw.replace(/\/+$/, "");
+  if (/\/messages$/i.test(base)) return base;
+  if (/\/v1$/i.test(base)) return `${base}/messages`;
+  return `${base}/v1/messages`;
 }
 
 function normalizeMimoChatUrl(value = state.mimoBaseUrl) {
-  const fallback = state.mimoKeyType === "codeplan" || isCodePlanKey()
-    ? "https://token-plan-cn.xiaomimimo.com/v1"
-    : "https://api.xiaomimimo.com/v1";
-  const source = state.mimoKeyType === "codeplan" || isCodePlanKey() ? value || fallback : "https://api.xiaomimimo.com/v1";
-  const raw = String(source || fallback).trim() || fallback;
-  const base = raw.replace(/\/+$/, "");
-  if (/\/chat\/completions$/i.test(base)) return base;
-  if (/\/v1$/i.test(base)) return `${base}/chat/completions`;
-  return `${base}/v1/chat/completions`;
+  const codePlan = state.mimoKeyType === "codeplan" || isCodePlanKey();
+  const fallback = codePlan ? "https://token-plan-cn.xiaomimimo.com/v1" : "https://api.xiaomimimo.com/v1";
+  const source = codePlan ? value || fallback : "https://api.xiaomimimo.com/v1";
+  return normalizeOpenAiChatUrl(source, fallback);
 }
 
 function setVoiceButtons(mode) {
@@ -1560,7 +1729,6 @@ function resetVoiceState() {
   setVoiceButtons("idle");
 }
 
-const MIMO_CHAT_MODEL = "mimo-v2.5";
 let voiceIntentWaiter = null;
 let jobToken = 0;
 let voiceSession = 0;
@@ -1696,46 +1864,121 @@ function waitVoiceIntent(timeoutMs = 60000) {
 }
 
 function getAiProvider() {
+  const spec = aiSpec();
+  const usingCustom = spec.custom || state.aiModel === CUSTOM_MODEL_VALUE || !spec.models.some((item) => item.id === state.aiModel);
+  const customName = state.aiCustomModel || (state.aiModel !== CUSTOM_MODEL_VALUE ? state.aiModel : "");
+  const model = usingCustom
+    ? String(customName || "").trim()
+    : String(state.aiModel || spec.models[0]?.id || MIMO_CHAT_MODEL).trim();
+  const storedUrl = providerStoredUrl(spec.id);
+  let url = "";
+  if (spec.api === "anthropic-messages") url = normalizeAnthropicUrl(storedUrl, spec.defaultBaseUrl);
+  else if (spec.id === "mimo") url = normalizeMimoChatUrl(storedUrl);
+  else url = normalizeOpenAiChatUrl(storedUrl || spec.defaultBaseUrl, spec.defaultBaseUrl);
   return {
-    id: state.aiProvider || "mimo",
-    model: state.aiModel || MIMO_CHAT_MODEL,
-    key: state.mimoKey,
-    url: normalizeMimoChatUrl(),
+    id: spec.id,
+    name: spec.name,
+    api: spec.api,
+    extraApiKeyHeader: !!spec.extraApiKeyHeader,
+    model,
+    key: providerStoredKey(spec.id),
+    url,
   };
+}
+
+function chatHeaders(provider) {
+  const headers = { "Content-Type": "application/json" };
+  if (provider.api === "anthropic-messages") {
+    headers["x-api-key"] = provider.key;
+    headers["anthropic-version"] = "2023-06-01";
+    headers.Authorization = `Bearer ${provider.key}`;
+  } else {
+    headers.Authorization = `Bearer ${provider.key}`;
+    if (provider.extraApiKeyHeader) headers["api-key"] = provider.key;
+  }
+  return headers;
+}
+
+function openaiChatBody(provider, messages) {
+  return {
+    model: provider.model,
+    temperature: 0,
+    messages,
+  };
+}
+
+function anthropicChatBody(provider, messages) {
+  const system = [];
+  const out = [];
+  (messages || []).forEach((item) => {
+    const role = item.role === "assistant" ? "assistant" : item.role === "system" ? "system" : "user";
+    const content = String(item.content || "");
+    if (role === "system") {
+      if (content) system.push(content);
+      return;
+    }
+    const prev = out[out.length - 1];
+    if (prev && prev.role === role) prev.content += `\n${content}`;
+    else out.push({ role, content });
+  });
+  if (!out.length) out.push({ role: "user", content: "请继续" });
+  if (out[0].role !== "user") out.unshift({ role: "user", content: "请根据系统说明回答。" });
+  const body = {
+    model: provider.model,
+    max_tokens: 8192,
+    temperature: 0,
+    messages: out,
+  };
+  if (system.length) body.system = system.join("\n");
+  return body;
+}
+
+function extractLlmText(payload, api) {
+  if (api === "anthropic-messages") {
+    const blocks = Array.isArray(payload.content) ? payload.content : [];
+    const text = blocks
+      .filter((item) => item && item.type === "text")
+      .map((item) => item.text || "")
+      .join("")
+      .trim();
+    if (text) return text;
+  }
+  const message = payload.choices?.[0]?.message || {};
+  const content = String(message.content || message.reasoning_content || "").trim();
+  if (content && content !== "null") return content;
+  const argumentsJson = message.tool_calls?.[0]?.function?.arguments;
+  return String(argumentsJson || "").trim();
 }
 
 async function llmChat(messages) {
   const provider = getAiProvider();
-  if (!provider.key) throw new Error("请先填写模型 Key");
+  if (!provider.key) throw new Error(`请先填写${provider.name} Key`);
+  if (!provider.model) throw new Error("请先填写模型名");
+  if (!provider.url) throw new Error("请先填写 Base URL");
   if (window.AndroidVoiceApi && window.AndroidVoiceApi.completeChatMessages) {
     const pending = waitVoiceIntent(60000);
-    window.AndroidVoiceApi.completeChatMessages(provider.key, provider.model, provider.url, JSON.stringify(messages));
+    window.AndroidVoiceApi.completeChatMessages(
+      provider.key,
+      provider.model,
+      provider.url,
+      JSON.stringify(messages),
+      provider.api,
+    );
     const text = await pending;
     if (text && typeof text === "object" && text.__error) throw new Error(text.__error);
     if (text == null) throw new Error("模型超时，没有返回内容");
     if (!String(text).trim()) throw new Error("模型返回了空内容");
     return text;
   }
-  const headers = { "Content-Type": "application/json" };
-  if (provider.id === "mimo") {
-    headers.Authorization = `Bearer ${provider.key}`;
-    headers["api-key"] = provider.key;
-  } else {
-    headers.Authorization = `Bearer ${provider.key}`;
-  }
+  const body = provider.api === "anthropic-messages" ? anthropicChatBody(provider, messages) : openaiChatBody(provider, messages);
   const response = await fetch(provider.url, {
     method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: provider.model,
-      temperature: 0,
-      messages,
-    }),
+    headers: chatHeaders(provider),
+    body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error?.message || payload.message || `理解失败 ${response.status}`);
-  const message = payload.choices?.[0]?.message || {};
-  const content = String(message.content || message.reasoning_content || "").trim();
+  const content = extractLlmText(payload, provider.api);
   if (!content) throw new Error("模型返回了空内容");
   return content;
 }
@@ -1857,7 +2100,7 @@ function renderStudyResult(result, steps = []) {
 }
 
 async function runBibleStudy(question, token = beginJob("正在查经...")) {
-  if (!requireMimoKey()) return;
+  if (!requireAiKey()) return;
   const query = String(question || "").trim();
   if (!query) {
     finishJob(token, "请先说出或输入要找的经文", "info");
@@ -1921,7 +2164,7 @@ async function runBibleStudy(question, token = beginJob("正在查经...")) {
 }
 
 async function understandSpokenCommand(spoken) {
-  if (!state.mimoKey) return null;
+  if (!getAiProvider().key) return null;
   try {
     const content = await mimoChatComplete(voiceIntentPrompt(spoken), spoken);
     return resolveLlmCommand(content);
@@ -2012,11 +2255,22 @@ function agentChatMessages(userText) {
   return messages;
 }
 
+function requireAiKey() {
+  saveAiSettings();
+  const provider = getAiProvider();
+  if (provider.key && provider.model && provider.url) return true;
+  openSidebar();
+  if (!provider.key) showStatus(`请先在设置里填写${provider.name} Key`);
+  else if (!provider.model) showStatus("请先填写模型名");
+  else showStatus("请先填写 Base URL");
+  return false;
+}
+
 function requireMimoKey() {
-  saveMimoSettings();
+  saveAiSettings();
   if (state.mimoKey) return true;
   openSidebar();
-  showStatus("请先在设置里填写小米 MiMo Key");
+  showStatus("口令识别需要小米 MiMo Key");
   return false;
 }
 
@@ -2056,7 +2310,7 @@ function openAiSheet(title, verseNo, focusAsk = false) {
 }
 
 async function runAiTask(kind, verseNo, question = "") {
-  if (!requireMimoKey()) return;
+  if (!requireAiKey()) return;
   const ctx = aiContext(verseNo);
   const labels = { summary: "请概括本章", polish: "请润色我的笔记", ask: question, explain: "请讲解这节经文" };
   const userText = String(labels[kind] || question || "请讲解这节经文").trim();
@@ -2089,21 +2343,40 @@ async function runAiTask(kind, verseNo, question = "") {
   }
 }
 
-function saveMimoSettings() {
-  if (mimoKeyInput) state.mimoKey = mimoKeyInput.value.trim();
+function saveAiSettings() {
+  const previous = state.aiProvider || "mimo";
+  const next = aiProviderSelect?.value || previous;
+  if (aiKeyInput) setProviderStoredKey(previous, aiKeyInput.value);
+  if (aiBaseUrlInput && (aiSpec(previous).custom || previous === "mimo")) {
+    setProviderStoredUrl(previous, aiBaseUrlInput.value);
+  }
+  if (mimoAsrKeyInput && previous !== "mimo" && !mimoAsrKeyField?.hidden) {
+    state.mimoKey = mimoAsrKeyInput.value.trim();
+    state.aiKeys = { ...(state.aiKeys || {}), mimo: state.mimoKey };
+  }
+  if (mimoKeyTypeSelect) state.mimoKeyType = mimoKeyTypeSelect.value === "codeplan" ? "codeplan" : "standard";
   if (isCodePlanKey(state.mimoKey)) state.mimoKeyType = "codeplan";
-  else if (String(state.mimoKey).toLowerCase().startsWith("sk-")) state.mimoKeyType = "standard";
-  else if (mimoKeyTypeSelect) state.mimoKeyType = mimoKeyTypeSelect.value === "codeplan" ? "codeplan" : "standard";
-  if (mimoBaseUrlInput) {
-    state.mimoBaseUrl = mimoBaseUrlInput.value.trim() || "https://token-plan-cn.xiaomimimo.com/v1";
+  else if (String(state.mimoKey).toLowerCase().startsWith("sk-") && previous === "mimo") state.mimoKeyType = "standard";
+  if (previous === "mimo" && state.mimoKeyType !== "codeplan") {
+    state.mimoBaseUrl = "https://api.xiaomimimo.com/v1";
   }
-  if (state.mimoKeyType !== "codeplan") state.mimoBaseUrl = "https://token-plan-cn.xiaomimimo.com/v1";
+  state.aiProvider = AI_PROVIDERS.some((item) => item.id === next) ? next : "mimo";
+  const spec = aiSpec();
+  if (next !== previous) {
+    state.aiModel = spec.custom ? (state.aiCustomModel || "") : spec.models[0]?.id || MIMO_CHAT_MODEL;
+    if (!spec.custom) state.aiCustomModel = "";
+  } else if (aiModelSelect) {
+    const selected = aiModelSelect.value;
+    if (selected === CUSTOM_MODEL_VALUE || spec.custom) {
+      state.aiCustomModel = (aiCustomModelInput?.value || "").trim();
+      state.aiModel = state.aiCustomModel || CUSTOM_MODEL_VALUE;
+    } else {
+      state.aiModel = selected || spec.models[0]?.id || MIMO_CHAT_MODEL;
+      state.aiCustomModel = "";
+    }
+  }
   if (smartVoiceToggle) state.smartVoice = !!smartVoiceToggle.checked;
-  if (aiModelSelect) {
-    state.aiModel = aiModelSelect.value || "mimo-v2.5";
-    state.aiProvider = "mimo";
-  }
-  syncMimoSettingsFields();
+  syncAiSettingsFields();
   saveState();
 }
 
@@ -2207,7 +2480,7 @@ async function handleVoiceText(text, token = jobToken) {
     await applySpokenCommand(command, token, spoken);
     return;
   }
-  if (looksLikeStudyQuery(spoken) && state.mimoKey) {
+  if (looksLikeStudyQuery(spoken) && getAiProvider().key) {
     await runBibleStudy(spoken, token);
     return;
   }
@@ -2218,7 +2491,7 @@ async function handleVoiceText(text, token = jobToken) {
     if (understood) command = understood;
   }
   if (!jobAlive(token)) return;
-  if (command?.type === "search" && looksLikeStudyQuery(command.query) && state.mimoKey) {
+  if (command?.type === "search" && looksLikeStudyQuery(command.query) && getAiProvider().key) {
     await runBibleStudy(command.query, token);
     return;
   }
@@ -2355,10 +2628,10 @@ async function startVoiceInput(event) {
     browserStream.getTracks().forEach((track) => track.stop());
     browserStream = null;
   }
-  saveMimoSettings();
+  saveAiSettings();
   if (!state.mimoKey) {
     openSidebar();
-    showStatus("请先在设置里填写小米 MiMo Key");
+    showStatus("口令识别需要小米 MiMo Key");
     return;
   }
   if ((state.mimoKeyType === "codeplan" || isCodePlanKey()) && !String(state.mimoBaseUrl || "").trim()) {
@@ -4129,7 +4402,7 @@ inlineCompareList?.addEventListener("click", async (event) => {
   await loadChapter({ scrollTop: false });
 });
 window.addEventListener("scroll", onReaderScroll, { passive: true });
-smartVoiceToggle?.addEventListener("change", saveMimoSettings);
+smartVoiceToggle?.addEventListener("change", saveAiSettings);
 aiActionRow?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-ai-action]");
   if (!button) return;
@@ -4174,7 +4447,14 @@ studySearchBtn?.addEventListener("click", () => {
   }
   runBibleStudy(query);
 });
-aiModelSelect?.addEventListener("change", saveMimoSettings);
+aiProviderSelect?.addEventListener("change", saveAiSettings);
+aiModelSelect?.addEventListener("change", saveAiSettings);
+aiCustomModelInput?.addEventListener("change", saveAiSettings);
+aiCustomModelInput?.addEventListener("input", saveAiSettings);
+aiKeyInput?.addEventListener("change", saveAiSettings);
+aiKeyInput?.addEventListener("input", saveAiSettings);
+mimoAsrKeyInput?.addEventListener("change", saveAiSettings);
+mimoAsrKeyInput?.addEventListener("input", saveAiSettings);
 saveNoteSheetBtn?.addEventListener("click", saveNoteSheet);
 recentSearchesEl?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-recent-search]");
@@ -4606,10 +4886,8 @@ importDataFile.addEventListener("change", () => {
   if (importDataFile.files[0]) importUserData(importDataFile.files[0]);
 });
 diagnosticsBtn.addEventListener("click", runDiagnostics);
-mimoKeyInput?.addEventListener("change", saveMimoSettings);
-mimoKeyInput?.addEventListener("input", saveMimoSettings);
-mimoKeyTypeSelect?.addEventListener("change", saveMimoSettings);
-mimoBaseUrlInput?.addEventListener("change", saveMimoSettings);
+mimoKeyTypeSelect?.addEventListener("change", saveAiSettings);
+aiBaseUrlInput?.addEventListener("change", saveAiSettings);
 bindVoiceButton(voiceBtn);
 bindVoiceButton(voiceBtnDesktop);
 
