@@ -570,6 +570,7 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
 .notePreview { background: transparent; border-left: 2px solid var(--accent-2); border-radius: 0; }
 .noteTags { color: var(--accent-2); font-size: 12px; font-weight: 600; }
 .noteText { white-space: pre-wrap; font-size: 14px; line-height: 1.7; }
+.sheetHeaderActions { display: flex; align-items: center; gap: 4px; }
 .aiSheetContent {
   min-height: 80px;
   margin-bottom: 12px;
@@ -578,6 +579,12 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
   line-height: 1.85;
   font-family: var(--read-font);
 }
+.aiChat { display: grid; gap: 8px; white-space: normal; }
+.aiTurn { padding: 8px 10px; border-radius: 10px; }
+.aiTurn.user { background: var(--soft); }
+.aiTurn.assistant { background: color-mix(in srgb, var(--accent) 12%, var(--soft)); }
+.aiTurnMeta { font-size: 11px; color: var(--muted); margin-bottom: 4px; font-family: var(--ui-font); }
+.aiTurnText { font-size: 15px; line-height: 1.75; white-space: pre-wrap; }
 .aiCorrection {
   margin-bottom: 10px;
   padding: 8px 10px;

@@ -1,6 +1,7 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.16.0";
+const APP_VERSION = "1.17.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
+const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
 const GITHUB_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -210,6 +211,7 @@ const aiSheetContent = $("#aiSheetContent");
 const aiAskForm = $("#aiAskForm");
 const aiAskInput = $("#aiAskInput");
 const closeAiSheetBtn = $("#closeAiSheetBtn");
+const clearAiMemoryBtn = $("#clearAiMemoryBtn");
 const aiActionRow = $("#aiActionRow");
 const readerEl = document.querySelector("main.reader");
 const prevEdge = $("#prevEdge");
@@ -1821,17 +1823,17 @@ async function runStudyTool(call) {
 }
 
 function renderStudyProgress(steps, waiting = "") {
-  if (!aiSheetContent) return;
   const log = (steps || [])
     .map((item, index) => `<div class="studyStep${item.done ? " done" : ""}">${index + 1}. ${escapeHtml(item.text)}</div>`)
     .join("");
-  aiSheetContent.innerHTML = `<div class="studyLog">${log || `<div class="studyStep">正在理解问题</div>`}</div>${
-    waiting ? `<div class="panelHint">${escapeHtml(waiting)}</div>` : ""
-  }`;
+  renderAgentChat(
+    `<div class="studyLog">${log || `<div class="studyStep">正在理解问题</div>`}</div>${
+      waiting ? `<div class="panelHint">${escapeHtml(waiting)}</div>` : ""
+    }`,
+  );
 }
 
 function renderStudyResult(result, steps = []) {
-  if (!aiSheetContent) return;
   const refs = Array.isArray(result.refs) ? result.refs : [];
   const cards = refs
     .map((item) => {
@@ -1847,9 +1849,11 @@ function renderStudyResult(result, steps = []) {
   const log = (steps || [])
     .map((item, index) => `<div class="studyStep done">${index + 1}. ${escapeHtml(item.text)}</div>`)
     .join("");
-  aiSheetContent.innerHTML = `${log ? `<div class="studyLog">${log}</div>` : ""}${
-    result.correction ? `<div class="aiCorrection">${linkVerseRefs(result.correction)}</div>` : ""
-  }${result.answer ? `<div class="aiAnswer">${linkVerseRefs(result.answer)}</div>` : ""}<div class="resultList">${cards || `<div class="panelHint">没有可跳转的经文</div>`}</div>`;
+  renderAgentChat(
+    `${log ? `<div class="studyLog">${log}</div>` : ""}${
+      result.correction ? `<div class="aiCorrection">${linkVerseRefs(result.correction)}</div>` : ""
+    }${result.answer ? `<div class="aiAnswer">${linkVerseRefs(result.answer)}</div>` : ""}<div class="resultList">${cards || `<div class="panelHint">没有可跳转的经文</div>`}</div>`,
+  );
 }
 
 async function runBibleStudy(question, token = beginJob("正在查经...")) {
@@ -1860,13 +1864,21 @@ async function runBibleStudy(question, token = beginJob("正在查经...")) {
     return;
   }
   if (!jobAlive(token)) return;
-  openAiSheet("智能查经", state.activeVerse);
+  rememberAgentTurn("user", query);
+  openAiSheet("助手", state.activeVerse);
   const steps = [{ text: `正在理解：${query}` }];
   renderStudyProgress(steps, "等待模型...");
   const skill = await loadBibleStudySkill();
   if (!jobAlive(token)) return;
+  const memoryHint = agentMemory.turns
+    .slice(-6, -1)
+    .map((item) => `${item.role === "user" ? "用户" : "助手"}：${item.text}`)
+    .join("\n");
   const messages = [
-    { role: "system", content: `${skill}\n当前译本：${versionLabel(state.version)}。当前阅读：${currentBook().longName} ${state.chapter}章。` },
+    {
+      role: "system",
+      content: `${skill}\n当前译本：${versionLabel(state.version)}。当前阅读：${readingRefLabel()}。\n${memoryHint ? `最近对话：\n${memoryHint}` : ""}`,
+    },
     { role: "user", content: query },
   ];
   try {
@@ -1879,6 +1891,8 @@ async function runBibleStudy(question, token = beginJob("正在查经...")) {
       if (!data) throw new Error("模型没有给出可用结果");
       if (data.done) {
         steps.push({ text: data.correction ? `完成，并纠正：${data.correction}` : "查经完成", done: true });
+        const answer = [data.correction, data.answer].filter(Boolean).join("\n");
+        rememberAgentTurn("assistant", answer || "查经完成");
         renderStudyResult(data, steps);
         finishJob(token, data.correction ? `查经完成：${data.correction}` : "查经完成", data.correction ? "info" : "success");
         return;
@@ -1901,7 +1915,7 @@ async function runBibleStudy(question, token = beginJob("正在查经...")) {
     throw new Error("查经轮次过多，请换个说法再试");
   } catch (error) {
     if (!jobAlive(token)) return;
-    aiSheetContent.textContent = error.message || "查经失败";
+    renderAgentChat(`<div class="error">${escapeHtml(error.message || "查经失败")}</div>`);
     finishJob(token, error.message || "查经失败", "error");
   }
 }
@@ -1914,6 +1928,88 @@ async function understandSpokenCommand(spoken) {
   } catch {
     return null;
   }
+}
+
+const agentMemory = { turns: [] };
+
+function loadAgentMemory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MEMORY_KEY) || "{}");
+    agentMemory.turns = Array.isArray(saved.turns) ? saved.turns.slice(-24) : [];
+  } catch {
+    agentMemory.turns = [];
+  }
+}
+
+function saveAgentMemory() {
+  localStorage.setItem(MEMORY_KEY, JSON.stringify({ turns: agentMemory.turns.slice(-24) }));
+}
+
+function readingRefLabel() {
+  const book = currentBook();
+  if (!book) return "";
+  const verse = state.activeVerse || state.lastVerse;
+  return verse ? `${book.longName} ${state.chapter}:${verse}` : `${book.longName} ${state.chapter}章`;
+}
+
+function rememberAgentTurn(role, text) {
+  const clean = String(text || "").trim();
+  if (!clean) return;
+  agentMemory.turns.push({
+    role: role === "user" ? "user" : "assistant",
+    text: clean.slice(0, 1200),
+    ref: readingRefLabel(),
+    at: Date.now(),
+  });
+  if (agentMemory.turns.length > 24) agentMemory.turns = agentMemory.turns.slice(-24);
+  saveAgentMemory();
+}
+
+function clearAgentMemory() {
+  agentMemory.turns = [];
+  saveAgentMemory();
+  renderAgentChat();
+  showStatus("已清空助手记忆", "info");
+}
+
+function renderAgentChat(extraHtml = "") {
+  if (!aiSheetContent) return;
+  const turns = agentMemory.turns.slice(-16);
+  const html = turns
+    .map((item) => {
+      const who = item.role === "user" ? "我" : "助手";
+      const body = item.role === "assistant" ? linkVerseRefs(item.text) : escapeHtml(item.text);
+      return `<div class="aiTurn ${item.role}"><div class="aiTurnMeta">${who}${item.ref ? ` · ${escapeHtml(item.ref)}` : ""}</div><div class="aiTurnText">${body}</div></div>`;
+    })
+    .join("");
+  aiSheetContent.innerHTML =
+    (html || `<div class="panelHint">可以问这节的意思，或说「帮我找抬葡萄」。助手会记住这次对话，经文仍只从本机译本取。</div>`) + extraHtml;
+  aiSheetContent.scrollTop = aiSheetContent.scrollHeight;
+}
+
+function agentChatMessages(userText) {
+  const ctx = aiContext();
+  const messages = [
+    {
+      role: "system",
+      content: [
+        "你是离线圣经阅读器里的助手。要接上用户刚才说的话，不要每次当新对话。",
+        "经文必须以当前经文或工具结果为准，禁止编造章节和原文。用中文，简洁。引用写成 书名 章:节。",
+        `当前译本：${ctx.version}`,
+        `当前阅读：${ctx.ref}`,
+        ctx.verseText && ctx.verseText !== "（未选中经文）" ? `当前经文：\n${ctx.verseText}` : "",
+        ctx.note ? `本节笔记：${ctx.note}` : "",
+        `本章摘录：${ctx.chapterText.slice(0, 700)}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    },
+  ];
+  agentMemory.turns.slice(-10).forEach((item) => {
+    messages.push({ role: item.role === "user" ? "user" : "assistant", content: item.text });
+  });
+  if (userText) messages.push({ role: "user", content: userText });
+  return messages;
 }
 
 function requireMimoKey() {
@@ -1954,47 +2050,30 @@ function openAiSheet(title, verseNo, focusAsk = false) {
   closeContentPanels();
   if (verseNo) state.activeVerse = Number(verseNo);
   aiSheet.hidden = false;
-  if (aiSheetTitle) aiSheetTitle.textContent = title || "小米助手";
-  if (focusAsk) {
-    aiAskInput?.focus();
-    if (aiSheetContent && !aiSheetContent.textContent) aiSheetContent.textContent = "写下问题后点提问。也可以先点讲解或摘要。";
-  }
+  if (aiSheetTitle) aiSheetTitle.textContent = title || "助手";
+  renderAgentChat();
+  if (focusAsk) aiAskInput?.focus();
 }
 
 async function runAiTask(kind, verseNo, question = "") {
   if (!requireMimoKey()) return;
   const ctx = aiContext(verseNo);
-  openAiSheet(kind === "summary" ? "本章摘要" : kind === "polish" ? "润色笔记" : kind === "ask" ? "提问" : "讲解本节", verseNo);
+  const labels = { summary: "请概括本章", polish: "请润色我的笔记", ask: question, explain: "请讲解这节经文" };
+  const userText = String(labels[kind] || question || "请讲解这节经文").trim();
+  openAiSheet("助手", verseNo);
   if (kind === "polish" && !ctx.note) {
-    aiSheetContent.textContent = "这一节还没有笔记。先写笔记再润色。";
+    renderAgentChat(`<div class="panelHint">这一节还没有笔记。先写笔记再润色。</div>`);
     return;
   }
+  rememberAgentTurn("user", userText);
+  renderAgentChat(`<div class="panelHint">正在想…</div>`);
   const token = beginJob("正在生成...");
-  aiSheetContent.textContent = "正在生成...";
-  const prompts = {
-    explain: [
-      "你是简明的圣经助读。用中文解释经文，150-250字。先说大意，再补一两处背景或应用。不要列大纲，不要客套。",
-      `译本：${ctx.version}\n经文：${ctx.ref}\n${ctx.verseText}`,
-    ],
-    summary: [
-      "你是简明的圣经助读。用中文概括本章，120-200字。抓住主线，不要逐节复述，不要客套。",
-      `译本：${ctx.version}\n章节：${currentBook().longName} ${state.chapter}章\n${ctx.chapterText}`,
-    ],
-    polish: [
-      "你是笔记编辑。把用户笔记整理成通顺的中文，保留原意，不超过原文的1.3倍。只输出润色后的笔记。",
-      `经文：${ctx.ref}\n${ctx.verseText}\n原笔记：${ctx.note}`,
-    ],
-    ask: [
-      "你是简明的圣经助读。根据经文回答用户问题，用中文，尽量不超过220字。没有把握就直说。不要客套。",
-      `译本：${ctx.version}\n经文：${ctx.ref}\n${ctx.verseText}\n本章摘录：${ctx.chapterText.slice(0, 800)}\n问题：${question}`,
-    ],
-  };
-  const pair = prompts[kind] || prompts.explain;
   try {
-    const text = String((await mimoChatComplete(pair[0], pair[1])) || "").trim();
+    const text = String((await llmChat(agentChatMessages())) || "").trim();
     if (!jobAlive(token)) return;
     if (!text) throw new Error("没有生成内容");
-    aiSheetContent.innerHTML = `<div class="aiAnswer">${linkVerseRefs(text)}</div>`;
+    rememberAgentTurn("assistant", text);
+    renderAgentChat();
     if (kind === "polish") {
       const verses = aiVerseNumbers(verseNo);
       if (verses[0]) {
@@ -2005,7 +2084,7 @@ async function runAiTask(kind, verseNo, question = "") {
     finishJob(token, kind === "polish" ? "笔记已润色" : "已完成", "success");
   } catch (error) {
     if (!jobAlive(token)) return;
-    aiSheetContent.textContent = error.message || "生成失败";
+    renderAgentChat(`<div class="error">${escapeHtml(error.message || "生成失败")}</div>`);
     finishJob(token, error.message || "生成失败", "error");
   }
 }
@@ -3804,6 +3883,7 @@ function finishSwipeGesture(x, y) {
 
 async function init() {
   restoreState();
+  loadAgentMemory();
   applySettings();
   if (updateStatus) updateStatus.textContent = `当前版本 ${APP_VERSION}`;
   loadPackages();
@@ -4019,6 +4099,7 @@ closeCommentarySheetBtn?.addEventListener("click", dismissSheet);
 closeShareSheetBtn?.addEventListener("click", dismissSheet);
 closeNoteSheetBtn?.addEventListener("click", dismissSheet);
 closeAiSheetBtn?.addEventListener("click", dismissSheet);
+clearAiMemoryBtn?.addEventListener("click", clearAgentMemory);
 closeAudioBtn?.addEventListener("click", dismissSheet);
 ttsPlayBtn?.addEventListener("click", () => {
   if (speaking) stopSpeaking();
@@ -4073,6 +4154,7 @@ aiAskForm?.addEventListener("submit", (event) => {
   }
   if (looksLikeStudyQuery(question)) runBibleStudy(question);
   else runAiTask("ask", state.activeVerse, question);
+  if (aiAskInput) aiAskInput.value = "";
 });
 searchScope?.addEventListener("change", () => {
   if (searchState.query) runSearch(searchState.query);
