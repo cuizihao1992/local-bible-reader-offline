@@ -412,6 +412,43 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   box-shadow: inset 3px 0 0 var(--accent);
 }
+.verse .compareVerse {
+  font-size: calc(var(--reader-font-size) * 0.94);
+  line-height: var(--reader-line-height);
+}
+.peekBar {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  z-index: 16;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 24px);
+  padding: 6px 8px 6px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.peekBar[hidden] { display: none !important; }
+#peekBackBtn {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  min-height: 32px;
+  padding: 0 8px;
+}
+#peekCloseBtn {
+  width: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+}
 .verseMenuMore { padding-top: 4px; border-top: 1px solid var(--line); margin-top: 4px; }
 
 .sectionHeading {
@@ -511,7 +548,6 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
 .compareVerse { font-family: var(--read-font); font-size: 16px; line-height: 1.8; }
 .verse .compareList { margin-top: 6px; gap: 4px; }
 .verse .compareText { padding: 6px 10px; }
-.verse .compareVerse { font-size: 0.92em; line-height: 1.7; }
 .inlineCompareBlock { margin-top: 16px; }
 .inlineCompareBlock .panelTitle { margin-bottom: 8px; }
 .studyLog { display: grid; gap: 6px; margin-bottom: 12px; font-family: var(--ui-font); }
@@ -753,6 +789,9 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
   .selectionBar {
     bottom: calc(var(--mobile-nav-height) + 8px);
     width: calc(100vw - 16px);
+  }
+  .peekBar {
+    bottom: calc(var(--mobile-nav-height) + 10px);
   }
   .chapterEdge {
     display: block;

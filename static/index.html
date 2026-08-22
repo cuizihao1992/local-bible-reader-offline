@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.15.0</p>
+            <p>设置 · 1.16.0</p>
           </div>
         </div>
       </div>
@@ -347,6 +347,10 @@
           <button id="closeShareSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
         <div class="sheetBody">
+          <div class="chipRow" id="shareThemeRow">
+            <button type="button" data-share-theme="light">浅色</button>
+            <button type="button" data-share-theme="dark">深色</button>
+          </div>
           <div class="sharePreviewWrap">
             <canvas id="shareCanvas" width="1080" height="1350"></canvas>
           </div>
@@ -423,7 +427,7 @@
         </div>
         <div class="sheetSection settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.15.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.16.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -492,6 +496,11 @@
         <button type="button" data-bar-action="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg>更多</button>
         <button id="cancelSelectionBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>取消</button>
       </div>
+    </div>
+
+    <div id="peekBar" class="peekBar" hidden>
+      <button id="peekBackBtn" type="button">返回</button>
+      <button id="peekCloseBtn" type="button" aria-label="关闭返回条">×</button>
     </div>
 
     <nav class="mobileNav" aria-label="移动端导航">

@@ -545,9 +545,10 @@ public class OfflineApi {
             where += " and Book = ?";
             args.add(String.valueOf(currentBook));
         }
+        args.add(String.valueOf(currentBook));
         args.add(String.valueOf(limit + 1));
         args.add(String.valueOf(offset));
-        try (Cursor cursor = db.rawQuery("select Book, Chapter, Verse, Scripture from Bible where " + where + " order by Book, Chapter, Verse limit ? offset ?",
+        try (Cursor cursor = db.rawQuery("select Book, Chapter, Verse, Scripture from Bible where " + where + " order by case when Book = ? then 0 else 1 end, Book, Chapter, Verse limit ? offset ?",
                 args.toArray(new String[0]))) {
             while (cursor.moveToNext()) {
                 if (results.length() >= limit) {
@@ -776,7 +777,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.15.0")
+                .put("version", "1.16.0")
                 .put("versionCount", versions().length());
     }
 

@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.15.0";
+const APP_VERSION = "1.16.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
@@ -160,6 +160,10 @@ const strongToggleReader = $("#strongToggleReader");
 const ttsRateSelect = $("#ttsRateSelect");
 const verseMenuMore = $("#verseMenuMore");
 const verseMenuMoreBtn = $("#verseMenuMoreBtn");
+const peekBar = $("#peekBar");
+const peekBackBtn = $("#peekBackBtn");
+const peekCloseBtn = $("#peekCloseBtn");
+const shareThemeRow = $("#shareThemeRow");
 const verseStepPanel = $("#verseStepPanel");
 const verseGrid = $("#verseGrid");
 const versePanelTitle = $("#versePanelTitle");
@@ -241,6 +245,9 @@ let justSwiped = false;
 let statusTimer = null;
 let lastUpdateInfo = null;
 let pendingConfirm = null;
+let peekState = null;
+let lastShareVerses = [];
+let shareTheme = "light";
 let scrollSaveTimer = null;
 let updateCheckBusy = false;
 let apkDownloadBusy = false;
@@ -1481,6 +1488,30 @@ async function jumpToReference(ref, token = jobToken) {
   }
 }
 
+function setPeek(kind, title, restore) {
+  peekState = { kind, title, restore };
+  if (!peekBar || !peekBackBtn) return;
+  peekBackBtn.textContent = title;
+  peekBar.hidden = false;
+}
+
+function clearPeek() {
+  peekState = null;
+  if (peekBar) peekBar.hidden = true;
+}
+
+function restorePeek() {
+  const peek = peekState;
+  clearPeek();
+  if (peek?.restore) peek.restore();
+}
+
+async function jumpFromPeek(ref, peek) {
+  if (peek) setPeek(peek.kind, peek.title, peek.restore);
+  await jumpToReference(ref);
+  if (peekBar && peekState) peekBar.hidden = false;
+}
+
 function isCodePlanKey(key = state.mimoKey) {
   return String(key || "").trim().toLowerCase().startsWith("tp-");
 }
@@ -2433,8 +2464,28 @@ async function runSearch(query, options = {}) {
   }
 }
 
+function searchScopeLabel() {
+  if (searchState.scope === "ot") return "旧约";
+  if (searchState.scope === "nt") return "新约";
+  if (searchState.scope === "book") {
+    const book = state.books.find((item) => item.id === searchState.book);
+    return book ? `本卷 · ${book.longName}` : "本卷";
+  }
+  return "全本";
+}
+
+function restoreSearchPeek() {
+  closeTopPanels();
+  searchPanel.hidden = false;
+  setNav("search");
+  renderRecentSearches();
+  if (searchState.query) renderSearchResults();
+}
+
 function renderSearchResults() {
-  searchSummary.textContent = `${searchState.fuzzy ? "模糊 · " : ""}“${searchState.query}” 找到 ${searchState.results.length}${searchState.hasMore ? "+" : ""} 处`;
+  const here = searchState.results.filter((item) => item.book === searchState.book).length;
+  const extra = searchState.scope === "all" && here ? `，本卷 ${here} 处在前` : "";
+  searchSummary.textContent = `${searchScopeLabel()}${searchState.fuzzy ? " · 模糊" : ""} · “${searchState.query}” 找到 ${searchState.results.length}${searchState.hasMore ? "+" : ""} 处${extra}`;
   searchResults.innerHTML =
     searchState.results
       .map(
@@ -2498,7 +2549,7 @@ async function searchDictionary(query = dictionaryInput.value.trim()) {
             (item) => `
               <article class="resultItem">
                 <div class="resultRef">${escapeHtml(item.word)}</div>
-                <div class="resultText">${escapeHtml(item.text || "（无文本）")}</div>
+                <div class="resultText">${linkVerseRefs(item.text || "（无文本）")}</div>
                 ${
                   item.images?.length
                     ? `<div class="dictImages">${item.images.map((image) => `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.name)}" />`).join("")}</div>`
@@ -2937,14 +2988,15 @@ function wrapShareText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
   if (line) ctx.fillText(line, x, cursorY);
 }
 
-async function openShareSheet(verseNumbers) {
-  const verses = (verseNumbers || []).filter(Boolean);
-  if (!verses.length) return;
-  closeContentPanels();
-  shareSheet.hidden = false;
+function drawShareCard(verses, theme) {
   const canvas = shareCanvas;
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
-  const dark = resolvedTheme() === "dark";
+  const dark = theme === "dark";
+  shareTheme = dark ? "dark" : "light";
+  shareThemeRow?.querySelectorAll("[data-share-theme]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.shareTheme === shareTheme);
+  });
   ctx.fillStyle = dark ? "#171614" : "#f7f1e4";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = dark ? "#2a2621" : "#efe6d4";
@@ -2961,6 +3013,15 @@ async function openShareSheet(verseNumbers) {
   ctx.fillStyle = dark ? "#74b8a8" : "#2d6a5f";
   ctx.font = "28px sans-serif";
   ctx.fillText("本地圣经", 120, canvas.height - 120);
+}
+
+async function openShareSheet(verseNumbers) {
+  const verses = (verseNumbers || []).filter(Boolean);
+  if (!verses.length) return;
+  closeContentPanels();
+  shareSheet.hidden = false;
+  lastShareVerses = verses;
+  drawShareCard(verses, resolvedTheme() === "dark" ? "dark" : "light");
 }
 
 async function shareOrSaveCard(share) {
@@ -3382,6 +3443,10 @@ function handleBackIntent() {
     keepReadingChromeVisible();
     return true;
   }
+  if (peekState && peekBar && !peekBar.hidden) {
+    restorePeek();
+    return true;
+  }
   return false;
 }
 
@@ -3466,7 +3531,7 @@ async function showCompareSheet(verseNo) {
     compareSheetContent.innerHTML = (data.chapters || [])
       .map((chapter) => {
         const text = chapter.verses.find((item) => item.verse === verse)?.text || "（本节无经文）";
-        return `<article class="resultItem"><div class="resultRef">${escapeHtml(chapter.shortName || chapter.versionName)}</div><div class="resultText">${escapeHtml(text)}</div></article>`;
+        return `<article class="resultItem"><div class="resultRef">${escapeHtml(chapter.shortName || chapter.versionName)}</div><div class="resultText compareVerse">${escapeHtml(text)}</div></article>`;
       })
       .join("");
   } catch (error) {
@@ -3775,13 +3840,21 @@ async function init() {
   await loadChapter({ scrollTop: !state.targetVerse });
 }
 
-versionSelect.addEventListener("change", async () => {
-  state.version = versionSelect.value;
+async function switchVersion(nextVersion) {
+  if (!nextVersion || nextVersion === state.version) return;
+  const verse = state.lastVerse || state.activeVerse || 1;
+  state.version = nextVersion;
+  if (versionSelect) versionSelect.value = nextVersion;
   state.compareVersions = state.compareVersions.filter((id) => id !== state.version);
   renderCompareVersions();
-  resetVerseInteraction();
+  resetVerseInteraction(verse);
   await loadBooks();
-  await loadChapter({ scrollTop: true });
+  state.targetVerse = verse;
+  await loadChapter({ scrollTop: false });
+}
+
+versionSelect.addEventListener("change", async () => {
+  await switchVersion(versionSelect.value);
 });
 
 compareVersionsEl?.addEventListener("change", (event) => {
@@ -3888,6 +3961,7 @@ strongToggleReader?.addEventListener("change", () => {
 
 menuBtn.addEventListener("click", () => openSidebar());
 function openBookPicker() {
+  clearPeek();
   closeTopPanels();
   closeSidebar();
   bookPickerPanel.hidden = false;
@@ -4000,6 +4074,16 @@ aiAskForm?.addEventListener("submit", (event) => {
   if (looksLikeStudyQuery(question)) runBibleStudy(question);
   else runAiTask("ask", state.activeVerse, question);
 });
+searchScope?.addEventListener("change", () => {
+  if (searchState.query) runSearch(searchState.query);
+});
+shareThemeRow?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-share-theme]");
+  if (!button || !lastShareVerses.length) return;
+  drawShareCard(lastShareVerses, button.dataset.shareTheme);
+});
+peekBackBtn?.addEventListener("click", restorePeek);
+peekCloseBtn?.addEventListener("click", clearPeek);
 studySearchBtn?.addEventListener("click", () => {
   const query = quickInput?.value.trim();
   if (!query) {
@@ -4224,11 +4308,15 @@ searchResults.addEventListener("click", async (event) => {
   }
   const button = event.target.closest("[data-jump-book]");
   if (!button) return;
-  await jumpToReference({
-    book: Number(button.dataset.jumpBook),
-    chapter: Number(button.dataset.jumpChapter),
-    verse: Number(button.dataset.jumpVerse),
-  });
+  event.stopPropagation();
+  await jumpFromPeek(
+    {
+      book: Number(button.dataset.jumpBook),
+      chapter: Number(button.dataset.jumpChapter),
+      verse: Number(button.dataset.jumpVerse),
+    },
+    { kind: "search", title: "返回搜索", restore: restoreSearchPeek },
+  );
 });
 
 document.body.addEventListener("click", async (event) => {
@@ -4239,12 +4327,24 @@ document.body.addEventListener("click", async (event) => {
     return;
   }
   const jump = event.target.closest("[data-jump-book]");
-  if (jump && !searchResults.contains(jump) && !myResults.contains(jump) && !strongContent.contains(jump)) {
-    await jumpToReference({
+  if (jump && !searchResults.contains(jump) && !myResults.contains(jump)) {
+    const ref = {
       book: Number(jump.dataset.jumpBook),
       chapter: Number(jump.dataset.jumpChapter),
       verse: Number(jump.dataset.jumpVerse),
-    });
+    };
+    let peek = null;
+    if (aiSheet && !aiSheet.hidden && aiSheet.contains(jump)) {
+      peek = { kind: "study", title: "返回查经", restore: () => { closeTopPanels(); if (aiSheet) aiSheet.hidden = false; } };
+    } else if (commentarySheet && !commentarySheet.hidden && commentarySheet.contains(jump)) {
+      const verse = state.activeVerse || state.lastVerse || ref.verse;
+      peek = { kind: "commentary", title: "返回注释", restore: () => showCommentarySheet(verse) };
+    } else if (dictionaryPanel && !dictionaryPanel.hidden && dictionaryPanel.contains(jump)) {
+      peek = { kind: "dictionary", title: "返回辞典", restore: () => { closeTopPanels(); dictionaryPanel.hidden = false; } };
+    } else if (strongContent && strongContent.contains(jump)) {
+      peek = { kind: "strong", title: "返回原文", restore: () => { closeTopPanels(); strongPanel.hidden = false; } };
+    }
+    await jumpFromPeek(ref, peek);
     return;
   }
   const strong = event.target.closest("[data-strong]");
@@ -4453,14 +4553,8 @@ versionPickerList.addEventListener("click", async (event) => {
     versionPickerPanel.hidden = true;
     return;
   }
-  state.version = nextVersion;
-  versionSelect.value = nextVersion;
-  state.compareVersions = state.compareVersions.filter((id) => id !== state.version);
-  renderCompareVersions();
   versionPickerPanel.hidden = true;
-  resetVerseInteraction();
-  await loadBooks();
-  await loadChapter({ scrollTop: true });
+  await switchVersion(nextVersion);
 });
 
 init().catch((error) => {
