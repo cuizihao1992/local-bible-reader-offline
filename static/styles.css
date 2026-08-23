@@ -690,6 +690,18 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
 .myAgentNotes { display: grid; gap: 8px; margin: 0 0 14px; }
 .myAgentNotes[hidden] { display: none; }
 .myAgentNotes .panelTitle { margin-bottom: 2px; }
+.noteKindBadge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, var(--soft));
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+#myNotesHint[hidden] { display: none; }
 .aiNoteCard {
   padding: 10px 12px;
   border-radius: 12px;

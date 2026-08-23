@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.28.0";
+const APP_VERSION = "1.29.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -128,6 +128,7 @@ const statusPanel = $("#statusPanel");
 const myPanel = $("#myPanel");
 const myResults = $("#myResults");
 const myAgentNotesEl = $("#myAgentNotes");
+const myNotesHint = $("#myNotesHint");
 const myTagFilter = $("#myTagFilter");
 const closeMyPanelBtn = $("#closeMyPanelBtn");
 const content = $("#content");
@@ -2630,7 +2631,7 @@ function agentNotesMatchingFilter() {
 }
 
 function shouldShowAgentNotesInMyPanel() {
-  return myPanelKind === "all" || myPanelKind === "note" || myPanelKind === "study";
+  return myPanelKind === "all" || myPanelKind === "note";
 }
 
 function agentNoteRefButtons(item) {
@@ -2646,18 +2647,20 @@ function agentNoteRefButtons(item) {
 function agentNoteCardHtml(item, activeId) {
   const refs = agentNoteRefButtons(item);
   return `<article class="aiNoteCard${item.id === activeId ? " active" : ""}">
-    <div class="aiNoteTitle">${escapeHtml(item.title)}</div>
+    <div class="aiNoteTitle"><span class="noteKindBadge">查经</span>${escapeHtml(item.title)}</div>
     <div class="aiNoteSummary">${linkVerseRefs(item.summary)}</div>
     ${refs ? `<div class="aiNoteRefs">${refs}</div>` : ""}
     <div class="aiNoteActions">
       <button type="button" data-continue-note="${escapeHtml(item.id)}">${item.id === activeId ? "正在用这篇" : "继续问"}</button>
       <button type="button" data-add-note-ref="${escapeHtml(item.id)}">加上本节</button>
+      <button type="button" data-write-verse-note="${escapeHtml(item.id)}">写到本节</button>
       <button type="button" data-delete-note="${escapeHtml(item.id)}">${pendingDeleteNoteId === item.id ? "确定删除？" : "删除"}</button>
     </div>
   </article>`;
 }
 
 function renderMyAgentNotes() {
+  if (myNotesHint) myNotesHint.hidden = myPanelKind !== "note" && myPanelKind !== "all";
   if (!myAgentNotesEl) return;
   if (!shouldShowAgentNotesInMyPanel()) {
     myAgentNotesEl.hidden = true;
@@ -2666,10 +2669,8 @@ function renderMyAgentNotes() {
   }
   const notes = agentNotesMatchingFilter();
   if (!notes.length) {
-    myAgentNotesEl.hidden = myPanelKind !== "study";
-    myAgentNotesEl.innerHTML = myPanelKind === "study"
-      ? `<div class="panelHint">还没有查经笔记。在助手里聊几句，点「整理成笔记」。之后也会出现在这里。</div>`
-      : "";
+    myAgentNotesEl.hidden = true;
+    myAgentNotesEl.innerHTML = "";
     return;
   }
   myAgentNotesEl.hidden = false;
@@ -2717,8 +2718,8 @@ async function distillConversationToNote() {
     if (!note) throw new Error("没有整理出可用笔记");
     rememberFact(`笔记《${note.title}》`, "topic");
     aiNotesOpen = true;
-    renderAgentChat(`<div class="aiNoteSaved">已保存笔记《${escapeHtml(note.title)}》。在助手点「笔记」，或到「我的 → 查经 / 笔记」里都能找到。</div>`);
-    finishJob(token, `已整理成笔记：${note.title}（助手和「我的」里都能找到）`, "success");
+    renderAgentChat(`<div class="aiNoteSaved">已保存查经笔记《${escapeHtml(note.title)}》。在「我的 → 笔记」里能找到，也可点「继续问」或「写到本节」。</div>`);
+    finishJob(token, `已整理成查经笔记：${note.title}`, "success");
     if (myPanel && !myPanel.hidden) renderMyAgentNotes();
   } catch (error) {
     if (!jobAlive(token)) return;
@@ -2845,7 +2846,7 @@ function renderAgentChat(extraHtml = "") {
     head +
     (html || summaryHtml
       ? `${summaryHtml}${html}`
-      : `<div class="panelHint">可以问这节的意思，或点底栏「助手」。聊完点「整理成笔记」，笔记会留在助手和「我的 → 查经」里。</div>`) +
+      : `<div class="panelHint">可以问这节的意思。聊完点「整理成笔记」，会留下查经笔记，在「我的 → 笔记」里能找到，也可继续问或写到本节。</div>`) +
     extraHtml;
   aiSheetContent.scrollTop = aiSheetContent.scrollHeight;
 }
@@ -3560,7 +3561,7 @@ async function openMyPanel(kind = "all", options = {}) {
     showStatus("正在读取我的内容，请稍候");
     return;
   }
-  myPanelKind = kind || "all";
+  myPanelKind = kind === "study" ? "note" : kind || "all";
   if (!options.refresh) resetMyManage();
   const token = ++myPanelRequestToken;
   myPanelLoading = true;
@@ -3573,18 +3574,14 @@ async function openMyPanel(kind = "all", options = {}) {
   }
   renderMyProgress();
   renderMyAgentNotes();
-  myResults.innerHTML = kind === "study" ? "" : `<div class="loading">正在读取我的收藏与笔记...</div>`;
+  myResults.innerHTML = `<div class="loading">正在读取我的收藏与笔记...</div>`;
   document.querySelectorAll("[data-my-filter]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.myFilter === kind);
+    button.classList.toggle("active", button.dataset.myFilter === myPanelKind);
     button.disabled = true;
   });
   try {
-    if (kind === "study") {
-      renderMyResults([]);
-      return;
-    }
     const tag = myTagFilter.value.trim();
-    const data = await api(`/api/user/marks/all?kind=${encodeURIComponent(kind === "all" ? "" : kind)}&tag=${encodeURIComponent(tag)}`);
+    const data = await api(`/api/user/marks/all?kind=${encodeURIComponent(myPanelKind === "all" ? "" : myPanelKind)}&tag=${encodeURIComponent(tag)}`);
     if (token !== myPanelRequestToken) return;
     renderMyAgentNotes();
     renderMyResults(data.marks);
@@ -3622,10 +3619,17 @@ function renderMyResults(marks) {
   (marks || []).forEach((item) => myMarksByKey.set(myMarkKey(item), item));
   if (!marks.length) {
     const hasStudy = shouldShowAgentNotesInMyPanel() && agentNotesMatchingFilter().length;
-    myResults.innerHTML = hasStudy || myPanelKind === "study" ? "" : `<div class="panelHint">这里还是空的</div>`;
+    if (hasStudy) {
+      myResults.innerHTML = "";
+      return;
+    }
+    myResults.innerHTML = myPanelKind === "note"
+      ? `<div class="panelHint">还没有笔记。长按经文可写经文笔记；助手里聊完点「整理成笔记」会留下查经笔记。</div>`
+      : `<div class="panelHint">这里还是空的</div>`;
     return;
   }
-  myResults.innerHTML = marks
+  const head = myPanelKind === "note" ? `<div class="panelTitle">经文笔记 · ${marks.length} 条</div>` : "";
+  myResults.innerHTML = head + marks
         .map((item) => {
           const key = myMarkKey(item);
           const summary = item.note
@@ -3649,9 +3653,10 @@ function renderMyResults(marks) {
           const manage = actions.length
             ? `<button class="myItemManage" type="button" data-manage="${escapeHtml(key)}">管理</button>`
             : "";
+          const kind = item.note || item.tags ? `<span class="noteKindBadge">经文</span>` : "";
           return `<div class="myItem${managing ? " managing" : ""}" data-my-item="${escapeHtml(key)}">
             <article class="resultItem">
-              <button type="button" class="resultRef" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">${escapeHtml(item.bookName)} ${item.chapter}:${item.verse} ${item.favorite ? "★" : ""} ${item.highlighted ? "高亮" : ""}</button>
+              <button type="button" class="resultRef" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">${kind}${escapeHtml(item.bookName)} ${item.chapter}:${item.verse} ${item.favorite ? "★" : ""} ${item.highlighted ? "高亮" : ""}</button>
               <div class="resultText">${summary}</div>
             </article>
             ${manage}
@@ -4053,6 +4058,20 @@ function insertNoteVerseRef() {
   el.focus();
   el.setSelectionRange(cursor, cursor);
   showStatus(`已插入 ${label}`, "success");
+}
+
+async function writeAgentNoteToCurrentVerse(id) {
+  const note = (agentMemory.notes || []).find((item) => item.id === id);
+  const verse = Number(state.activeVerse || state.lastVerse || selectedVerseNumbers[0] || 0);
+  if (!note || !verse) {
+    showStatus("先打开一节经文，再点写到本节", "info");
+    return;
+  }
+  const mark = markForVerse(verse);
+  const block = `【${note.title}】\n${note.summary}`;
+  const next = mark.note && mark.note.trim() ? `${mark.note.trim()}\n\n${block}` : block;
+  const tags = mark.tags && mark.tags.includes("查经") ? mark.tags : [mark.tags, "查经"].filter(Boolean).join(",");
+  await saveVerseMark({ ...mark, note: next, tags }, { successMessage: `已写到 ${currentBook()?.longName || ""} ${state.chapter}:${verse}` });
 }
 
 function addCurrentVerseToAgentNote(id) {
@@ -5242,6 +5261,12 @@ function handleAgentNoteClick(event) {
   if (cont) {
     event.stopPropagation();
     continueAgentNote(cont.dataset.continueNote);
+    return;
+  }
+  const writeVerse = event.target.closest("[data-write-verse-note]");
+  if (writeVerse) {
+    event.stopPropagation();
+    writeAgentNoteToCurrentVerse(writeVerse.dataset.writeVerseNote);
     return;
   }
   const del = event.target.closest("[data-delete-note]");

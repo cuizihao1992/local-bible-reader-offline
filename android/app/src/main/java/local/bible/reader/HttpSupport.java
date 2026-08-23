@@ -13,7 +13,7 @@ import java.net.URL;
 import java.util.List;
 
 final class HttpSupport {
-    static final String USER_AGENT = "LocalBibleReader/1.28.0";
+    static final String USER_AGENT = "LocalBibleReader/1.29.0";
 
     static {
         try {

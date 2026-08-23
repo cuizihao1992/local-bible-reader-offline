@@ -106,7 +106,9 @@ assert(appJs.includes("function setSidebarTab"), "Sidebar tab switcher missing")
 assert(appJs.includes("function setMyTab"), "My panel tab switcher missing");
 assert(appJs.includes("function toggleAiNotes"), "AI notes collapse missing");
 assert(indexHtml.includes("id=\"myAgentNotes\""), "My panel study notes missing");
-assert(indexHtml.includes("data-my-filter=\"study\""), "Study notes filter missing");
+assert(indexHtml.includes("id=\"myNotesHint\""), "Unified notes hint missing");
+assert(appJs.includes("writeAgentNoteToCurrentVerse"), "Write study note to verse missing");
+assert(appJs.includes("noteKindBadge"), "Note kind badges missing");
 assert(appJs.includes("function renderMyAgentNotes"), "My agent notes renderer missing");
 assert(looksEncrypted("4w09I7ACRvw1x3Mp1672ify+DbbPBQR1G9h9VD7bIsSirxHf"), "Ciphertext should look encrypted");
 assert(!looksEncrypted("<p><b>五经总论</b></p>"), "HTML commentary should not look encrypted");
