@@ -81,6 +81,7 @@ public class OfflineApi {
             if ("/api/audio".equals(path)) return new JSONObject().put("audio", new JSONArray()).toString();
             if ("/api/diagnostics".equals(path)) return diagnostics().toString();
             if ("/api/strong".equals(path)) return new JSONObject().put("error", "Android 离线版暂未内置原文库").toString();
+            if ("/api/import/url".equals(path)) return WebExtract.extract(context, query(uri, "url")).toString();
             return new JSONObject().put("error", "Android 离线版暂未支持此接口：" + path).toString();
         } catch (Exception error) {
             return "{\"error\":\"" + escapeJson(error.getMessage()) + "\"}";
@@ -96,6 +97,7 @@ public class OfflineApi {
             if ("/api/user/export".equals(path)) return exportUserData().toString();
             if ("/api/user/import".equals(path)) return importUserData(body).toString();
             if ("/api/package/install".equals(path)) return installPackage(body.optString("id"), body.optString("url"));
+            if ("/api/import/url".equals(path)) return WebExtract.extract(context, body.optString("url")).toString();
             return new JSONObject().put("error", "Android 离线版暂未支持此 POST 接口：" + path).toString();
         } catch (Exception error) {
             return "{\"error\":\"" + escapeJson(error.getMessage()) + "\"}";
@@ -802,7 +804,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.30.0")
+                .put("version", "1.31.0")
                 .put("versionCount", versions().length());
     }
 

@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.30.0</p>
+            <p>设置 · 1.31.0</p>
           </div>
         </div>
       </div>
@@ -380,6 +380,13 @@
             <span>标题</span>
             <input id="noteSheetHeading" type="text" placeholder="查经记录标题" autocomplete="off" />
           </label>
+          <label id="noteSheetUrlField" class="field compactField" hidden>
+            <span>链接</span>
+            <div class="dictionarySearch">
+              <input id="noteSheetUrl" type="url" placeholder="https:// 文章或 Markdown 链接" autocomplete="off" />
+              <button id="extractUrlBtn" type="button">提取</button>
+            </div>
+          </label>
           <textarea id="noteSheetText" placeholder="支持 Markdown。可写 约翰福音 3:16，保存后能点着跳转。"></textarea>
           <input id="noteSheetTags" type="text" placeholder="标签，用逗号分隔" />
           <div id="noteSheetPasteActions" class="chipRow" hidden>
@@ -484,6 +491,7 @@
             <button id="exportNotesMdBtn" type="button">导出 Markdown</button>
             <button id="importNotesMdBtn" type="button">导入 Markdown</button>
             <button id="pasteNotesMdBtn" type="button">粘贴 Markdown</button>
+            <button id="importUrlBtn" type="button">导入链接</button>
             <input id="importNotesMdFile" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden />
           </div>
         </div>
@@ -516,7 +524,7 @@
         <div id="myTabUpdates" class="myTabPane" data-my-pane="updates" hidden>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.30.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.31.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

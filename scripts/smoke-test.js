@@ -1,5 +1,6 @@
 import { fallbackBooks } from "../lib/books.js";
 import { decodeModuleText, looksEncrypted } from "../lib/text.js";
+import { htmlToMarkdown, looksLikeHttpUrl, publicHttpUrl } from "../lib/webextract.js";
 
 const base = process.env.BIBLE_READER_URL || "http://127.0.0.1:8766";
 
@@ -111,6 +112,20 @@ assert(indexHtml.includes("批注"), "Verse annotation name missing");
 assert(indexHtml.includes("查经记录"), "Study record name missing");
 assert(indexHtml.includes("id=\"exportNotesMdBtn\""), "Markdown export missing");
 assert(indexHtml.includes("id=\"pasteNotesMdBtn\""), "Markdown paste missing");
+assert(indexHtml.includes("id=\"importUrlBtn\""), "Import URL button missing");
+assert(appJs.includes("/api/import/url"), "Import URL client call missing");
+assert(looksLikeHttpUrl("https://example.com/a"), "HTTP URL detector missing");
+assert(!looksLikeHttpUrl("not a url"), "URL detector too loose");
+try {
+  publicHttpUrl("http://127.0.0.1/secret");
+  throw new Error("localhost URL must be rejected");
+} catch (error) {
+  if (error.message === "localhost URL must be rejected") throw error;
+}
+const sampleHtml = "<html><head><title>测试标题</title></head><body><article><h1>大标题</h1><p>第一段。</p></article></body></html>";
+const extracted = htmlToMarkdown(sampleHtml);
+assert(extracted.title.includes("测试标题"), "HTML title extract missing");
+assert(extracted.text.includes("第一段"), "HTML body extract missing");
 assert(appJs.includes("writeAgentNoteToCurrentVerse"), "Write study note to verse missing");
 assert(appJs.includes("function exportNotesMarkdown"), "Notes markdown export missing");
 assert(appJs.includes("function parseNotesMarkdown"), "Notes markdown import missing");

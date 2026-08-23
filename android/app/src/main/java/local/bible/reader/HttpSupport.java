@@ -13,7 +13,9 @@ import java.net.URL;
 import java.util.List;
 
 final class HttpSupport {
-    static final String USER_AGENT = "LocalBibleReader/1.30.0";
+    static final String USER_AGENT = "LocalBibleReader/1.31.0";
+    static final String BROWSER_UA =
+            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 LocalBibleReader/1.31.0";
 
     static {
         try {
@@ -107,6 +109,60 @@ final class HttpSupport {
             }
         }
         return current;
+    }
+
+    static FetchedPage getPage(Context context, String urlText, int maxBytes) throws Exception {
+        String current = urlText;
+        for (int hop = 0; hop < 6; hop += 1) {
+            HttpURLConnection connection = open(context, current, 12000, 20000);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("User-Agent", BROWSER_UA);
+            connection.setRequestProperty("Accept", "text/html,text/plain,text/markdown,application/xhtml+xml;q=0.9,*/*;q=0.5");
+            connection.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+            java.io.InputStream stream = null;
+            try {
+                int code = connection.getResponseCode();
+                if (code == HttpURLConnection.HTTP_MOVED_PERM
+                        || code == HttpURLConnection.HTTP_MOVED_TEMP
+                        || code == HttpURLConnection.HTTP_SEE_OTHER
+                        || code == 307
+                        || code == 308) {
+                    String location = connection.getHeaderField("Location");
+                    if (location == null || location.isEmpty()) throw new Exception("重定向无效");
+                    current = new URL(new URL(current), location).toString();
+                    continue;
+                }
+                if (code >= 400) throw new Exception("网页返回 " + code);
+                stream = connection.getInputStream();
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                int total = 0;
+                while ((n = stream.read(buf)) >= 0) {
+                    total += n;
+                    if (total > maxBytes) throw new Exception("网页过大");
+                    out.write(buf, 0, n);
+                }
+                String type = connection.getContentType();
+                return new FetchedPage(current, type == null ? "" : type, out.toByteArray());
+            } finally {
+                if (stream != null) try { stream.close(); } catch (Exception ignored) {}
+                connection.disconnect();
+            }
+        }
+        throw new Exception("重定向次数过多");
+    }
+
+    static final class FetchedPage {
+        final String url;
+        final String contentType;
+        final byte[] body;
+
+        FetchedPage(String url, String contentType, byte[] body) {
+            this.url = url == null ? "" : url;
+            this.contentType = contentType == null ? "" : contentType;
+            this.body = body == null ? new byte[0] : body;
+        }
     }
 
     static final class JSONProxy {

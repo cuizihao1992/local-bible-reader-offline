@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { MIME_TYPES, parsePositiveInt, readJsonBody, sendJson } from "./lib/http.js";
+import { extractWebPage } from "./lib/webextract.js";
 import { createSources } from "./lib/sources.js";
 import { createReader } from "./lib/reader.js";
 import { createUserStore } from "./lib/user.js";
@@ -69,7 +70,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, {
         ok: true,
         app: "bible-reader",
-        version: "1.30.0",
+        version: "1.31.0",
         dataRoot: ROOT,
         biblesDir: BIBLES_DIR,
         commentariesDir: COMMENTARIES_DIR,
@@ -221,6 +222,12 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/api/user/import" && req.method === "POST") {
       sendJson(res, user.importUserData(await readJsonBody(req)));
+      return;
+    }
+    if (url.pathname === "/api/import/url") {
+      const body = req.method === "POST" ? await readJsonBody(req) : {};
+      const target = body.url || url.searchParams.get("url") || "";
+      sendJson(res, await extractWebPage(target));
       return;
     }
     if (url.pathname === "/api/audio") {

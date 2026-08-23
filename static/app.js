@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.30.0";
+const APP_VERSION = "1.31.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -216,7 +216,11 @@ const saveNoteSheetBtn = $("#saveNoteSheetBtn");
 const exportNotesMdBtn = $("#exportNotesMdBtn");
 const importNotesMdBtn = $("#importNotesMdBtn");
 const pasteNotesMdBtn = $("#pasteNotesMdBtn");
+const importUrlBtn = $("#importUrlBtn");
 const importNotesMdFile = $("#importNotesMdFile");
+const noteSheetUrl = $("#noteSheetUrl");
+const noteSheetUrlField = $("#noteSheetUrlField");
+const extractUrlBtn = $("#extractUrlBtn");
 const overlay = $("#overlay");
 const voiceBtn = $("#voiceBtn");
 const voiceBtnDesktop = $("#voiceBtnDesktop");
@@ -4138,6 +4142,7 @@ function setNoteSheetMode(mode) {
   const study = noteSheetMode === "study";
   const paste = noteSheetMode === "paste";
   if (noteSheetHeadingField) noteSheetHeadingField.hidden = !(study || paste);
+  if (noteSheetUrlField) noteSheetUrlField.hidden = !paste;
   if (noteSheetTags) noteSheetTags.hidden = study || paste;
   if (noteSheetPasteActions) noteSheetPasteActions.hidden = !paste;
   if (saveNoteSheetBtn) saveNoteSheetBtn.hidden = paste;
@@ -4192,7 +4197,7 @@ function openStudyNoteEditor(id) {
   noteSheetText?.focus();
 }
 
-function openPasteMarkdownSheet() {
+function openPasteMarkdownSheet(fromLink = false) {
   editingStudyNoteId = "";
   noteSheetReturnToMy = !!(myPanel && !myPanel.hidden);
   noteSheetTarget = null;
@@ -4200,11 +4205,50 @@ function openPasteMarkdownSheet() {
   setNoteSheetMode("paste");
   closeContentPanels();
   noteSheet.hidden = false;
-  if (noteSheetTitle) noteSheetTitle.textContent = "粘贴 Markdown";
+  if (noteSheetTitle) noteSheetTitle.textContent = fromLink ? "导入链接" : "粘贴 Markdown";
   if (noteSheetHeading) noteSheetHeading.value = "";
-  if (noteSheetText) noteSheetText.value = "";
+  if (noteSheetUrl) noteSheetUrl.value = "";
+  if (noteSheetText) {
+    noteSheetText.value = "";
+    noteSheetText.placeholder = fromLink
+      ? "点「提取」后，正文会出现在这里，可再改再保存。"
+      : "支持 Markdown，也可只贴一个 https:// 链接再点提取。";
+  }
   if (noteSheetTags) noteSheetTags.value = "";
-  noteSheetText?.focus();
+  if (fromLink) noteSheetUrl?.focus();
+  else noteSheetText?.focus();
+}
+
+function looksLikeHttpUrl(value) {
+  return /^https?:\/\/[^\s]+$/i.test(String(value || "").trim());
+}
+
+async function extractWebPageIntoSheet() {
+  const url = (noteSheetUrl?.value || "").trim() || (noteSheetText?.value || "").trim();
+  if (!looksLikeHttpUrl(url)) {
+    showStatus("请先填写 http 或 https 链接", "info");
+    noteSheetUrl?.focus();
+    return;
+  }
+  if (extractUrlBtn) {
+    extractUrlBtn.disabled = true;
+    extractUrlBtn.textContent = "提取中";
+  }
+  showStatus("正在提取网页正文...", "info", 8000);
+  try {
+    const data = await postJson("/api/import/url", { url });
+    if (noteSheetUrl) noteSheetUrl.value = data.url || url;
+    if (noteSheetHeading && !noteSheetHeading.value.trim()) noteSheetHeading.value = data.title || "";
+    if (noteSheetText) noteSheetText.value = data.markdown || data.text || "";
+    showStatus("已提取正文，可再编辑后保存", "success");
+  } catch (error) {
+    showStatus(error.message || "提取失败", "error");
+  } finally {
+    if (extractUrlBtn) {
+      extractUrlBtn.disabled = false;
+      extractUrlBtn.textContent = "提取";
+    }
+  }
 }
 
 async function saveNoteSheet() {
@@ -4463,10 +4507,22 @@ async function exportNotesMarkdown() {
 }
 
 async function savePastedMarkdown(kind) {
-  const text = (noteSheetText?.value || "").trim();
-  if (!text) {
-    showStatus("请先粘贴 Markdown", "info");
+  let text = (noteSheetText?.value || "").trim();
+  const url = (noteSheetUrl?.value || "").trim() || (looksLikeHttpUrl(text) ? text : "");
+  if (!text && !url) {
+    showStatus("请先粘贴 Markdown，或填写链接后点提取", "info");
     return;
+  }
+  if (!text && url) {
+    if (noteSheetUrl) noteSheetUrl.value = url;
+    await extractWebPageIntoSheet();
+    text = (noteSheetText?.value || "").trim();
+    if (!text) return;
+  } else if (looksLikeHttpUrl(text)) {
+    if (noteSheetUrl) noteSheetUrl.value = text;
+    await extractWebPageIntoSheet();
+    text = (noteSheetText?.value || "").trim();
+    if (!text || looksLikeHttpUrl(text)) return;
   }
   if (/类型\s*[:：]\s*(查经记录|批注)/.test(text) || /\n---\n/.test(text)) {
     await importNotesMarkdown(text);
@@ -5791,7 +5847,17 @@ exportNotesMdBtn?.addEventListener("click", () => {
   exportNotesMarkdown().catch((error) => showStatus(error.message || "导出失败", "error"));
 });
 importNotesMdBtn?.addEventListener("click", () => importNotesMdFile?.click());
-pasteNotesMdBtn?.addEventListener("click", openPasteMarkdownSheet);
+pasteNotesMdBtn?.addEventListener("click", () => openPasteMarkdownSheet(false));
+importUrlBtn?.addEventListener("click", () => openPasteMarkdownSheet(true));
+extractUrlBtn?.addEventListener("click", () => {
+  extractWebPageIntoSheet().catch((error) => showStatus(error.message || "提取失败", "error"));
+});
+noteSheetUrl?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    extractWebPageIntoSheet();
+  }
+});
 importNotesMdFile?.addEventListener("change", async () => {
   const file = importNotesMdFile.files?.[0];
   importNotesMdFile.value = "";
