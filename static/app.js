@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.23.0";
+const APP_VERSION = "1.24.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -183,6 +183,7 @@ const closeShareSheetBtn = $("#closeShareSheetBtn");
 const shareImageBtn = $("#shareImageBtn");
 const saveShareBtn = $("#saveShareBtn");
 const highlightColors = $("#highlightColors");
+const verseHighlightColors = $("#verseHighlightColors");
 const packageList = $("#packageList");
 const packageHint = $("#packageHint");
 const packageProgress = $("#packageProgress");
@@ -3265,6 +3266,9 @@ async function searchDictionary(query = dictionaryInput.value.trim()) {
 }
 
 let myPanelKind = "all";
+let myManageKey = "";
+let myManageAction = "";
+let pendingUnfavorite = false;
 const myMarksByKey = new Map();
 
 function myMarkKey(item) {
@@ -3277,6 +3281,7 @@ async function openMyPanel(kind = "all", options = {}) {
     return;
   }
   myPanelKind = kind || "all";
+  if (!options.refresh) resetMyManage();
   const token = ++myPanelRequestToken;
   myPanelLoading = true;
   if (!options.refresh) {
@@ -3308,29 +3313,66 @@ async function openMyPanel(kind = "all", options = {}) {
   }
 }
 
+function myMarkActions(item) {
+  const actions = [];
+  if (item.favorite) actions.push(["favorite", "取消收藏"]);
+  if (item.highlighted) actions.push(["highlight", "取消高亮"]);
+  if (item.note || item.tags) actions.push(["note", "删除笔记"]);
+  return actions;
+}
+
+function myConfirmLabel(action, item) {
+  const ref = `${item.bookName || ""} ${item.chapter}:${item.verse}`.trim();
+  if (action === "favorite") return `确定取消收藏「${ref}」？`;
+  if (action === "highlight") return `确定去掉「${ref}」的高亮？`;
+  return `确定删除「${ref}」的笔记？删除后不能恢复。`;
+}
+
 function renderMyResults(marks) {
   myMarksByKey.clear();
   (marks || []).forEach((item) => myMarksByKey.set(myMarkKey(item), item));
   myResults.innerHTML = marks.length
     ? marks
         .map((item) => {
+          const key = myMarkKey(item);
           const summary = item.note || item.tags || (item.highlighted ? "高亮经文" : item.favorite ? "收藏" : "");
-          const remove = item.favorite
-            ? `<button class="myItemRemove" type="button" data-unfavorite="${escapeHtml(myMarkKey(item))}">取消收藏</button>`
+          const actions = myMarkActions(item);
+          const managing = myManageKey === key;
+          let extra = "";
+          if (managing && myManageAction) {
+            extra = `<div class="myItemConfirm">
+              <span>${escapeHtml(myConfirmLabel(myManageAction, item))}</span>
+              <button type="button" data-confirm-clear="${myManageAction}" data-mark-key="${escapeHtml(key)}">确定</button>
+              <button type="button" data-manage-cancel>返回</button>
+            </div>`;
+          } else if (managing) {
+            extra = `<div class="myItemConfirm">
+              ${actions.map(([action, label]) => `<button type="button" data-manage-action="${action}" data-mark-key="${escapeHtml(key)}">${label}</button>`).join("")}
+              <button type="button" data-manage-cancel>返回</button>
+            </div>`;
+          }
+          const manage = actions.length
+            ? `<button class="myItemManage" type="button" data-manage="${escapeHtml(key)}">管理</button>`
             : "";
-          return `<div class="myItem">
+          return `<div class="myItem${managing ? " managing" : ""}" data-my-item="${escapeHtml(key)}">
             <button class="resultItem" type="button" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">
               <div class="resultRef">${escapeHtml(item.bookName)} ${item.chapter}:${item.verse} ${item.favorite ? "★" : ""} ${item.highlighted ? "高亮" : ""}</div>
               <div class="resultText">${escapeHtml(summary)}</div>
             </button>
-            ${remove}
+            ${manage}
+            ${extra}
           </div>`;
         })
         .join("")
     : `<div class="panelHint">这里还是空的</div>`;
 }
 
-async function unfavoriteFromMy(key) {
+function resetMyManage() {
+  myManageKey = "";
+  myManageAction = "";
+}
+
+async function patchMyMark(key, patch, message) {
   const item = myMarksByKey.get(key);
   if (!item) return;
   await saveVerseMark(
@@ -3339,15 +3381,22 @@ async function unfavoriteFromMy(key) {
       book: item.book,
       chapter: item.chapter,
       verse: item.verse,
-      favorite: false,
-      highlighted: !!item.highlighted,
-      highlightColor: item.highlightColor || "",
-      note: item.note || "",
-      tags: item.tags || "",
+      favorite: patch.favorite !== undefined ? patch.favorite : !!item.favorite,
+      highlighted: patch.highlighted !== undefined ? patch.highlighted : !!item.highlighted,
+      highlightColor: patch.highlightColor !== undefined ? patch.highlightColor : item.highlightColor || "",
+      note: patch.note !== undefined ? patch.note : item.note || "",
+      tags: patch.tags !== undefined ? patch.tags : item.tags || "",
     },
-    { successMessage: "已取消收藏" },
+    { successMessage: message },
   );
+  resetMyManage();
   if (!myPanel.hidden) await openMyPanel(myPanelKind, { refresh: true });
+}
+
+async function confirmClearMyMark(key, action) {
+  if (action === "favorite") return patchMyMark(key, { favorite: false }, "已取消收藏");
+  if (action === "highlight") return patchMyMark(key, { highlighted: false, highlightColor: "" }, "已取消高亮");
+  if (action === "note") return patchMyMark(key, { note: "", tags: "" }, "已删除笔记");
 }
 
 function updateVerseMarkDom(mark) {
@@ -3473,8 +3522,10 @@ function openVerseMenu(verseNo, x, y, expandMore = false) {
       ? selectedVerseNumbers
       : [Number(verseNo)];
   verseMenuTitle.textContent = verseSelectionLabel(nums);
+  pendingUnfavorite = false;
   verseMenu.querySelector('[data-menu-action="favorite"]').textContent = mark.favorite ? "取消收藏" : "收藏";
-  verseMenu.querySelector('[data-menu-action="highlight"]').textContent = mark.highlighted ? "取消高亮" : "高亮";
+  verseMenu.querySelector('[data-menu-action="highlight"]').textContent = mark.highlighted || mark.highlightColor ? "取消高亮" : "高亮";
+  if (verseHighlightColors) verseHighlightColors.hidden = true;
   verseMenu.hidden = false;
   setVerseMenuMore(expandMore);
   placeVerseMenu(x, y);
@@ -3482,6 +3533,8 @@ function openVerseMenu(verseNo, x, y, expandMore = false) {
 
 function closeVerseMenu() {
   verseMenu.hidden = true;
+  pendingUnfavorite = false;
+  if (verseHighlightColors) verseHighlightColors.hidden = true;
   setVerseMenuMore(false);
 }
 
@@ -3538,6 +3591,7 @@ function closeSelectionBar() {
   selectionBar.hidden = true;
   selectedVerseNumbers = [];
   verseSelectionMode = false;
+  if (highlightColors) highlightColors.hidden = true;
   renderVerseSelectionState();
 }
 
@@ -3560,6 +3614,28 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     return;
   }
   const mark = markForVerse(verseNo);
+  if (action === "highlight") {
+    pendingUnfavorite = false;
+    const fromMenu = verseMenu && !verseMenu.hidden;
+    const already = !!(mark.highlighted || mark.highlightColor);
+    if (fromMenu && already) {
+      closeVerseMenu();
+      await applyHighlightColor("");
+      return;
+    }
+    const palette = !selectionBar.hidden && highlightColors ? highlightColors : verseHighlightColors;
+    if (palette) {
+      palette.hidden = !palette.hidden;
+      if (!verseMenu.hidden) placeVerseMenu();
+    }
+    return;
+  }
+  if (action === "favorite" && mark.favorite && !pendingUnfavorite) {
+    pendingUnfavorite = true;
+    const button = verseMenu.querySelector('[data-menu-action="favorite"]');
+    if (button) button.textContent = "确定取消收藏？";
+    return;
+  }
   closeVerseMenu();
   if (action === "select") {
     startVerseSelection(verseNo);
@@ -3585,10 +3661,6 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     await openShareSheet(selectedVerseNumbers.length ? selectedVerseNumbers : [verseNo]);
     return;
   }
-  if (action === "highlight") {
-    if (highlightColors) highlightColors.hidden = !highlightColors.hidden;
-    return;
-  }
   if (action === "favorite") {
     const verses = selectedVerseNumbers.length ? selectedVerseNumbers : [verseNo];
     const next = !mark.favorite;
@@ -3596,6 +3668,7 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
       const item = markForVerse(number);
       await saveVerseMark({ ...item, favorite: next });
     }
+    pendingUnfavorite = false;
     showStatus(next ? "已收藏" : "已取消收藏", "success");
     return;
   }
@@ -3627,6 +3700,7 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
 
 async function applyHighlightColor(color) {
   const verses = selectedVerseNumbers.length ? selectedVerseNumbers : state.activeVerse ? [state.activeVerse] : [];
+  if (!verses.length) return;
   for (const verseNo of verses) {
     const mark = markForVerse(verseNo);
     await saveVerseMark(
@@ -3635,6 +3709,8 @@ async function applyHighlightColor(color) {
     );
   }
   if (highlightColors) highlightColors.hidden = true;
+  if (verseHighlightColors) verseHighlightColors.hidden = true;
+  closeVerseMenu();
 }
 
 function renderCommentarySources() {
@@ -4917,11 +4993,13 @@ commentarySourceList?.addEventListener("click", (event) => {
 });
 shareImageBtn?.addEventListener("click", () => shareOrSaveCard(true));
 saveShareBtn?.addEventListener("click", () => shareOrSaveCard(false));
-highlightColors?.addEventListener("click", (event) => {
+function onHighlightPaletteClick(event) {
   const button = event.target.closest("[data-hl-color]");
   if (!button) return;
   applyHighlightColor(button.dataset.hlColor || "");
-});
+}
+highlightColors?.addEventListener("click", onHighlightPaletteClick);
+verseHighlightColors?.addEventListener("click", onHighlightPaletteClick);
 keepScreenOnToggle?.addEventListener("change", () => {
   state.keepScreenOn = keepScreenOnToggle.checked;
   applySettings();
@@ -5180,10 +5258,35 @@ document.body.addEventListener("click", async (event) => {
 });
 
 myResults.addEventListener("click", async (event) => {
-  const remove = event.target.closest("[data-unfavorite]");
-  if (remove) {
+  const manage = event.target.closest("[data-manage]");
+  if (manage) {
     event.preventDefault();
-    await unfavoriteFromMy(remove.dataset.unfavorite);
+    const key = manage.dataset.manage;
+    const item = myMarksByKey.get(key);
+    const actions = item ? myMarkActions(item) : [];
+    myManageKey = key;
+    myManageAction = actions.length === 1 ? actions[0][0] : "";
+    renderMyResults([...myMarksByKey.values()]);
+    return;
+  }
+  if (event.target.closest("[data-manage-cancel]")) {
+    event.preventDefault();
+    resetMyManage();
+    renderMyResults([...myMarksByKey.values()]);
+    return;
+  }
+  const pick = event.target.closest("[data-manage-action]");
+  if (pick) {
+    event.preventDefault();
+    myManageKey = pick.dataset.markKey;
+    myManageAction = pick.dataset.manageAction;
+    renderMyResults([...myMarksByKey.values()]);
+    return;
+  }
+  const confirm = event.target.closest("[data-confirm-clear]");
+  if (confirm) {
+    event.preventDefault();
+    await confirmClearMyMark(confirm.dataset.markKey, confirm.dataset.confirmClear);
     return;
   }
   const button = event.target.closest("[data-jump-book]");

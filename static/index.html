@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.23.0</p>
+            <p>设置 · 1.24.0</p>
           </div>
         </div>
       </div>
@@ -450,7 +450,7 @@
         </div>
         <div class="sheetSection settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.23.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.24.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -485,6 +485,13 @@
       <div id="verseMenuTitle" class="verseMenuTitle"></div>
       <button type="button" data-menu-action="favorite">收藏</button>
       <button type="button" data-menu-action="highlight">高亮</button>
+      <div id="verseHighlightColors" class="highlightColors" hidden>
+        <button type="button" data-hl-color="gold" title="金色"></button>
+        <button type="button" data-hl-color="green" title="绿色"></button>
+        <button type="button" data-hl-color="blue" title="蓝色"></button>
+        <button type="button" data-hl-color="rose" title="玫红"></button>
+        <button type="button" data-hl-color="" title="取消高亮">取消高亮</button>
+      </div>
       <button type="button" data-menu-action="note">笔记</button>
       <button type="button" data-menu-action="copy">复制</button>
       <button type="button" data-menu-action="explain">讲解</button>
@@ -509,7 +516,7 @@
         <button type="button" data-hl-color="green" title="绿色"></button>
         <button type="button" data-hl-color="blue" title="蓝色"></button>
         <button type="button" data-hl-color="rose" title="玫红"></button>
-        <button type="button" data-hl-color="" title="取消高亮">无</button>
+        <button type="button" data-hl-color="" title="取消高亮">取消高亮</button>
       </div>
       <div class="actionBarButtons">
         <button type="button" data-bar-action="favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l2.2 4.5 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L4.8 9.7l5-.7z"/></svg>收藏</button>

@@ -362,7 +362,7 @@ select, input[type="search"], input[type="text"] {
 
 .resultList { display: grid; gap: 8px; }
 .myItem { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: stretch; }
-.myItemRemove {
+.myItemManage {
   align-self: center;
   min-height: 36px;
   border: 0;
@@ -372,6 +372,33 @@ select, input[type="search"], input[type="text"] {
   font-size: 12px;
   padding: 0 10px;
   white-space: nowrap;
+}
+.myItemConfirm {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 13px;
+}
+.myItemConfirm span { flex: 1 1 140px; color: var(--ink); }
+.myItemConfirm button {
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--soft);
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: 13px;
+}
+.myItemConfirm [data-confirm-clear] {
+  background: color-mix(in srgb, var(--accent-2) 22%, var(--soft));
+  color: var(--accent-2);
+  font-weight: 600;
 }
 .resultItem {
   display: grid; gap: 4px; width: 100%;
@@ -515,7 +542,8 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
 .highlightColors [data-hl-color="green"] { background: #3d6b5c; }
 .highlightColors [data-hl-color="blue"] { background: #4a6f86; }
 .highlightColors [data-hl-color="rose"] { background: #a56a66; }
-.highlightColors [data-hl-color=""] { width: auto; padding: 0 8px; background: transparent; color: var(--muted); font-size: 12px; }
+.highlightColors [data-hl-color=""] { width: auto; min-width: 72px; padding: 0 10px; background: var(--soft); color: var(--muted); font-size: 12px; }
+.verseMenu .highlightColors { padding: 6px 8px 8px; }
 .sharePreviewWrap {
   display: grid; place-items: center; margin-bottom: 14px;
   background: var(--soft); border-radius: 12px; padding: 12px;

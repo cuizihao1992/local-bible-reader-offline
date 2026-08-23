@@ -198,8 +198,11 @@ assert(appJs.includes("function distillConversationToNote"), "Conversation-to-no
 assert(appJs.includes("function continueAgentNote"), "Continue from note missing");
 assert(indexHtml.includes("id=\"saveAiNoteBtn\""), "Save note button missing");
 assert(indexHtml.includes("id=\"aiNoteList\""), "Note list missing");
-assert(appJs.includes("function unfavoriteFromMy"), "Unfavorite from My list missing");
-assert(appJs.includes("data-unfavorite"), "Unfavorite button missing");
+assert(appJs.includes("function patchMyMark"), "My list mark patch missing");
+assert(appJs.includes("function confirmClearMyMark"), "My list confirm clear missing");
+assert(appJs.includes("data-manage"), "My list manage button missing");
+assert(appJs.includes("verseHighlightColors"), "Verse menu highlight colors missing");
+assert(indexHtml.includes("id=\"verseHighlightColors\""), "Verse highlight palette missing");
 assert(indexHtml.includes("id=\"verseMenuMore\""), "Verse menu more section missing");
 assert(appJs.includes("function placeVerseMenu"), "Verse menu on-screen placement missing");
 assert(appJs.includes("function verseSelectionLabel"), "Multi-verse explain label missing");
