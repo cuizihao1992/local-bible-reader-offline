@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.27.0</p>
+            <p>设置 · 1.27.1</p>
           </div>
         </div>
       </div>
@@ -423,6 +423,7 @@
             <button id="clearAiMemoryBtn" type="button">清空本轮</button>
             <button id="toggleAiNotesBtn" type="button">笔记</button>
           </div>
+          <div id="aiNotePeek" class="aiNotePeek" hidden></div>
           <div id="aiNoteList" class="aiNoteList" hidden></div>
           <div id="aiMemoryBar" class="aiMemoryBar" hidden></div>
           <div id="aiSheetContent" class="aiSheetContent aiChat"></div>
@@ -467,9 +468,11 @@
           <button type="button" data-my-filter="favorite">收藏</button>
           <button type="button" data-my-filter="highlight">高亮</button>
           <button type="button" data-my-filter="note">笔记</button>
+          <button type="button" data-my-filter="study">查经</button>
           </div>
-          <input id="myTagFilter" type="search" placeholder="按标签筛选" />
+          <input id="myTagFilter" type="search" placeholder="按标签或笔记内容筛选" />
         </div>
+        <div id="myAgentNotes" class="myAgentNotes" hidden></div>
         <div id="myResults" class="resultList"></div>
         </div>
         <div id="myTabResources" class="myTabPane" data-my-pane="resources" hidden>
@@ -498,7 +501,7 @@
         <div id="myTabUpdates" class="myTabPane" data-my-pane="updates" hidden>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.27.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.27.1</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

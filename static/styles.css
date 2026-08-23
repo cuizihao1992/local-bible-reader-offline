@@ -670,6 +670,26 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
 }
 .aiNoteList { display: grid; gap: 8px; margin: 0 0 12px; }
 .aiNoteList[hidden] { display: none; }
+.aiNotePeek {
+  margin: 0 0 10px;
+}
+.aiNotePeek[hidden] { display: none; }
+.aiNotePeek button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--soft));
+  color: var(--ink);
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.myAgentNotes { display: grid; gap: 8px; margin: 0 0 14px; }
+.myAgentNotes[hidden] { display: none; }
+.myAgentNotes .panelTitle { margin-bottom: 2px; }
 .aiNoteCard {
   padding: 10px 12px;
   border-radius: 12px;

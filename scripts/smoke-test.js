@@ -104,6 +104,9 @@ assert(indexHtml.includes("id=\"toggleAiNotesBtn\""), "AI notes toggle missing")
 assert(appJs.includes("function setSidebarTab"), "Sidebar tab switcher missing");
 assert(appJs.includes("function setMyTab"), "My panel tab switcher missing");
 assert(appJs.includes("function toggleAiNotes"), "AI notes collapse missing");
+assert(indexHtml.includes("id=\"myAgentNotes\""), "My panel study notes missing");
+assert(indexHtml.includes("data-my-filter=\"study\""), "Study notes filter missing");
+assert(appJs.includes("function renderMyAgentNotes"), "My agent notes renderer missing");
 assert(appJs.includes("function runBibleStudy"), "Bible study agent missing");
 assert(appJs.includes("function runAgent"), "Unified bible agent missing");
 assert(appJs.includes("function rememberFact"), "Long-term memory facts missing");
