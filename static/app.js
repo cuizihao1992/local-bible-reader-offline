@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.27.1";
+const APP_VERSION = "1.28.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -1020,7 +1020,9 @@ async function loadCommentary(snapshot = {}, token = null) {
     const data = await api(`/api/commentary?source=${encodeURIComponent(state.commentary)}&book=${snapshot.book || state.book}&chapter=${snapshot.chapter || state.chapter}`);
     if (token != null && token !== chapterLoadToken) return;
     renderCommentary(data);
-    commentaryHint.textContent = data.readable === false ? "该注释库可能已加密，正文无法直接显示。" : `${data.entries.length} 条`;
+    commentaryHint.textContent = data.encrypted && !data.readable
+      ? "正文已加密。有配图的会显示图片。"
+      : `${data.entries.length} 条`;
   } catch (error) {
     if (token != null && token !== chapterLoadToken) return;
     commentaryContent.innerHTML = `<div class="commentaryBlock"><div class="commentaryEntry">${escapeHtml(error.message)}</div></div>`;
@@ -1071,24 +1073,42 @@ function formatCommentaryRef(entry) {
     : `${entry.chapter}:${entry.fromVerse}`;
 }
 
+function renderModuleImages(images) {
+  if (!images?.length) return "";
+  return `<div class="dictImages">${images
+    .map((image) => `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.name || "")}" />`)
+    .join("")}</div>`;
+}
+
+function renderModuleBody(entry, emptyLabel = "（无文本）") {
+  if (entry.text) return `<div class="commentaryText">${linkVerseRefs(entry.text)}</div>${renderModuleImages(entry.images)}`;
+  if (entry.encrypted) {
+    return `<div class="panelHint">${entry.images?.length ? "文字已加密，配图仍可看。" : "这篇注释的文字已加密，暂时无法显示。"}</div>${renderModuleImages(entry.images)}`;
+  }
+  return `<div class="commentaryText">${emptyLabel}</div>${renderModuleImages(entry.images)}`;
+}
+
 function renderCommentary(data) {
   if (!data.entries.length) {
     commentaryContent.innerHTML = `<div class="commentaryBlock"><div class="commentaryHeader"><div class="commentaryTitle">${escapeHtml(data.title)}</div><div class="commentaryMeta">本章没有注释</div></div></div>`;
     return;
   }
+  const encryptedHint = data.encrypted && !data.entries.some((entry) => entry.text)
+    ? `<div class="panelHint">这篇注释库的正文是加密的，文字解不开。若有地图或配图，会显示在下面。</div>`
+    : "";
   commentaryContent.innerHTML = `
     <div class="commentaryBlock">
       <div class="commentaryHeader">
         <div class="commentaryTitle">${escapeHtml(data.title)}</div>
         <div class="commentaryMeta">${data.entries.length} 条</div>
       </div>
+      ${encryptedHint}
       ${data.entries
         .map(
           (entry) => `
             <article class="commentaryEntry" data-from="${entry.fromVerse}" data-to="${entry.toVerse}" data-jump-book="${state.book}" data-jump-chapter="${Number(entry.chapter || state.chapter) || state.chapter}" data-jump-verse="${Number(entry.fromVerse || 1)}">
               <div class="commentaryRef">${escapeHtml(formatCommentaryRef(entry))}</div>
-              <div class="commentaryText">${linkVerseRefs(entry.text || "（无文本）")}</div>
-              ${entry.hasImages ? `<div class="imageNote">本条含图片，当前版本先显示文字</div>` : ""}
+              ${renderModuleBody(entry)}
             </article>
           `,
         )
@@ -3502,12 +3522,8 @@ async function searchDictionary(query) {
             (item) => `
               <article class="resultItem">
                 <div class="resultRef">${escapeHtml(item.word)}</div>
-                <div class="resultText">${linkVerseRefs(item.text || "（无文本）")}</div>
-                ${
-                  item.images?.length
-                    ? `<div class="dictImages">${item.images.map((image) => `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.name)}" />`).join("")}</div>`
-                    : ""
-                }
+                <div class="resultText">${item.text ? linkVerseRefs(item.text) : item.encrypted ? (item.images?.length ? "说明已加密，配图仍可看。" : "词条说明已加密，无法显示。") : "（无文本）"}</div>
+                ${renderModuleImages(item.images)}
               </article>
             `,
           )
@@ -4109,9 +4125,12 @@ async function showCommentarySheet(verseNo) {
     });
     commentarySheetContent.innerHTML = entries.length
       ? `<div class="resultRef" style="margin-bottom:8px">${escapeHtml(data.title || "")}</div>` +
+        (data.encrypted && !entries.some((entry) => entry.text)
+          ? `<div class="panelHint">这篇注释的文字已加密，暂时无法显示。有地图或配图时会显示图片。</div>`
+          : "") +
         entries
           .map(
-            (entry) => `<article class="resultItem" data-jump-book="${state.book}" data-jump-chapter="${Number(entry.chapter || state.chapter) || state.chapter}" data-jump-verse="${Number(entry.fromVerse || 1)}"><div class="resultRef">${escapeHtml(formatCommentaryRef(entry))}</div><div class="resultText">${linkVerseRefs(entry.text || "（无文本）")}</div></article>`,
+            (entry) => `<article class="resultItem" data-jump-book="${state.book}" data-jump-chapter="${Number(entry.chapter || state.chapter) || state.chapter}" data-jump-verse="${Number(entry.fromVerse || 1)}"><div class="resultRef">${escapeHtml(formatCommentaryRef(entry))}</div><div class="resultText">${entry.text ? linkVerseRefs(entry.text) : entry.encrypted ? (entry.images?.length ? "文字已加密，配图仍可看。" : "文字已加密，无法显示。") : "（无文本）"}</div>${renderModuleImages(entry.images)}</article>`,
           )
           .join("")
       : `<div class="panelHint">这一节没有对应注释。</div>`;

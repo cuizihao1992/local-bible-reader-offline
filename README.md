@@ -5,14 +5,14 @@
 - 仓库：https://github.com/cuizihao1992/local-bible-reader-offline
 - 默认网页端口：`8766`
 - Android 包名：`local.bible.reader.next`
-- 当前版本：`1.27.1`
+- 当前版本：`1.28.0`
 
 ## 下载 Android APK
 
 从 [Releases](https://github.com/cuizihao1992/local-bible-reader-offline/releases) 下载：
 
 ```text
-local-bible-reader-offline-1.27.1-release.apk
+local-bible-reader-offline-1.28.0-release.apk
 ```
 
 内置译本：和合本、和合本修订版、KJV、WEB。
@@ -58,7 +58,7 @@ npm run dist:android
 生成文件：
 
 ```text
-D:\bible-reader\dist\android\local-bible-reader-offline-1.27.1-release.apk
+D:\bible-reader\dist\android\local-bible-reader-offline-1.28.0-release.apk
 ```
 
 APK 内置 `和合本`、`和合本修订版`、`KJV`、`WEB` 四个译本。安装后独立运行，不读电脑 D 盘。包名是 `local.bible.reader.next`，可以和原版同时安装。
@@ -80,7 +80,7 @@ npm start
 - 书卷搜索 / 旧约新约筛选 / 章节网格
 - `约3:16` 快速跳转和关键词搜索
 - 章节小标题（本译本或参考译本）
-- 注释联动
+- 注释联动；加密注释不再显示乱码，史地图等配图可看
 - Strong 编号和原文释义
 - 收藏、高亮、笔记、标签
 - 阅读进度、已读章节、下一未读章

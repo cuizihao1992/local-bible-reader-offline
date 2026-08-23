@@ -317,23 +317,46 @@ public class OfflineApi {
         if (!file.exists()) throw new Exception("找不到注释：" + source);
         SQLiteDatabase db = SQLiteDatabase.openDatabase(file.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
         JSONArray entries = new JSONArray();
-        try (Cursor cursor = db.rawQuery("select Chapter, FromVerse, ToVerse, Data from commentary where Book=? and (Chapter=? or Chapter=0) order by Chapter, FromVerse",
-                new String[]{String.valueOf(book), String.valueOf(chapter)})) {
+        boolean hasImagesCol = hasColumn(db, "commentary", "Images");
+        boolean encrypted = false;
+        String sql = hasImagesCol
+                ? "select Chapter, FromVerse, ToVerse, Data, Images from commentary where Book=? and (Chapter=? or Chapter=0) order by Chapter, FromVerse"
+                : "select Chapter, FromVerse, ToVerse, Data from commentary where Book=? and (Chapter=? or Chapter=0) order by Chapter, FromVerse";
+        try (Cursor cursor = db.rawQuery(sql, new String[]{String.valueOf(book), String.valueOf(chapter)})) {
             while (cursor.moveToNext()) {
+                String data = cursor.getString(3);
+                boolean rowEncrypted = looksEncrypted(data);
+                if (rowEncrypted) encrypted = true;
+                JSONArray images = new JSONArray();
+                if (hasImagesCol) {
+                    for (String name : parseImageNames(cursor.getString(4))) {
+                        images.put(new JSONObject()
+                                .put("name", name)
+                                .put("url", "/api/commentary/image?source=" + Uri.encode(source) + "&name=" + Uri.encode(name)));
+                    }
+                }
                 entries.put(new JSONObject()
                         .put("chapter", cursor.getInt(0))
                         .put("fromVerse", cursor.getInt(1))
                         .put("toVerse", cursor.getInt(2))
-                        .put("text", cleanText(cursor.getString(3)))
-                        .put("hasImages", false));
+                        .put("text", rowEncrypted ? "" : cleanText(data))
+                        .put("encrypted", rowEncrypted)
+                        .put("images", images)
+                        .put("hasImages", images.length() > 0));
             }
         } finally {
             db.close();
         }
+        boolean readable = false;
+        for (int i = 0; i < entries.length(); i++) {
+            if (entries.getJSONObject(i).optString("text").length() > 0) readable = true;
+        }
+        if (!encrypted) readable = true;
         return new JSONObject()
                 .put("source", source)
                 .put("title", source.replace(".db", ""))
-                .put("readable", true)
+                .put("readable", readable)
+                .put("encrypted", encrypted)
                 .put("book", book)
                 .put("chapter", chapter)
                 .put("entries", entries);
@@ -779,7 +802,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.27.1")
+                .put("version", "1.28.0")
                 .put("versionCount", versions().length());
     }
 
@@ -839,6 +862,53 @@ public class OfflineApi {
 
     private String safeName(String name) {
         return name == null ? "" : name.replace("/", "").replace("\\", "");
+    }
+
+    boolean hasColumn(SQLiteDatabase db, String table, String column) {
+        try (Cursor cursor = db.rawQuery("pragma table_info(" + table + ")", null)) {
+            while (cursor.moveToNext()) {
+                if (column.equals(cursor.getString(1))) return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    boolean looksEncrypted(String value) {
+        if (value == null) return false;
+        String text = value.trim();
+        if (text.length() < 24) return false;
+        if (text.matches("(?s).*[\u4e00-\u9fff].*")) return false;
+        if (text.contains("<p") || text.contains("<div") || text.contains("<b>") || text.contains("<br")) return false;
+        String compact = text.replaceAll("\\s+", "");
+        return compact.matches("[A-Za-z0-9+/=]+") && compact.length() % 4 == 0;
+    }
+
+    java.util.List<String> parseImageNames(String value) {
+        java.util.List<String> names = new ArrayList<>();
+        if (value == null || value.isEmpty()) return names;
+        for (String part : value.split("[;,\\n]")) {
+            String name = part.trim();
+            if (name.matches("(?i).+\\.(png|jpe?g|gif|webp|bmp)")) names.add(name);
+        }
+        return names;
+    }
+
+    byte[] readModuleImage(File dbFile, String imageName) {
+        if (dbFile == null || !dbFile.exists() || imageName == null || imageName.isEmpty()) return null;
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(dbFile.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
+        try (Cursor cursor = db.rawQuery("select Data from Images where FileName=?", new String[]{imageName})) {
+            if (!cursor.moveToNext()) return null;
+            return cursor.getBlob(0);
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            db.close();
+        }
+    }
+
+    File commentaryFile(String source) {
+        return new File(commentaryDir, safeName(source));
     }
 
     private String cleanText(String value) {

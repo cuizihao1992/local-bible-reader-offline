@@ -69,7 +69,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, {
         ok: true,
         app: "bible-reader",
-        version: "1.27.1",
+        version: "1.28.0",
         dataRoot: ROOT,
         biblesDir: BIBLES_DIR,
         commentariesDir: COMMENTARIES_DIR,
@@ -165,6 +165,10 @@ const server = createServer(async (req, res) => {
           parsePositiveInt(url.searchParams.get("chapter") || 1, "chapter"),
         ),
       );
+      return;
+    }
+    if (url.pathname === "/api/commentary/image") {
+      reader.sendCommentaryImage(res, url.searchParams.get("source") || "", url.searchParams.get("name") || "");
       return;
     }
     if (url.pathname === "/api/strong") {

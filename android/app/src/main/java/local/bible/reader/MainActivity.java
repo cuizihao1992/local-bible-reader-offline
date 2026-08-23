@@ -17,6 +17,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.net.Uri;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -112,6 +113,9 @@ public class MainActivity extends Activity {
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String path = request.getUrl().getPath();
                 if (path != null && path.startsWith("/api/")) {
+                    if ("/api/commentary/image".equals(path) || "/api/dictionary/image".equals(path)) {
+                        return imageResponse(request.getUrl());
+                    }
                     return jsonResponse(offlineApi.handle(request.getMethod(), request.getUrl()));
                 }
                 return super.shouldInterceptRequest(view, request);
@@ -148,5 +152,17 @@ public class MainActivity extends Activity {
                 "utf-8",
                 new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))
         );
+    }
+
+    private WebResourceResponse imageResponse(Uri uri) {
+        String source = uri.getQueryParameter("source");
+        String name = uri.getQueryParameter("name");
+        byte[] bytes = offlineApi.readModuleImage(offlineApi.commentaryFile(source), name);
+        if (bytes == null || bytes.length == 0) {
+            return new WebResourceResponse("text/plain", "utf-8", new ByteArrayInputStream(new byte[0]));
+        }
+        String lower = name == null ? "" : name.toLowerCase();
+        String mime = lower.endsWith(".jpg") || lower.endsWith(".jpeg") ? "image/jpeg" : "image/png";
+        return new WebResourceResponse(mime, null, new ByteArrayInputStream(bytes));
     }
 }

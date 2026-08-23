@@ -1,4 +1,5 @@
 import { fallbackBooks } from "../lib/books.js";
+import { decodeModuleText, looksEncrypted } from "../lib/text.js";
 
 const base = process.env.BIBLE_READER_URL || "http://127.0.0.1:8766";
 
@@ -107,6 +108,13 @@ assert(appJs.includes("function toggleAiNotes"), "AI notes collapse missing");
 assert(indexHtml.includes("id=\"myAgentNotes\""), "My panel study notes missing");
 assert(indexHtml.includes("data-my-filter=\"study\""), "Study notes filter missing");
 assert(appJs.includes("function renderMyAgentNotes"), "My agent notes renderer missing");
+assert(looksEncrypted("4w09I7ACRvw1x3Mp1672ify+DbbPBQR1G9h9VD7bIsSirxHf"), "Ciphertext should look encrypted");
+assert(!looksEncrypted("<p><b>五经总论</b></p>"), "HTML commentary should not look encrypted");
+assert(decodeModuleText("4w09I7ACRvw1x3Mp1672ify+DbbPBQR1G9h9VD7bIsSirxHf").encrypted, "Ciphertext must not be shown as text");
+assert(!decodeModuleText("<p><b>五经总论</b></p>").encrypted, "Plain HTML must remain readable");
+assert(appJs.includes("function renderModuleImages"), "Commentary/dictionary image renderer missing");
+assert(appJs.includes("文字已加密") || appJs.includes("正文已加密"), "Encrypted commentary message missing");
+assert(appJs.includes("renderModuleBody") || appJs.includes("配图仍可看"), "Encrypted module image fallback missing");
 assert(appJs.includes("function runBibleStudy"), "Bible study agent missing");
 assert(appJs.includes("function runAgent"), "Unified bible agent missing");
 assert(appJs.includes("function rememberFact"), "Long-term memory facts missing");
