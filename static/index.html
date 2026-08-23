@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.20.0</p>
+            <p>设置 · 1.21.0</p>
           </div>
         </div>
       </div>
@@ -389,7 +389,7 @@
         <div class="sheetBody">
           <div id="aiActionRow" class="chipRow">
             <button type="button" data-ai-action="study">查经</button>
-            <button type="button" data-ai-action="explain">讲解本节</button>
+            <button type="button" data-ai-action="explain">讲解经文</button>
             <button type="button" data-ai-action="summary">本章摘要</button>
             <button type="button" data-ai-action="polish">润色笔记</button>
           </div>
@@ -448,7 +448,7 @@
         </div>
         <div class="sheetSection settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.20.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.21.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -485,6 +485,7 @@
       <button type="button" data-menu-action="highlight">高亮</button>
       <button type="button" data-menu-action="note">笔记</button>
       <button type="button" data-menu-action="copy">复制</button>
+      <button type="button" data-menu-action="explain">讲解</button>
       <button type="button" id="verseMenuMoreBtn" data-menu-action="more">更多</button>
       <div id="verseMenuMore" class="verseMenuMore" hidden>
         <button type="button" data-menu-action="copy-reference">复制（带出处）</button>
@@ -492,7 +493,6 @@
         <button type="button" data-menu-action="copy-numbered">复制（带节号）</button>
         <button type="button" data-menu-action="compare">对照</button>
         <button type="button" data-menu-action="commentary">注释</button>
-        <button type="button" data-menu-action="explain">讲解</button>
         <button type="button" data-menu-action="ask">提问</button>
         <button type="button" data-menu-action="share">分享</button>
         <button type="button" data-menu-action="dictionary">查词</button>
@@ -513,6 +513,7 @@
         <button type="button" data-bar-action="favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l2.2 4.5 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L4.8 9.7l5-.7z"/></svg>收藏</button>
         <button type="button" data-bar-action="highlight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19h14M8 16l8-8 3 3-8 8H8z"/></svg>高亮</button>
         <button type="button" data-bar-action="note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h9l3 3v11H6zM15 5v4h4"/></svg>笔记</button>
+        <button type="button" data-bar-action="explain"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h10M5 18h7"/></svg>讲解</button>
         <button type="button" data-bar-action="copy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="1.5"/><path d="M5 16V5h10"/></svg>复制</button>
         <button type="button" data-bar-action="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg>更多</button>
         <button id="cancelSelectionBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>取消</button>

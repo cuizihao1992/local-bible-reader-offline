@@ -698,6 +698,9 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
 .verseMenu {
   position: fixed; z-index: 20; min-width: 176px; padding: 6px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+  max-height: min(72vh, calc(100dvh - 24px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .verseMenu[hidden], .selectionBar[hidden], .statusPanel[hidden], [hidden] { display: none !important; }
 .verseMenuTitle { color: var(--muted); font-size: 12px; font-weight: 500; padding: 6px 8px 8px; }
@@ -715,7 +718,7 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
   border-radius: 16px; box-shadow: var(--shadow); transform: translateX(-50%);
 }
 .selectionBar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--muted); text-align: center; }
-.actionBarButtons { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+.actionBarButtons { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .actionBarButtons button {
   display: grid; justify-items: center; gap: 3px;
   min-height: 48px; border: 0; border-radius: var(--radius);

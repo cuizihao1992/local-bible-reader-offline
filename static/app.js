@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.20.0";
+const APP_VERSION = "1.21.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -2115,17 +2115,20 @@ function agentToolLabel(call) {
   return call.tool || "工具";
 }
 
-function agentSystemPrompt(skill, mode = "ask") {
-  const ctx = aiContext();
+function agentSystemPrompt(skill, mode = "ask", verseList) {
+  const ctx = aiContext(null, verseList);
   const facts = (agentMemory.facts || []).slice(-40);
   const factLines = facts.length
     ? facts.map((item) => `- (${item.kind || "topic"}) ${item.text}`).join("\n")
     : "（暂无长期记忆）";
+  const many = (ctx.verses || []).length > 1;
   const modeLine =
     mode === "study"
       ? "这次用户在查经，必须用工具取经文后再回答，不要直接编章节。"
       : mode === "explain"
-        ? "请讲解当前经文。引用其它章节时先用工具。"
+        ? many
+          ? `请把这 ${ctx.verses.length} 节当作一段来讲解，说明节与节的关系。引用其它章节时先用工具。`
+          : "请讲解当前经文。引用其它章节时先用工具。"
         : mode === "summary"
           ? "请概括本章。只根据当前章摘录，不要编其它章。"
           : mode === "polish"
@@ -2150,29 +2153,35 @@ async function runAgent(question, options = {}) {
   if (!requireAiKey()) return;
   const query = String(question || "").trim();
   const mode = options.mode || (looksLikeStudyQuery(query) ? "study" : "ask");
+  const verses = (options.verses && options.verses.length ? options.verses : aiVerseNumbers(options.verseNo))
+    .map(Number)
+    .filter((n) => n >= 1);
   const token = options.token || beginJob(mode === "study" ? "正在查经..." : "正在想...");
   if (!query) {
     finishJob(token, mode === "study" ? "请先说出或输入要找的经文" : "请先输入问题", "info");
     return;
   }
   if (!jobAlive(token)) return;
-  if (options.verseNo) state.activeVerse = Number(options.verseNo);
+  if (verses[0]) state.activeVerse = verses[0];
   if (mode === "polish") {
-    const ctx = aiContext(options.verseNo);
+    const ctx = aiContext(null, verses);
     if (!ctx.note) {
-      openAiSheet("助手", options.verseNo);
+      openAiSheet("助手", verses[0] || options.verseNo);
       renderAgentChat(`<div class="panelHint">这一节还没有笔记。先写笔记再润色。</div>`);
       finishJob(token, "这一节还没有笔记", "info");
       return;
     }
   }
   rememberAgentTurn("user", query);
-  openAiSheet(mode === "study" ? "智能查经" : "助手 · 智能查经", options.verseNo || state.activeVerse);
+  openAiSheet(
+    mode === "explain" && verses.length > 1 ? `讲解 ${verses.length} 节` : mode === "study" ? "智能查经" : "助手 · 智能查经",
+    verses[0] || options.verseNo || state.activeVerse,
+  );
   const steps = [{ text: `正在理解：${query.slice(0, 40)}` }];
   renderStudyProgress(steps, "等待模型...");
   const skill = await loadBibleStudySkill();
   if (!jobAlive(token)) return;
-  const messages = [{ role: "system", content: agentSystemPrompt(skill, mode) }];
+  const messages = [{ role: "system", content: agentSystemPrompt(skill, mode, verses) }];
   agentMemory.turns.slice(-PROMPT_TURNS).forEach((item) => {
     messages.push({ role: item.role === "user" ? "user" : "assistant", content: item.text });
   });
@@ -2457,28 +2466,34 @@ function requireMimoKey() {
 }
 
 function aiVerseNumbers(verseNo) {
-  if (selectedVerseNumbers.length) return selectedVerseNumbers;
-  if (verseNo) return [Number(verseNo)];
+  if (selectedVerseNumbers.length) return selectedVerseNumbers.map(Number).filter((n) => n >= 1);
+  if (verseNo) return [Number(verseNo)].filter((n) => n >= 1);
   if (state.activeVerse) return [state.activeVerse];
   return [];
 }
 
-function aiContext(verseNo) {
-  const verses = aiVerseNumbers(verseNo);
+function verseSelectionLabel(verses) {
   const book = currentBook();
-  const ref =
-    verses.length > 1
-      ? `${book.longName} ${state.chapter}:${verses[0]}-${verses[verses.length - 1]}`
-      : verses.length === 1
-        ? `${book.longName} ${state.chapter}:${verses[0]}`
-        : `${book.longName} ${state.chapter}章`;
+  const nums = (verses || []).map(Number).filter((n) => n >= 1);
+  if (!book) return "";
+  if (!nums.length) return `${book.longName} ${state.chapter}章`;
+  if (nums.length === 1) return `${book.longName} ${state.chapter}:${nums[0]}`;
+  const sorted = [...nums].sort((a, b) => a - b);
+  const consecutive = sorted.every((n, i) => i === 0 || n === sorted[i - 1] + 1);
+  if (consecutive) return `${book.longName} ${state.chapter}:${sorted[0]}-${sorted[sorted.length - 1]}`;
+  return `${book.longName} ${state.chapter}:${sorted.join(",")}`;
+}
+
+function aiContext(verseNo, verseList) {
+  const verses = (Array.isArray(verseList) && verseList.length ? verseList : aiVerseNumbers(verseNo)).map(Number).filter((n) => n >= 1);
   const verseText = verses.map((n) => `${n}. ${verseTextForNumber(n)}`).filter((line) => !line.endsWith(". ")).join("\n");
   return {
-    ref,
+    ref: verseSelectionLabel(verses),
     version: versionLabel(state.version),
     verseText: verseText || "（未选中经文）",
     chapterText: chapterPlainText().slice(0, 1800),
     note: verses[0] ? markForVerse(verses[0]).note || "" : "",
+    verses,
   };
 }
 
@@ -2492,9 +2507,15 @@ function openAiSheet(title, verseNo, focusAsk = false) {
 }
 
 async function runAiTask(kind, verseNo, question = "") {
-  const labels = { summary: "请概括本章", polish: "请润色我的笔记", ask: question, explain: "请讲解这节经文" };
+  const verses = aiVerseNumbers(verseNo);
+  const labels = {
+    summary: "请概括本章",
+    polish: "请润色我的笔记",
+    ask: question,
+    explain: verses.length > 1 ? `请讲解这 ${verses.length} 节经文（${verseSelectionLabel(verses)}）` : "请讲解这节经文",
+  };
   const userText = String(labels[kind] || question || "请讲解这节经文").trim();
-  return runAgent(userText, { mode: kind || "ask", verseNo });
+  return runAgent(userText, { mode: kind || "ask", verseNo: verses[0] || verseNo, verses });
 }
 
 function saveAiSettings() {
@@ -3210,23 +3231,47 @@ async function writeClipboard(text) {
   area.remove();
 }
 
+let verseMenuPoint = { x: 12, y: 12 };
+
 function setVerseMenuMore(show) {
   if (verseMenuMore) verseMenuMore.hidden = !show;
   if (verseMenuMoreBtn) verseMenuMoreBtn.textContent = show ? "收起" : "更多";
+  if (!verseMenu.hidden) placeVerseMenu();
+}
+
+function placeVerseMenu(x = verseMenuPoint.x, y = verseMenuPoint.y) {
+  verseMenuPoint = { x: Number(x) || 12, y: Number(y) || 12 };
+  if (!verseMenu || verseMenu.hidden) return;
+  const pad = 8;
+  const barTop = selectionBar && !selectionBar.hidden ? selectionBar.getBoundingClientRect().top : window.innerHeight;
+  const limitBottom = Math.min(window.innerHeight - pad, barTop - 8);
+  const maxH = Math.max(140, limitBottom - pad);
+  verseMenu.style.maxHeight = `${maxH}px`;
+  verseMenu.style.overflowY = "auto";
+  const width = verseMenu.offsetWidth || 176;
+  const height = Math.min(verseMenu.scrollHeight || verseMenu.offsetHeight, maxH);
+  const left = Math.max(pad, Math.min(verseMenuPoint.x, window.innerWidth - width - pad));
+  let top = verseMenuPoint.y;
+  if (top + height > limitBottom) top = limitBottom - height;
+  top = Math.max(pad, top);
+  verseMenu.style.left = `${left}px`;
+  verseMenu.style.top = `${top}px`;
 }
 
 function openVerseMenu(verseNo, x, y, expandMore = false) {
   const mark = markForVerse(verseNo);
   state.activeVerse = Number(verseNo);
   rememberReadingPosition(verseNo);
-  verseMenuTitle.textContent = `${currentBook().longName} ${state.chapter}:${verseNo}`;
+  const nums =
+    selectedVerseNumbers.length && selectedVerseNumbers.includes(Number(verseNo))
+      ? selectedVerseNumbers
+      : [Number(verseNo)];
+  verseMenuTitle.textContent = verseSelectionLabel(nums);
   verseMenu.querySelector('[data-menu-action="favorite"]').textContent = mark.favorite ? "取消收藏" : "收藏";
   verseMenu.querySelector('[data-menu-action="highlight"]').textContent = mark.highlighted ? "取消高亮" : "高亮";
-  setVerseMenuMore(expandMore);
   verseMenu.hidden = false;
-  const rect = verseMenu.getBoundingClientRect();
-  verseMenu.style.left = `${Math.max(10, Math.min(x, window.innerWidth - rect.width - 10))}px`;
-  verseMenu.style.top = `${Math.max(10, Math.min(y, window.innerHeight - rect.height - 10))}px`;
+  setVerseMenuMore(expandMore);
+  placeVerseMenu(x, y);
 }
 
 function closeVerseMenu() {
@@ -3355,10 +3400,6 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
   if (action === "multi") {
     verseSelectionMode = "multi";
     showStatus("再点经文可连选");
-    return;
-  }
-  if (action === "more") {
-    setVerseMenuMore(verseMenuMore ? verseMenuMore.hidden : true);
     return;
   }
   if (action === "copy" || action === "copy-reference" || action === "copy-plain" || action === "copy-numbered") {
