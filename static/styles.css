@@ -611,6 +611,46 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
   font-size: 12px;
   line-height: 1.4;
 }
+.aiNoteList { display: grid; gap: 8px; margin: 0 0 12px; }
+.aiNoteList[hidden] { display: none; }
+.aiNoteCard {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--soft);
+  font-family: var(--ui-font);
+}
+.aiNoteCard.active { outline: 1px solid var(--accent); }
+.aiNoteTitle { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.aiNoteSummary { font-size: 13px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; }
+.aiNoteRefs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.aiNoteRef {
+  border: 0;
+  border-radius: 999px;
+  background: var(--control);
+  color: var(--accent);
+  font-size: 12px;
+  min-height: 26px;
+  padding: 0 8px;
+}
+.aiNoteActions { display: flex; gap: 8px; margin-top: 8px; }
+.aiNoteActions button {
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--control);
+  color: var(--ink);
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.aiNoteSaved {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--soft));
+  font-family: var(--ui-font);
+  font-size: 13px;
+}
+.aiFact.active { background: color-mix(in srgb, var(--accent) 18%, var(--soft)); }
 .aiFactText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 16em; }
 .aiFact button {
   border: 0;

@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.22.0";
+const APP_VERSION = "1.23.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -220,7 +220,9 @@ const studySearchBtn = $("#studySearchBtn");
 const aiSheet = $("#aiSheet");
 const aiSheetTitle = $("#aiSheetTitle");
 const aiSheetContent = $("#aiSheetContent");
+const aiNoteList = $("#aiNoteList");
 const aiMemoryBar = $("#aiMemoryBar");
+const saveAiNoteBtn = $("#saveAiNoteBtn");
 const aiAskForm = $("#aiAskForm");
 const aiAskInput = $("#aiAskInput");
 const closeAiSheetBtn = $("#closeAiSheetBtn");
@@ -2143,6 +2145,15 @@ function agentSystemPrompt(skill, mode = "ask", verseList) {
     ctx.note ? `本节笔记：${ctx.note}` : "",
     ctx.chapterText ? `本章摘录：${ctx.chapterText.slice(0, 700)}` : "",
     `长期记忆（跨会话，只信任这些条目）：\n${factLines}`,
+    activeAgentNote()
+      ? `当前查经笔记《${activeAgentNote().title}》：\n${activeAgentNote().summary}${
+          (activeAgentNote().refs || []).length
+            ? `\n相关经文：${activeAgentNote()
+                .refs.map((item) => `${item.book} ${item.chapter}:${item.verse}${item.why ? `（${item.why}）` : ""}`)
+                .join("；")}`
+            : ""
+        }\n用户是在这篇笔记上继续问，要接上笔记内容，不要当全新话题。`
+      : "",
     agentMemory.summary ? `更早对话摘要：\n${agentMemory.summary}` : "",
   ]
     .filter(Boolean)
@@ -2262,7 +2273,7 @@ async function understandSpokenCommand(spoken) {
 }
 
 const FACT_KINDS = ["profile", "reading", "preference", "topic"];
-const agentMemory = { facts: [], summary: "", turns: [] };
+const agentMemory = { facts: [], summary: "", turns: [], notes: [], activeNoteId: null };
 
 function newFactId() {
   return `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -2319,10 +2330,14 @@ function loadAgentMemory() {
       ? saved.facts.filter((item) => item && item.text).slice(-40)
       : [];
     agentMemory.summary = String(saved.summary || "").slice(-2400);
+    agentMemory.notes = Array.isArray(saved.notes) ? saved.notes.filter((item) => item && item.summary).slice(-30) : [];
+    agentMemory.activeNoteId = saved.activeNoteId || null;
   } catch {
     agentMemory.turns = [];
     agentMemory.facts = [];
     agentMemory.summary = "";
+    agentMemory.notes = [];
+    agentMemory.activeNoteId = null;
   }
 }
 
@@ -2334,8 +2349,16 @@ function saveAgentMemory() {
       turns: agentMemory.turns.slice(-HISTORY_MAX),
       facts: (agentMemory.facts || []).slice(-40),
       summary: String(agentMemory.summary || "").slice(-2400),
+      notes: (agentMemory.notes || []).slice(-30),
+      activeNoteId: agentMemory.activeNoteId || null,
     }),
   );
+}
+
+function activeAgentNote() {
+  const id = agentMemory.activeNoteId;
+  if (!id) return null;
+  return (agentMemory.notes || []).find((item) => item.id === id) || null;
 }
 
 function readingRefLabel() {
@@ -2362,26 +2385,166 @@ function clearAgentMemory() {
   agentMemory.turns = [];
   agentMemory.facts = [];
   agentMemory.summary = "";
+  agentMemory.activeNoteId = null;
   saveAgentMemory();
   renderAgentChat();
-  showStatus("已清空助手记忆", "info");
+  showStatus("已清空对话记忆，查经笔记仍保留", "info");
+}
+
+function normalizeNoteRefs(refs) {
+  return (Array.isArray(refs) ? refs : [])
+    .map((item) => {
+      const book = resolveBookName(item.book);
+      if (!book || !item.chapter) return null;
+      return {
+        book: book.longName,
+        chapter: Number(item.chapter),
+        verse: Number(item.verse) || 1,
+        why: String(item.why || "").slice(0, 40),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+function upsertAgentNote(note) {
+  const next = {
+    id: note.id || newFactId(),
+    title: String(note.title || "查经笔记").trim().slice(0, 24) || "查经笔记",
+    summary: String(note.summary || "").trim().slice(0, 800),
+    refs: normalizeNoteRefs(note.refs),
+    ref: readingRefLabel(),
+    at: note.at || Date.now(),
+    updatedAt: Date.now(),
+  };
+  if (!next.summary) return null;
+  const list = agentMemory.notes || [];
+  const index = list.findIndex((item) => item.id === next.id);
+  if (index >= 0) list[index] = next;
+  else list.push(next);
+  agentMemory.notes = list.slice(-30);
+  agentMemory.activeNoteId = next.id;
+  saveAgentMemory();
+  return next;
+}
+
+function deleteAgentNote(id) {
+  agentMemory.notes = (agentMemory.notes || []).filter((item) => item.id !== id);
+  if (agentMemory.activeNoteId === id) agentMemory.activeNoteId = null;
+  saveAgentMemory();
+}
+
+function continueAgentNote(id) {
+  const note = (agentMemory.notes || []).find((item) => item.id === id);
+  if (!note) return;
+  agentMemory.activeNoteId = note.id;
+  saveAgentMemory();
+  openAiSheet("继续笔记");
+  renderAgentChat(
+    `<div class="panelHint">正在根据《${escapeHtml(note.title)}》继续。直接提问即可，例如「再展开这一点」或「相关经文还有哪些」。</div>`,
+  );
+  aiAskInput?.focus();
+}
+
+async function distillConversationToNote() {
+  if (!requireAiKey()) return;
+  const turns = (agentMemory.turns || []).slice(-24);
+  if (turns.length < 2) {
+    showStatus("先聊几句再整理成笔记", "info");
+    openAiSheet("助手 · 智能查经");
+    return;
+  }
+  const token = beginJob("正在整理笔记...");
+  openAiSheet("助手 · 智能查经");
+  renderStudyProgress([{ text: "正在把这次对话收成笔记" }], "等待模型...");
+  const transcript = turns
+    .map((item) => `${item.role === "user" ? "用户" : "助手"}：${item.text}`)
+    .join("\n")
+    .slice(0, 6000);
+  try {
+    const raw = await llmChat([
+      {
+        role: "user",
+        content: [
+          "把下面圣经阅读对话整理成一条中文笔记。只输出一个 JSON，不要 Markdown。",
+          '{"title":"不超过16字","summary":"200字内要点和结论","refs":[{"book":"约翰福音","chapter":3,"verse":16,"why":"关键经文"}]}',
+          "refs 必须来自对话里出现过的章节，禁止编造。没有经文时 refs 为空数组。",
+          "对话：",
+          transcript,
+        ].join("\n"),
+      },
+    ]);
+    if (!jobAlive(token)) return;
+    const data = extractJsonObject(raw) || {};
+    const summary = String(data.summary || raw || "").replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+    const note = upsertAgentNote({
+      title: data.title,
+      summary,
+      refs: data.refs,
+    });
+    if (!note) throw new Error("没有整理出可用笔记");
+    rememberFact(`笔记《${note.title}》`, "topic");
+    renderAgentChat(`<div class="aiNoteSaved">已保存笔记《${escapeHtml(note.title)}》。点「继续」可以按这篇再问。</div>`);
+    finishJob(token, `已整理成笔记：${note.title}`, "success");
+  } catch (error) {
+    if (!jobAlive(token)) return;
+    renderAgentChat(`<div class="error">${escapeHtml(error.message || "整理笔记失败")}</div>`);
+    finishJob(token, error.message || "整理笔记失败", "error");
+  }
+}
+
+function renderAgentNoteList() {
+  if (!aiNoteList) return;
+  const notes = [...(agentMemory.notes || [])].reverse().slice(0, 12);
+  if (!notes.length) {
+    aiNoteList.hidden = true;
+    aiNoteList.innerHTML = "";
+    return;
+  }
+  const activeId = agentMemory.activeNoteId;
+  aiNoteList.hidden = false;
+  aiNoteList.innerHTML = `<div class="aiHistoryHead">查经笔记 · ${agentMemory.notes.length} 篇</div>${notes
+    .map((item) => {
+      const refs = (item.refs || [])
+        .map((ref) => {
+          const book = resolveBookName(ref.book);
+          if (!book) return "";
+          return `<button class="aiNoteRef" type="button" data-jump-book="${book.id}" data-jump-chapter="${Number(ref.chapter)}" data-jump-verse="${Number(ref.verse) || 1}">${escapeHtml(book.longName)} ${Number(ref.chapter)}:${Number(ref.verse) || 1}</button>`;
+        })
+        .join("");
+      return `<article class="aiNoteCard${item.id === activeId ? " active" : ""}">
+        <div class="aiNoteTitle">${escapeHtml(item.title)}</div>
+        <div class="aiNoteSummary">${escapeHtml(item.summary)}</div>
+        ${refs ? `<div class="aiNoteRefs">${refs}</div>` : ""}
+        <div class="aiNoteActions">
+          <button type="button" data-continue-note="${escapeHtml(item.id)}">${item.id === activeId ? "正在用这篇" : "继续"}</button>
+          <button type="button" data-delete-note="${escapeHtml(item.id)}">删除</button>
+        </div>
+      </article>`;
+    })
+    .join("")}`;
 }
 
 function renderAgentMemoryBar() {
   if (!aiMemoryBar) return;
+  const note = activeAgentNote();
   const facts = (agentMemory.facts || []).slice(-8);
-  if (!facts.length) {
+  if (!note && !facts.length) {
     aiMemoryBar.hidden = true;
     aiMemoryBar.innerHTML = "";
     return;
   }
   aiMemoryBar.hidden = false;
-  aiMemoryBar.innerHTML = facts
+  const noteChip = note
+    ? `<span class="aiFact active"><span class="aiFactText">笔记 · ${escapeHtml(note.title)}</span><button type="button" data-unpin-note aria-label="不用这篇">×</button></span>`
+    : "";
+  const factChips = facts
     .map(
       (item) =>
         `<span class="aiFact"><span class="aiFactText">${escapeHtml(item.text)}</span><button type="button" data-forget-id="${escapeHtml(item.id)}" aria-label="忘掉这条">×</button></span>`,
     )
     .join("");
+  aiMemoryBar.innerHTML = `${noteChip}${factChips}`;
 }
 
 function formatTurnDay(at) {
@@ -2420,6 +2583,7 @@ function renderAgentTurnsHtml(turns) {
 
 function renderAgentChat(extraHtml = "") {
   if (!aiSheetContent) return;
+  renderAgentNoteList();
   renderAgentMemoryBar();
   const turns = agentMemory.turns || [];
   const summary = String(agentMemory.summary || "").trim();
@@ -2432,7 +2596,7 @@ function renderAgentChat(extraHtml = "") {
     head +
     (html || summaryHtml
       ? `${summaryHtml}${html}`
-      : `<div class="panelHint">可以问这节的意思，或点搜索里的「智能查经」。查经、讲解、闲聊都在这里，记录会留下来。</div>`) +
+      : `<div class="panelHint">可以问这节的意思，或点搜索里的「智能查经」。聊完可点「整理成笔记」，之后还能按笔记继续问。</div>`) +
     extraHtml;
   aiSheetContent.scrollTop = aiSheetContent.scrollHeight;
 }
@@ -4609,8 +4773,31 @@ closeCommentarySheetBtn?.addEventListener("click", dismissSheet);
 closeShareSheetBtn?.addEventListener("click", dismissSheet);
 closeNoteSheetBtn?.addEventListener("click", dismissSheet);
 closeAiSheetBtn?.addEventListener("click", dismissSheet);
+saveAiNoteBtn?.addEventListener("click", distillConversationToNote);
 clearAiMemoryBtn?.addEventListener("click", clearAgentMemory);
+aiNoteList?.addEventListener("click", (event) => {
+  const cont = event.target.closest("[data-continue-note]");
+  if (cont) {
+    event.stopPropagation();
+    continueAgentNote(cont.dataset.continueNote);
+    return;
+  }
+  const del = event.target.closest("[data-delete-note]");
+  if (del) {
+    event.stopPropagation();
+    deleteAgentNote(del.dataset.deleteNote);
+    renderAgentChat();
+    showStatus("已删除笔记", "info");
+  }
+});
 aiMemoryBar?.addEventListener("click", (event) => {
+  if (event.target.closest("[data-unpin-note]")) {
+    agentMemory.activeNoteId = null;
+    saveAgentMemory();
+    renderAgentChat();
+    showStatus("已离开这篇笔记", "info");
+    return;
+  }
   const button = event.target.closest("[data-forget-id]");
   if (!button) return;
   forgetFact(button.dataset.forgetId);
