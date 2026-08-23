@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.21.0";
+const APP_VERSION = "1.22.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -3100,16 +3100,26 @@ async function searchDictionary(query = dictionaryInput.value.trim()) {
   }
 }
 
-async function openMyPanel(kind = "all") {
+let myPanelKind = "all";
+const myMarksByKey = new Map();
+
+function myMarkKey(item) {
+  return `${item.version}:${item.book}:${item.chapter}:${item.verse}`;
+}
+
+async function openMyPanel(kind = "all", options = {}) {
   if (myPanelLoading) {
     showStatus("正在读取我的内容，请稍候");
     return;
   }
+  myPanelKind = kind || "all";
   const token = ++myPanelRequestToken;
   myPanelLoading = true;
-  closeContentPanels();
-  myPanel.hidden = false;
-  setNav("my");
+  if (!options.refresh) {
+    closeContentPanels();
+    myPanel.hidden = false;
+    setNav("my");
+  }
   renderMyProgress();
   myResults.innerHTML = `<div class="loading">正在读取我的收藏与笔记...</div>`;
   document.querySelectorAll("[data-my-filter]").forEach((button) => {
@@ -3135,18 +3145,45 @@ async function openMyPanel(kind = "all") {
 }
 
 function renderMyResults(marks) {
+  myMarksByKey.clear();
+  (marks || []).forEach((item) => myMarksByKey.set(myMarkKey(item), item));
   myResults.innerHTML = marks.length
     ? marks
-        .map(
-          (item) => `
+        .map((item) => {
+          const summary = item.note || item.tags || (item.highlighted ? "高亮经文" : item.favorite ? "收藏" : "");
+          const remove = item.favorite
+            ? `<button class="myItemRemove" type="button" data-unfavorite="${escapeHtml(myMarkKey(item))}">取消收藏</button>`
+            : "";
+          return `<div class="myItem">
             <button class="resultItem" type="button" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">
               <div class="resultRef">${escapeHtml(item.bookName)} ${item.chapter}:${item.verse} ${item.favorite ? "★" : ""} ${item.highlighted ? "高亮" : ""}</div>
-              <div class="resultText">${escapeHtml(item.note || item.tags || (item.highlighted ? "高亮经文" : "收藏"))}</div>
+              <div class="resultText">${escapeHtml(summary)}</div>
             </button>
-          `,
-        )
+            ${remove}
+          </div>`;
+        })
         .join("")
     : `<div class="panelHint">这里还是空的</div>`;
+}
+
+async function unfavoriteFromMy(key) {
+  const item = myMarksByKey.get(key);
+  if (!item) return;
+  await saveVerseMark(
+    {
+      version: item.version || state.version,
+      book: item.book,
+      chapter: item.chapter,
+      verse: item.verse,
+      favorite: false,
+      highlighted: !!item.highlighted,
+      highlightColor: item.highlightColor || "",
+      note: item.note || "",
+      tags: item.tags || "",
+    },
+    { successMessage: "已取消收藏" },
+  );
+  if (!myPanel.hidden) await openMyPanel(myPanelKind, { refresh: true });
 }
 
 function updateVerseMarkDom(mark) {
@@ -3175,10 +3212,15 @@ async function saveVerseMark(mark, options = {}) {
   markSavingKeys.add(key);
   try {
     const data = await postJson("/api/user/mark", mark);
-    state.marks.set(Number(data.mark.verse), data.mark);
-    updateVerseMarkDom(data.mark);
+    const saved = data.mark;
+    const sameChapter =
+      saved.version === state.version && Number(saved.book) === Number(state.book) && Number(saved.chapter) === Number(state.chapter);
+    if (sameChapter) {
+      state.marks.set(Number(saved.verse), saved);
+      updateVerseMarkDom(saved);
+    }
     if (options.successMessage) showStatus(options.successMessage, "success");
-    return data.mark;
+    return saved;
   } finally {
     markSavingKeys.delete(key);
   }
@@ -4951,6 +4993,12 @@ document.body.addEventListener("click", async (event) => {
 });
 
 myResults.addEventListener("click", async (event) => {
+  const remove = event.target.closest("[data-unfavorite]");
+  if (remove) {
+    event.preventDefault();
+    await unfavoriteFromMy(remove.dataset.unfavorite);
+    return;
+  }
   const button = event.target.closest("[data-jump-book]");
   if (!button) return;
   await jumpToReference({

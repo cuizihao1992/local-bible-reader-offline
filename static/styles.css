@@ -361,6 +361,18 @@ select, input[type="search"], input[type="text"] {
 .verseStepPanel { margin-top: 0; }
 
 .resultList { display: grid; gap: 8px; }
+.myItem { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: stretch; }
+.myItemRemove {
+  align-self: center;
+  min-height: 36px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--control);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
 .resultItem {
   display: grid; gap: 4px; width: 100%;
   text-align: left; border: 0; border-radius: var(--radius);

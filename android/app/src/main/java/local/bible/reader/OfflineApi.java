@@ -594,9 +594,11 @@ public class OfflineApi {
         List<String> args = new ArrayList<>();
         List<String> where = new ArrayList<>();
         if ("favorite".equals(kind)) where.add("favorite = 1");
-        if ("note".equals(kind)) where.add("(note <> '' or tags <> '')");
-        if ("highlight".equals(kind) || "highlighted".equals(kind)) {
+        else if ("note".equals(kind)) where.add("(note <> '' or tags <> '')");
+        else if ("highlight".equals(kind) || "highlighted".equals(kind)) {
             where.add("(highlighted = 1 or ifnull(highlight_color, '') <> '')");
+        } else {
+            where.add("(favorite = 1 or highlighted = 1 or ifnull(highlight_color, '') <> '' or note <> '' or tags <> '')");
         }
         if (!tag.isEmpty()) {
             where.add("tags like ?");
@@ -663,8 +665,8 @@ public class OfflineApi {
         values.put("book", body.optInt("book"));
         values.put("chapter", body.optInt("chapter"));
         values.put("verse", body.optInt("verse"));
-        values.put("favorite", body.optBoolean("favorite") ? 1 : 0);
-        values.put("highlighted", body.optBoolean("highlighted") ? 1 : 0);
+        values.put("favorite", jsonFlag(body, "favorite") ? 1 : 0);
+        values.put("highlighted", jsonFlag(body, "highlighted") ? 1 : 0);
         values.put("note", body.optString("note", ""));
         values.put("tags", body.optString("tags", ""));
         String highlightColor = body.optString("highlightColor", body.optString("highlight_color", ""));
@@ -777,7 +779,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.21.0")
+                .put("version", "1.22.0")
                 .put("versionCount", versions().length());
     }
 
@@ -800,6 +802,15 @@ public class OfflineApi {
                 .put("updatedAt", cursor.getString(8))
                 .put("highlightColor", cursor.getColumnCount() > 9 ? cursor.getString(9) : "")
                 .put("highlighted", cursor.getInt(5) == 1 || (cursor.getColumnCount() > 9 && cursor.getString(9) != null && !cursor.getString(9).isEmpty()));
+    }
+
+    private boolean jsonFlag(JSONObject body, String key) {
+        if (body == null || !body.has(key) || body.isNull(key)) return false;
+        Object value = body.opt(key);
+        if (value instanceof Boolean) return (Boolean) value;
+        if (value instanceof Number) return ((Number) value).intValue() != 0;
+        String text = String.valueOf(value).trim();
+        return "1".equals(text) || "true".equalsIgnoreCase(text);
     }
 
     private SQLiteDatabase openBible(String version) {

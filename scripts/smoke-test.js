@@ -194,6 +194,8 @@ assert(appJs.includes("readFont"), "Read font setting missing");
 assert(appJs.includes("copyFormat"), "Copy format setting missing");
 assert(appJs.includes("setSpeakingVerse"), "TTS verse highlight missing");
 assert(appJs.includes("ttsRate"), "TTS rate setting missing");
+assert(appJs.includes("function unfavoriteFromMy"), "Unfavorite from My list missing");
+assert(appJs.includes("data-unfavorite"), "Unfavorite button missing");
 assert(indexHtml.includes("id=\"verseMenuMore\""), "Verse menu more section missing");
 assert(appJs.includes("function placeVerseMenu"), "Verse menu on-screen placement missing");
 assert(appJs.includes("function verseSelectionLabel"), "Multi-verse explain label missing");
