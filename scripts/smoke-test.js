@@ -105,6 +105,18 @@ assert(indexHtml.includes("id=\"dictionarySheetInput\""), "Dictionary sheet sear
 assert(indexHtml.includes("id=\"toggleAiNotesBtn\""), "AI notes toggle missing");
 assert(appJs.includes("function setSidebarTab"), "Sidebar tab switcher missing");
 assert(appJs.includes("function setMyTab"), "My panel tab switcher missing");
+assert(indexHtml.includes("data-my-tab=\"library\""), "Verse library tab missing");
+assert(indexHtml.includes("id=\"verseLibraryList\""), "Verse library list missing");
+assert(appJs.includes("/api/verse-library"), "Verse library client call missing");
+assert(!appJs.includes("function pickDailyVerse"), "Daily verse picker should not exist yet");
+assert(!appJs.includes("dailyVerseDate"), "Daily verse schedule should not exist yet");
+const verseLibrary = await getJson("/api/verse-library?version=" + encodeURIComponent("和合本.db"));
+assert(Array.isArray(verseLibrary.items) && verseLibrary.items.length >= 120, "Verse library too small");
+assert(Array.isArray(verseLibrary.themes) && verseLibrary.themes.some((theme) => theme.id === "comfort"), "Verse library themes missing");
+const john316 = verseLibrary.items.find((item) => item.book === 43 && item.chapter === 3 && item.verse === 16);
+assert(john316 && String(john316.text).includes("永生"), "John 3:16 missing from verse library");
+const emptyTheme = verseLibrary.items.every((item) => Array.isArray(item.themes) && item.themes.length);
+assert(emptyTheme, "Verse library items must have themes");
 assert(appJs.includes("function toggleAiNotes"), "AI notes collapse missing");
 assert(indexHtml.includes("id=\"myAgentNotes\""), "My panel study notes missing");
 assert(indexHtml.includes("id=\"myNotesHint\""), "Unified notes hint missing");

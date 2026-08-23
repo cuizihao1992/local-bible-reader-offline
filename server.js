@@ -8,6 +8,7 @@ import { extractWebPage } from "./lib/webextract.js";
 import { createSources } from "./lib/sources.js";
 import { createReader } from "./lib/reader.js";
 import { createUserStore } from "./lib/user.js";
+import { getVerseLibrary } from "./lib/verse-library.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = process.env.BIBLE_DATA_ROOT || "D:\\bibleDownload";
@@ -70,7 +71,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, {
         ok: true,
         app: "bible-reader",
-        version: "1.32.0",
+        version: "1.33.0",
         dataRoot: ROOT,
         biblesDir: BIBLES_DIR,
         commentariesDir: COMMENTARIES_DIR,
@@ -261,6 +262,20 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/api/dictionary/image") {
       reader.sendDictionaryImage(res, url.searchParams.get("source") || "", url.searchParams.get("name") || "");
+      return;
+    }
+    if (url.pathname === "/api/verse-library") {
+      const versionId = url.searchParams.get("version") || sources.bibleFiles()[0]?.id || "";
+      const versionInfo = sources.bibleFiles().find((item) => item.id === versionId);
+      sendJson(
+        res,
+        getVerseLibrary(sources.biblePath(versionId), {
+          versionId,
+          versionName: versionInfo?.name || versionId,
+          theme: url.searchParams.get("theme") || "",
+          q: url.searchParams.get("q") || "",
+        }),
+      );
       return;
     }
     if (url.pathname === "/api/diagnostics") {

@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.32.0";
+const APP_VERSION = "1.33.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -130,6 +130,10 @@ const myResults = $("#myResults");
 const myAgentNotesEl = $("#myAgentNotes");
 const myNotesHint = $("#myNotesHint");
 const myTagFilter = $("#myTagFilter");
+const verseLibraryThemes = $("#verseLibraryThemes");
+const verseLibrarySearch = $("#verseLibrarySearch");
+const verseLibraryHint = $("#verseLibraryHint");
+const verseLibraryList = $("#verseLibraryList");
 const closeMyPanelBtn = $("#closeMyPanelBtn");
 const content = $("#content");
 const verseMenu = $("#verseMenu");
@@ -563,7 +567,7 @@ function setSidebarTab(name) {
 }
 
 function setMyTab(name) {
-  const tab = name === "resources" || name === "updates" ? name : "marks";
+  const tab = name === "resources" || name === "updates" || name === "library" ? name : "marks";
   document.querySelectorAll("[data-my-tab]").forEach((button) => {
     const on = button.dataset.myTab === tab;
     button.classList.toggle("active", on);
@@ -3603,6 +3607,78 @@ let myManageKey = "";
 let myManageAction = "";
 let pendingUnfavorite = false;
 const myMarksByKey = new Map();
+let verseLibraryCache = null;
+let verseLibraryTheme = "";
+let verseLibraryLoading = false;
+
+async function loadVerseLibrary(force = false) {
+  if (verseLibraryLoading) {
+    showStatus("正在读取经文库，请稍候");
+    return;
+  }
+  const version = state.version;
+  if (!force && verseLibraryCache && verseLibraryCache.version === version) {
+    renderVerseLibrary();
+    return;
+  }
+  verseLibraryLoading = true;
+  if (verseLibraryHint) verseLibraryHint.textContent = "正在读取经文库…";
+  if (verseLibraryList) verseLibraryList.innerHTML = `<div class="loading">正在读取经文库...</div>`;
+  try {
+    const data = await api(`/api/verse-library?version=${encodeURIComponent(version)}`);
+    verseLibraryCache = data;
+    renderVerseLibrary();
+  } catch (error) {
+    verseLibraryCache = null;
+    if (verseLibraryHint) verseLibraryHint.textContent = "";
+    if (verseLibraryList) verseLibraryList.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+  } finally {
+    verseLibraryLoading = false;
+  }
+}
+
+function renderVerseLibrary() {
+  const data = verseLibraryCache;
+  if (!verseLibraryThemes || !verseLibraryList) return;
+  if (!data) {
+    verseLibraryThemes.innerHTML = "";
+    verseLibraryList.innerHTML = `<div class="panelHint">经文库还没读出来</div>`;
+    return;
+  }
+  const query = String(verseLibrarySearch?.value || "").trim().toLowerCase();
+  const themes = data.themes || [];
+  verseLibraryThemes.innerHTML =
+    `<button type="button" data-verse-theme="" class="${verseLibraryTheme ? "" : "active"}">全部</button>` +
+    themes
+      .map(
+        (theme) =>
+          `<button type="button" data-verse-theme="${escapeHtml(theme.id)}" class="${verseLibraryTheme === theme.id ? "active" : ""}">${escapeHtml(theme.name)}</button>`,
+      )
+      .join("");
+  let items = data.items || [];
+  if (verseLibraryTheme) items = items.filter((item) => (item.themes || []).includes(verseLibraryTheme));
+  if (query) {
+    items = items.filter((item) => `${item.ref || ""} ${item.text || ""} ${(item.themeNames || []).join(" ")}`.toLowerCase().includes(query));
+  }
+  if (verseLibraryHint) {
+    verseLibraryHint.textContent = items.length
+      ? `${data.name || "经文库"} · ${items.length} / ${data.total || data.items.length} 条 · ${data.versionName || ""}`
+      : "没有符合条件的经文";
+  }
+  if (!items.length) {
+    verseLibraryList.innerHTML = `<div class="panelHint">没有符合条件的经文</div>`;
+    return;
+  }
+  verseLibraryList.innerHTML = items
+    .map((item) => {
+      const badges = (item.themeNames || []).map((name) => `<span class="verseLibBadge">${escapeHtml(name)}</span>`).join("");
+      return `<button class="resultItem" type="button" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">
+        <div class="resultRef">${escapeHtml(item.ref || "")}${badges}</div>
+        <div class="resultText">${escapeHtml(item.text || "（当前译本没有这节）")}</div>
+      </button>`;
+    })
+    .join("");
+}
 
 function myMarkKey(item) {
   return `${item.version}:${item.book}:${item.chapter}:${item.verse}`;
@@ -3623,6 +3699,11 @@ async function openMyPanel(kind = "all", options = {}) {
     myPanel.hidden = false;
     setNav("my");
     setMyTab(options.tab || "marks");
+  }
+  if ((options.tab || document.querySelector("#myPanel [data-my-tab].active")?.dataset.myTab) === "library") {
+    myPanelLoading = false;
+    await loadVerseLibrary();
+    return;
   }
   renderMyProgress();
   renderMyAgentNotes();
@@ -5600,7 +5681,31 @@ document.querySelector(".sidebarTabs")?.addEventListener("click", (event) => {
 });
 document.querySelector("#myPanel .panelTabs")?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-my-tab]");
-  if (button) setMyTab(button.dataset.myTab);
+  if (!button) return;
+  setMyTab(button.dataset.myTab);
+  if (button.dataset.myTab === "library") loadVerseLibrary();
+});
+verseLibraryThemes?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-verse-theme]");
+  if (!button) return;
+  verseLibraryTheme = button.dataset.verseTheme || "";
+  renderVerseLibrary();
+});
+verseLibrarySearch?.addEventListener("input", () => {
+  renderVerseLibrary();
+});
+verseLibraryList?.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-jump-book]");
+  if (!button) return;
+  event.stopPropagation();
+  await jumpFromPeek(
+    {
+      book: Number(button.dataset.jumpBook),
+      chapter: Number(button.dataset.jumpChapter),
+      verse: Number(button.dataset.jumpVerse),
+    },
+    { kind: "library", title: "返回经文库", restore: () => openMyPanel(myPanelKind, { tab: "library" }) },
+  );
 });
 
 themeSelect.addEventListener("change", () => {
@@ -6162,7 +6267,7 @@ document.body.addEventListener("click", async (event) => {
     return;
   }
   const jump = event.target.closest("[data-jump-book]");
-  if (jump && !searchResults.contains(jump) && !myResults.contains(jump)) {
+  if (jump && !searchResults.contains(jump) && !myResults.contains(jump) && !(verseLibraryList && verseLibraryList.contains(jump))) {
     const ref = {
       book: Number(jump.dataset.jumpBook),
       chapter: Number(jump.dataset.jumpChapter),

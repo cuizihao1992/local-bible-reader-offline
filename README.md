@@ -5,14 +5,14 @@
 - 仓库：https://github.com/cuizihao1992/local-bible-reader-offline
 - 默认网页端口：`8766`
 - Android 包名：`local.bible.reader.next`
-- 当前版本：`1.32.0`
+- 当前版本：`1.33.0`
 
 ## 下载 Android APK
 
 从 [Releases](https://github.com/cuizihao1992/local-bible-reader-offline/releases) 下载：
 
 ```text
-local-bible-reader-offline-1.32.0-release.apk
+local-bible-reader-offline-1.33.0-release.apk
 ```
 
 内置译本：和合本、和合本修订版、KJV、WEB。
@@ -58,7 +58,7 @@ npm run dist:android
 生成文件：
 
 ```text
-D:\bible-reader\dist\android\local-bible-reader-offline-1.32.0-release.apk
+D:\bible-reader\dist\android\local-bible-reader-offline-1.33.0-release.apk
 ```
 
 APK 内置 `和合本`、`和合本修订版`、`KJV`、`WEB` 四个译本。安装后独立运行，不读电脑 D 盘。包名是 `local.bible.reader.next`，可以和原版同时安装。
@@ -96,7 +96,8 @@ npm start
 - 批注挂在经文上；查经记录来自助手整理，可编辑、继续问。支持 Markdown 导入导出，也可从网页链接提取正文。经文只从本机译本取
 - 对话模型可切换小米 / DeepSeek / Grok / GPT / Claude / 自定义兼容接口；口令识别仍用小米
 - 导入 / 导出个人数据
-- 左上角齿轮打开设置；手机上设置从底部弹出，和朗读/我的一样。内容仍是「助手 / 辞典 / 系统」；「我的」分「标注 / 资源 / 更新」；底栏可直接打开助手
+- 左上角齿轮打开设置；手机上设置从底部弹出，和朗读/我的一样。内容仍是「助手 / 辞典 / 系统」；「我的」分「标注 / 经文库 / 资源 / 更新」；底栏可直接打开助手
+- 经文库收录适合反复读的短经文，按主题浏览，正文从当前译本取。每日一节尚未启用
 - 本地诊断
 - Electron 桌面入口
 

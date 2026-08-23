@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>设置</h1>
-            <p>1.32.0 · 助手、辞典和系统</p>
+            <p>1.33.0 · 助手、辞典和系统</p>
           </div>
         </div>
         <button id="closeSidebarBtn" class="textBtn sidebarSheetClose" type="button">关闭</button>
@@ -469,8 +469,9 @@
           <div class="sheetTitle">我的</div>
           <button id="closeMyPanelBtn" class="textBtn" type="button">关闭</button>
         </div>
-        <div class="panelTabs" role="tablist" aria-label="我的分类">
+        <div class="panelTabs myPanelTabs" role="tablist" aria-label="我的分类">
           <button type="button" data-my-tab="marks" class="active" role="tab" aria-selected="true">标注</button>
+          <button type="button" data-my-tab="library" role="tab" aria-selected="false">经文库</button>
           <button type="button" data-my-tab="resources" role="tab" aria-selected="false">资源</button>
           <button type="button" data-my-tab="updates" role="tab" aria-selected="false">更新</button>
         </div>
@@ -498,6 +499,13 @@
         <div id="myAgentNotes" class="myAgentNotes" hidden></div>
         <div id="myResults" class="resultList"></div>
         </div>
+        <div id="myTabLibrary" class="myTabPane" data-my-pane="library" hidden>
+          <div class="panelHint">收录适合反复读的短经文，正文跟当前译本。每日一节还没做，现在可以按主题浏览，点一条跳到本章。</div>
+          <div id="verseLibraryThemes" class="chipRow"></div>
+          <input id="verseLibrarySearch" type="search" placeholder="搜索引用或经文" />
+          <div id="verseLibraryHint" class="panelHint"></div>
+          <div id="verseLibraryList" class="resultList"></div>
+        </div>
         <div id="myTabResources" class="myTabPane" data-my-pane="resources" hidden>
         <div class="settingsPanel">
           <div class="panelTitle">离线资源</div>
@@ -524,7 +532,7 @@
         <div id="myTabUpdates" class="myTabPane" data-my-pane="updates" hidden>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.32.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.33.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

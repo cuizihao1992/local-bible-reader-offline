@@ -9,6 +9,7 @@ import android.net.Uri;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -82,6 +83,7 @@ public class OfflineApi {
             if ("/api/diagnostics".equals(path)) return diagnostics().toString();
             if ("/api/strong".equals(path)) return new JSONObject().put("error", "Android 离线版暂未内置原文库").toString();
             if ("/api/import/url".equals(path)) return WebExtract.extract(context, query(uri, "url")).toString();
+            if ("/api/verse-library".equals(path)) return verseLibrary(uri).toString();
             return new JSONObject().put("error", "Android 离线版暂未支持此接口：" + path).toString();
         } catch (Exception error) {
             return "{\"error\":\"" + escapeJson(error.getMessage()) + "\"}";
@@ -804,7 +806,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.32.0")
+                .put("version", "1.33.0")
                 .put("versionCount", versions().length());
     }
 
@@ -836,6 +838,110 @@ public class OfflineApi {
         if (value instanceof Number) return ((Number) value).intValue() != 0;
         String text = String.valueOf(value).trim();
         return "1".equals(text) || "true".equalsIgnoreCase(text);
+    }
+
+    private JSONObject verseLibrary(Uri uri) throws Exception {
+        JSONObject catalog = loadVerseCatalog();
+        String version = query(uri, "version");
+        if (version.isEmpty()) {
+            File[] files = bibleDir.listFiles((dir, name) -> name.endsWith(".db"));
+            version = files != null && files.length > 0 ? files[0].getName() : "和合本.db";
+        }
+        String themeId = query(uri, "theme");
+        String queryText = query(uri, "q").toLowerCase(java.util.Locale.ROOT);
+        JSONArray themeList = catalog.optJSONArray("themes");
+        if (themeList == null) themeList = new JSONArray();
+        java.util.Map<String, String> themeNames = new java.util.HashMap<>();
+        for (int i = 0; i < themeList.length(); i++) {
+            JSONObject theme = themeList.optJSONObject(i);
+            if (theme != null) themeNames.put(theme.optString("id"), theme.optString("name", theme.optString("id")));
+        }
+        JSONArray rawItems = catalog.optJSONArray("items");
+        if (rawItems == null) rawItems = new JSONArray();
+        JSONArray items = new JSONArray();
+        SQLiteDatabase db = openBible(version);
+        try {
+            for (int i = 0; i < rawItems.length(); i++) {
+                JSONObject raw = rawItems.optJSONObject(i);
+                if (raw == null) continue;
+                JSONArray rawThemes = raw.optJSONArray("themes");
+                if (rawThemes == null) rawThemes = new JSONArray();
+                if (!themeId.isEmpty()) {
+                    boolean matched = false;
+                    for (int t = 0; t < rawThemes.length(); t++) {
+                        if (themeId.equals(rawThemes.optString(t))) {
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if (!matched) continue;
+                }
+                int book = raw.optInt("book");
+                int chapter = raw.optInt("chapter");
+                int verse = raw.optInt("verse");
+                int verseEnd = raw.optInt("verseEnd", verse);
+                if (verseEnd < verse) verseEnd = verse;
+                StringBuilder text = new StringBuilder();
+                try (Cursor cursor = db.rawQuery(
+                        "select Verse, Scripture from Bible where Book=? and Chapter=? and Verse>=? and Verse<=? order by Verse",
+                        new String[]{String.valueOf(book), String.valueOf(chapter), String.valueOf(verse), String.valueOf(verseEnd)}
+                )) {
+                    while (cursor.moveToNext()) {
+                        String piece = cleanText(cursor.getString(1));
+                        if (!piece.isEmpty()) text.append(piece);
+                    }
+                }
+                JSONArray names = new JSONArray();
+                JSONArray themeIds = new JSONArray();
+                for (int t = 0; t < rawThemes.length(); t++) {
+                    String id = rawThemes.optString(t);
+                    themeIds.put(id);
+                    names.put(themeNames.containsKey(id) ? themeNames.get(id) : id);
+                }
+                String bookLabel = bookName(book);
+                String ref = verseEnd > verse
+                        ? bookLabel + " " + chapter + ":" + verse + "-" + verseEnd
+                        : bookLabel + " " + chapter + ":" + verse;
+                if (!queryText.isEmpty()) {
+                    String hay = (ref + " " + text + " " + names.toString()).toLowerCase(java.util.Locale.ROOT);
+                    if (!hay.contains(queryText)) continue;
+                }
+                items.put(new JSONObject()
+                        .put("id", raw.optString("id"))
+                        .put("book", book)
+                        .put("bookName", bookLabel)
+                        .put("chapter", chapter)
+                        .put("verse", verse)
+                        .put("verseEnd", verseEnd)
+                        .put("ref", ref)
+                        .put("themes", themeIds)
+                        .put("themeNames", names)
+                        .put("text", text.toString()));
+            }
+        } finally {
+            db.close();
+        }
+        return new JSONObject()
+                .put("ok", true)
+                .put("id", catalog.optString("id"))
+                .put("name", catalog.optString("name", "经文库"))
+                .put("note", catalog.optString("note"))
+                .put("version", version)
+                .put("versionName", version.replace(".db", ""))
+                .put("count", items.length())
+                .put("total", rawItems.length())
+                .put("themes", themeList)
+                .put("items", items);
+    }
+
+    private JSONObject loadVerseCatalog() throws Exception {
+        try (InputStream in = context.getAssets().open("static/verse-library.json");
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = in.read(buffer)) > 0) out.write(buffer, 0, read);
+            return new JSONObject(out.toString(StandardCharsets.UTF_8.name()));
+        }
     }
 
     private SQLiteDatabase openBible(String version) {
