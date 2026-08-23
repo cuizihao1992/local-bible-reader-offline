@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.25.0</p>
+            <p>设置 · 1.26.0</p>
           </div>
         </div>
       </div>
@@ -77,7 +77,7 @@
           <input id="smartVoiceToggle" type="checkbox" />
           <span>智能口令（大模型理解，稍慢）</span>
         </label>
-        <div class="panelHint">查经和讲解用上面选的模型，经文仍只从本机译本取。口令识别继续用小米。Claude Code / Codex 订阅登不进 App，请填对应 API Key；中转站选自定义。</div>
+        <div class="panelHint">已内置小米普通 Key 和 Token Plan，默认用 Token Plan。可在上面改成普通 Key，或换成自己的 Key。查经和讲解用所选模型，经文仍只从本机译本取。口令识别继续用小米。</div>
       </div>
       <div class="settingsPanel">
         <div class="panelTitle">本地诊断</div>
@@ -452,7 +452,7 @@
         </div>
         <div class="sheetSection settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.25.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.26.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -557,6 +557,7 @@
 
     <div id="overlay" class="overlay"></div>
     <script src="spoken-books.js"></script>
+    <script src="ai-defaults.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

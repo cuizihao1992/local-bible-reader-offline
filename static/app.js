@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.25.0";
+const APP_VERSION = "1.26.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -30,8 +30,10 @@ const state = {
   keepScreenOn: false,
   fuzzySearch: false,
   mimoKey: "",
-  mimoKeyType: "standard",
-  mimoBaseUrl: "https://api.xiaomimimo.com/v1",
+  mimoKeyType: "codeplan",
+  mimoBaseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+  mimoStandardKey: "",
+  mimoCodeplanKey: "",
   smartVoice: false,
   aiProvider: "mimo",
   aiModel: "mimo-v2.5",
@@ -336,9 +338,42 @@ function versionLabel(versionId) {
   return version?.shortName || version?.name || versionId;
 }
 
+function mimoDefaults() {
+  return window.BIBLE_AI_DEFAULTS && typeof window.BIBLE_AI_DEFAULTS === "object" ? window.BIBLE_AI_DEFAULTS : {};
+}
+
+function defaultMimoStandardKey() {
+  return String(mimoDefaults().mimoStandardKey || "").trim();
+}
+
+function defaultMimoCodeplanKey() {
+  return String(mimoDefaults().mimoCodeplanKey || "").trim();
+}
+
+function defaultMimoCodeplanUrl() {
+  return String(mimoDefaults().mimoCodeplanUrl || "https://token-plan-cn.xiaomimimo.com/v1").trim();
+}
+
+function applyBuiltInMimoKeys(hadSavedKey) {
+  if (!state.mimoStandardKey) state.mimoStandardKey = defaultMimoStandardKey();
+  if (!state.mimoCodeplanKey) state.mimoCodeplanKey = defaultMimoCodeplanKey();
+  if (hadSavedKey) {
+    if (isCodePlanKey(state.mimoKey)) state.mimoCodeplanKey = state.mimoKey;
+    else if (state.mimoKey) state.mimoStandardKey = state.mimoKey;
+    return;
+  }
+  state.aiProvider = "mimo";
+  state.mimoKeyType = "codeplan";
+  state.mimoKey = state.mimoCodeplanKey || defaultMimoCodeplanKey() || state.mimoStandardKey;
+  state.mimoBaseUrl = defaultMimoCodeplanUrl();
+  state.aiKeys = { ...(state.aiKeys || {}), mimo: state.mimoKey };
+  state.aiBaseUrls = { ...(state.aiBaseUrls || {}), mimo: state.mimoBaseUrl };
+}
+
 function restoreState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    const hadSavedKey = !!(saved.mimoKey || (saved.aiKeys && saved.aiKeys.mimo));
     Object.assign(state, {
       version: saved.version || "",
       compareVersions: Array.isArray(saved.compareVersions) ? saved.compareVersions.slice(0, 3) : [],
@@ -359,6 +394,8 @@ function restoreState() {
       mimoKey: saved.mimoKey || (saved.aiKeys && saved.aiKeys.mimo) || "",
       mimoKeyType: saved.mimoKeyType === "codeplan" || String(saved.mimoKey || "").trim().toLowerCase().startsWith("tp-") ? "codeplan" : "standard",
       mimoBaseUrl: saved.mimoBaseUrl || (saved.aiBaseUrls && saved.aiBaseUrls.mimo) || "https://token-plan-cn.xiaomimimo.com/v1",
+      mimoStandardKey: saved.mimoStandardKey || "",
+      mimoCodeplanKey: saved.mimoCodeplanKey || "",
       smartVoice: !!saved.smartVoice,
       aiProvider: AI_PROVIDERS.some((item) => item.id === saved.aiProvider) ? saved.aiProvider : "mimo",
       aiModel: saved.aiModel || "mimo-v2.5",
@@ -373,7 +410,10 @@ function restoreState() {
     });
     state.aiKeys = { ...(state.aiKeys || {}), mimo: state.mimoKey };
     state.aiBaseUrls = { ...(state.aiBaseUrls || {}), mimo: state.mimoBaseUrl };
-  } catch {}
+    applyBuiltInMimoKeys(hadSavedKey);
+  } catch {
+    applyBuiltInMimoKeys(false);
+  }
 }
 
 function saveState() {
@@ -399,6 +439,8 @@ function saveState() {
       mimoKey: state.mimoKey,
       mimoKeyType: state.mimoKeyType,
       mimoBaseUrl: state.mimoBaseUrl,
+      mimoStandardKey: state.mimoStandardKey || "",
+      mimoCodeplanKey: state.mimoCodeplanKey || "",
       smartVoice: !!state.smartVoice,
       aiProvider: state.aiProvider || "mimo",
       aiModel: state.aiModel || "mimo-v2.5",
@@ -2734,7 +2776,18 @@ async function runAiTask(kind, verseNo, question = "") {
 function saveAiSettings() {
   const previous = state.aiProvider || "mimo";
   const next = aiProviderSelect?.value || previous;
-  if (aiKeyInput) setProviderStoredKey(previous, aiKeyInput.value);
+  const typeBefore = state.mimoKeyType;
+  const typeWanted = mimoKeyTypeSelect?.value === "codeplan" ? "codeplan" : "standard";
+  if (previous === "mimo" && aiKeyInput) {
+    const typed = aiKeyInput.value.trim();
+    if (typed) {
+      if (isCodePlanKey(typed) || typeBefore === "codeplan") state.mimoCodeplanKey = typed;
+      else state.mimoStandardKey = typed;
+      setProviderStoredKey("mimo", typed);
+    }
+  } else if (aiKeyInput) {
+    setProviderStoredKey(previous, aiKeyInput.value);
+  }
   if (aiBaseUrlInput && (aiSpec(previous).custom || previous === "mimo")) {
     setProviderStoredUrl(previous, aiBaseUrlInput.value);
   }
@@ -2742,11 +2795,24 @@ function saveAiSettings() {
     state.mimoKey = mimoAsrKeyInput.value.trim();
     state.aiKeys = { ...(state.aiKeys || {}), mimo: state.mimoKey };
   }
-  if (mimoKeyTypeSelect) state.mimoKeyType = mimoKeyTypeSelect.value === "codeplan" ? "codeplan" : "standard";
-  if (isCodePlanKey(state.mimoKey)) state.mimoKeyType = "codeplan";
-  else if (String(state.mimoKey).toLowerCase().startsWith("sk-") && previous === "mimo") state.mimoKeyType = "standard";
-  if (previous === "mimo" && state.mimoKeyType !== "codeplan") {
-    state.mimoBaseUrl = "https://api.xiaomimimo.com/v1";
+  if (previous === "mimo" && typeWanted !== typeBefore) {
+    state.mimoKeyType = typeWanted;
+    if (typeWanted === "codeplan") {
+      state.mimoKey = state.mimoCodeplanKey || defaultMimoCodeplanKey();
+      state.mimoBaseUrl = defaultMimoCodeplanUrl();
+    } else {
+      state.mimoKey = state.mimoStandardKey || defaultMimoStandardKey();
+      state.mimoBaseUrl = "https://api.xiaomimimo.com/v1";
+    }
+    setProviderStoredKey("mimo", state.mimoKey);
+    setProviderStoredUrl("mimo", state.mimoBaseUrl);
+  } else {
+    if (mimoKeyTypeSelect) state.mimoKeyType = typeWanted;
+    if (isCodePlanKey(state.mimoKey)) state.mimoKeyType = "codeplan";
+    else if (String(state.mimoKey).toLowerCase().startsWith("sk-") && previous === "mimo") state.mimoKeyType = "standard";
+    if (previous === "mimo" && state.mimoKeyType !== "codeplan") {
+      state.mimoBaseUrl = "https://api.xiaomimimo.com/v1";
+    }
   }
   state.aiProvider = AI_PROVIDERS.some((item) => item.id === next) ? next : "mimo";
   const spec = aiSpec();
