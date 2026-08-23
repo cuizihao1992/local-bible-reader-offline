@@ -70,7 +70,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, {
         ok: true,
         app: "bible-reader",
-        version: "1.31.0",
+        version: "1.32.0",
         dataRoot: ROOT,
         biblesDir: BIBLES_DIR,
         commentariesDir: COMMENTARIES_DIR,

@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.31.0";
+const APP_VERSION = "1.32.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -263,6 +263,7 @@ let noteSheetTarget = null;
 let editingStudyNoteId = "";
 let noteSheetReturnToMy = false;
 let speaking = false;
+let ttsSession = 0;
 let chapterLongPress = false;
 let voiceInputActive = false;
 let voiceStopPending = false;
@@ -539,12 +540,14 @@ function showStatus(message, tone = "info", holdMs = 0) {
 
 function closeSidebar() {
   document.body.classList.remove("sidebarOpen");
+  syncSheetOverlay();
 }
 
 function openSidebar(tab) {
   document.body.classList.add("sidebarOpen");
   closeTopPanels(false);
   if (tab) setSidebarTab(tab);
+  keepReadingChromeVisible();
 }
 
 function setSidebarTab(name) {
@@ -1160,7 +1163,25 @@ function setTtsStatus(text) {
   if (ttsStatus) ttsStatus.textContent = text;
 }
 
+function describeTtsEngine() {
+  if (!window.AndroidTtsApi || !window.AndroidTtsApi.getStatus) {
+    return window.speechSynthesis ? "用浏览器朗读本章。" : "当前环境不支持朗读。";
+  }
+  try {
+    const status = JSON.parse(window.AndroidTtsApi.getStatus());
+    const engine = status.engineLabel || status.engine || "系统语音";
+    if (!status.ready) return "正在启动朗读引擎…小米请稍等，或到系统设置安装 Google 语音 / 讯飞。";
+    if (status.languageOk === false) {
+      return `当前是「${engine}」，中文语音包可能不全。仍会尝试朗读；不行请到系统设置安装 Google 语音或讯飞。`;
+    }
+    return `用手机「${engine}」朗读本章。点喇叭或下面的按钮开始。`;
+  } catch {
+    return "用手机系统朗读本章。";
+  }
+}
+
 function renderAudioSheet() {
+  if (!speaking) setTtsStatus(describeTtsEngine());
   if (audioAutoNextSheet) audioAutoNextSheet.checked = !!state.audioAutoNext;
   if (!audioFileList) return;
   if (!chapterAudioFiles.length) {
@@ -4767,6 +4788,7 @@ function setSpeaking(on) {
     speakToggleBtn.setAttribute("aria-pressed", speaking ? "true" : "false");
     speakToggleBtn.setAttribute("aria-label", speaking ? "停止朗读" : "朗读本章");
   }
+  if (ttsPlayBtn) ttsPlayBtn.textContent = speaking ? "停止朗读" : "朗读本章";
 }
 
 function clearSpeakingVerse() {
@@ -4802,12 +4824,19 @@ function applyTtsRate() {
   }
 }
 
+function syncTtsSession(result) {
+  const gen = Number(result && result.generation);
+  if (Number.isFinite(gen) && gen > 0) ttsSession = gen;
+  else ttsSession += 1;
+  return ttsSession;
+}
+
 function speakChapter() {
-  openAudioSheet();
   if (speaking) {
     stopSpeaking();
     return;
   }
+  openAudioSheet();
   const book = currentBook();
   const items = chapterSpeakItems();
   if (!items.length) {
@@ -4816,6 +4845,8 @@ function speakChapter() {
     return;
   }
   applyTtsRate();
+  ttsSession += 1;
+  const session = ttsSession;
   if (window.AndroidTtsApi && (window.AndroidTtsApi.speakQueue || window.AndroidTtsApi.speak)) {
     let result = {};
     try {
@@ -4833,6 +4864,7 @@ function speakChapter() {
       showStatus(result.error, "error");
       return;
     }
+    if (result.generation) syncTtsSession(result);
     setSpeaking(true);
     if (result.queued) {
       setTtsStatus("正在启动朗读引擎…");
@@ -4850,6 +4882,7 @@ function speakChapter() {
   }
   window.speechSynthesis.cancel();
   const speakNext = (index) => {
+    if (ttsSession !== session) return;
     if (index >= items.length) {
       setSpeaking(false);
       setTtsStatus("朗读结束");
@@ -4861,9 +4894,11 @@ function speakChapter() {
     utterance.lang = "zh-CN";
     utterance.rate = Number(state.ttsRate) || 1;
     utterance.onend = () => {
-      if (speaking) speakNext(index + 1);
+      if (ttsSession !== session) return;
+      speakNext(index + 1);
     };
     utterance.onerror = () => {
+      if (ttsSession !== session) return;
       setSpeaking(false);
       setTtsStatus("朗读中断");
     };
@@ -4876,22 +4911,36 @@ function speakChapter() {
 }
 
 function stopSpeaking() {
-  if (window.AndroidTtsApi && window.AndroidTtsApi.stop) window.AndroidTtsApi.stop();
+  ttsSession += 1;
+  if (window.AndroidTtsApi && window.AndroidTtsApi.stop) {
+    try {
+      const result = JSON.parse(window.AndroidTtsApi.stop());
+      syncTtsSession(result);
+    } catch {
+      /* native stop still runs */
+    }
+  }
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   setSpeaking(false);
   setTtsStatus("已停止朗读");
   showStatus("已停止朗读");
 }
 
-window.handleAndroidTts = function handleAndroidTts(type, text) {
+window.handleAndroidTts = function handleAndroidTts(type, text, gen) {
+  if (gen != null && String(gen) !== "" && Number(gen) !== Number(ttsSession)) return;
   if (type === "ready") {
     if (speaking) setTtsStatus(`正在朗读 ${currentBook()?.longName || ""} ${state.chapter} 章`);
-    else setTtsStatus("朗读引擎已就绪，可以开始。");
+    else setTtsStatus(text ? `${text}已就绪，可以开始。` : describeTtsEngine());
     return;
   }
   if (type === "start") {
     setSpeaking(true);
     setSpeakingVerse(text);
+    return;
+  }
+  if (type === "stop") {
+    setSpeaking(false);
+    setTtsStatus("已停止朗读");
     return;
   }
   if (type === "done") {
@@ -5601,7 +5650,12 @@ strongToggleReader?.addEventListener("change", () => {
   loadChapter({ scrollTop: false });
 });
 
-menuBtn.addEventListener("click", () => openSidebar());
+menuBtn.addEventListener("click", () => {
+  if (document.body.classList.contains("sidebarOpen")) {
+    closeSidebar();
+    keepReadingChromeVisible();
+  } else openSidebar();
+});
 function openBookPicker() {
   clearPeek();
   closeTopPanels();
@@ -5635,7 +5689,7 @@ searchToggleBtn.addEventListener("click", () => {
   } else toggleSearch(true);
 });
 speakToggleBtn?.addEventListener("click", speakChapter);
-closeSidebarBtn.addEventListener("click", closeSidebar);
+closeSidebarBtn?.addEventListener("click", closeSidebar);
 overlay.addEventListener("click", () => handleBackIntent());
 prevBtn.addEventListener("click", () => moveChapter(-1));
 nextBtn.addEventListener("click", () => moveChapter(1));

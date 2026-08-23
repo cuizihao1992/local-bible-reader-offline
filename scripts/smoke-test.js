@@ -235,6 +235,13 @@ assert(indexHtml.includes("id=\"closeAudioBtn\""), "Audio sheet close button mis
 assert(indexHtml.includes("id=\"ttsPlayBtn\""), "TTS play button missing");
 assert(indexHtml.includes("class=\"sheetBody\""), "Sheet body layout missing");
 assert(appJs.includes("handleAndroidTts"), "Android TTS callback missing");
+assert(appJs.includes("ttsSession"), "TTS session token missing");
+assert(appJs.includes("function describeTtsEngine"), "TTS engine status helper missing");
+assert(appJs.includes("function stopSpeaking"), "Stop speaking helper missing");
+assert(indexHtml.includes("sidebarSheetClose"), "Settings sheet close missing");
+assert(indexHtml.includes("aria-label=\"设置\""), "Settings button label missing");
+assert(stylesCss.includes("sidebarSheetClose"), "Settings sheet close style missing");
+assert(stylesCss.includes("translateY(110%)"), "Mobile settings should be a bottom sheet");
 assert(appJs.includes("function openAudioSheet"), "Audio sheet opener missing");
 assert(appJs.includes("function linkVerseRefs"), "Reference link helper missing");
 assert(appJs.includes("readFont"), "Read font setting missing");
