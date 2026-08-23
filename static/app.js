@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.29.0";
+const APP_VERSION = "1.30.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -208,8 +208,15 @@ const noteSheet = $("#noteSheet");
 const noteSheetTitle = $("#noteSheetTitle");
 const noteSheetText = $("#noteSheetText");
 const noteSheetTags = $("#noteSheetTags");
+const noteSheetHeading = $("#noteSheetHeading");
+const noteSheetHeadingField = $("#noteSheetHeadingField");
+const noteSheetPasteActions = $("#noteSheetPasteActions");
 const closeNoteSheetBtn = $("#closeNoteSheetBtn");
 const saveNoteSheetBtn = $("#saveNoteSheetBtn");
+const exportNotesMdBtn = $("#exportNotesMdBtn");
+const importNotesMdBtn = $("#importNotesMdBtn");
+const pasteNotesMdBtn = $("#pasteNotesMdBtn");
+const importNotesMdFile = $("#importNotesMdFile");
 const overlay = $("#overlay");
 const voiceBtn = $("#voiceBtn");
 const voiceBtnDesktop = $("#voiceBtnDesktop");
@@ -247,6 +254,10 @@ const readerEl = document.querySelector("main.reader");
 const prevEdge = $("#prevEdge");
 const nextEdge = $("#nextEdge");
 let noteSheetVerse = null;
+let noteSheetMode = "verse";
+let noteSheetTarget = null;
+let editingStudyNoteId = "";
+let noteSheetReturnToMy = false;
 let speaking = false;
 let chapterLongPress = false;
 let voiceInputActive = false;
@@ -886,7 +897,7 @@ function verseMarkClasses(mark) {
 function renderNoteEditor(verse) {
   const mark = markForVerse(verse);
   if (!mark.note && !mark.tags) return "";
-  return `<div class="notePreview">${mark.tags ? `<div class="noteTags">${escapeHtml(mark.tags)}</div>` : ""}<div class="noteText">${linkVerseRefs(mark.note)}</div></div>`;
+  return `<div class="notePreview">${mark.tags ? `<div class="noteTags">${escapeHtml(mark.tags)}</div>` : ""}<div class="noteText">${formatNoteMarkdown(mark.note)}</div></div>`;
 }
 
 function renderStrongList(strongs) {
@@ -1063,6 +1074,14 @@ function linkVerseRefs(text) {
     last = match.index + match[0].length;
   }
   html += escapeHtml(raw.slice(last));
+  return html;
+}
+
+function formatNoteMarkdown(md) {
+  let html = linkVerseRefs(md);
+  html = html.replace(/^#{1,6}\s+(.+)$/gm, '<div class="noteMdH">$1</div>');
+  html = html.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  html = html.replace(/^[-*] (.+)$/gm, "• $1");
   return html;
 }
 
@@ -2261,7 +2280,7 @@ function agentSystemPrompt(skill, mode = "ask", verseList) {
         : mode === "summary"
           ? "请概括本章。只根据当前章摘录，不要编其它章。"
           : mode === "polish"
-            ? "请润色本节笔记，保持原意，用中文。"
+            ? "请润色本节批注，保持原意，用中文，可保留 Markdown。"
             : "闲聊或讲解可以直接答；一旦要引用具体章节，必须先用工具或当前经文。";
   return [
     skill,
@@ -2269,17 +2288,17 @@ function agentSystemPrompt(skill, mode = "ask", verseList) {
     `当前译本：${ctx.version}`,
     `当前阅读：${ctx.ref}`,
     ctx.verseText && ctx.verseText !== "（未选中经文）" ? `当前经文：\n${ctx.verseText}` : "",
-    ctx.note ? `本节笔记：${ctx.note}` : "",
+    ctx.note ? `本节批注：${ctx.note}` : "",
     ctx.chapterText ? `本章摘录：${ctx.chapterText.slice(0, 700)}` : "",
     `长期记忆（跨会话，只信任这些条目）：\n${factLines}`,
     activeAgentNote()
-      ? `当前查经笔记《${activeAgentNote().title}》：\n${activeAgentNote().summary}${
+      ? `当前查经记录《${activeAgentNote().title}》：\n${activeAgentNote().summary}${
           (activeAgentNote().refs || []).length
             ? `\n相关经文：${activeAgentNote()
                 .refs.map((item) => `${item.book} ${item.chapter}:${item.verse}${item.why ? `（${item.why}）` : ""}`)
                 .join("；")}`
             : ""
-        }\n用户是在这篇笔记上继续问，要接上笔记内容，不要当全新话题。`
+        }\n用户是在这篇查经记录上继续问，要接上已有内容，不要当全新话题。`
       : "",
     agentMemory.summary ? `更早对话摘要：\n${agentMemory.summary}` : "",
   ]
@@ -2305,8 +2324,8 @@ async function runAgent(question, options = {}) {
     const ctx = aiContext(null, verses);
     if (!ctx.note) {
       openAiSheet("助手", verses[0] || options.verseNo);
-      renderAgentChat(`<div class="panelHint">这一节还没有笔记。先写笔记再润色。</div>`);
-      finishJob(token, "这一节还没有笔记", "info");
+      renderAgentChat(`<div class="panelHint">这一节还没有批注。先写批注再润色。</div>`);
+      finishJob(token, "这一节还没有批注", "info");
       return;
     }
   }
@@ -2346,12 +2365,12 @@ async function runAgent(question, options = {}) {
           const verses = aiVerseNumbers(options.verseNo);
           if (verses[0] && answer) {
             const mark = markForVerse(verses[0]);
-            await saveVerseMark({ ...mark, note: answer }, { successMessage: "已写入润色后的笔记" });
+            await saveVerseMark({ ...mark, note: answer }, { successMessage: "已写入润色后的批注" });
           }
         }
         finishJob(
           token,
-          data.correction ? `完成：${data.correction}` : mode === "polish" ? "笔记已润色" : "已完成",
+          data.correction ? `完成：${data.correction}` : mode === "polish" ? "批注已润色" : "已完成",
           data.correction ? "info" : "success",
         );
         return;
@@ -2457,7 +2476,7 @@ function loadAgentMemory() {
       ? saved.facts.filter((item) => item && item.text).slice(-40)
       : [];
     agentMemory.summary = String(saved.summary || "").slice(-2400);
-    agentMemory.notes = Array.isArray(saved.notes) ? saved.notes.filter((item) => item && item.summary).slice(-30) : [];
+    agentMemory.notes = Array.isArray(saved.notes) ? saved.notes.filter((item) => item && item.summary).slice(-80) : [];
     agentMemory.activeNoteId = saved.activeNoteId || null;
   } catch {
     agentMemory.turns = [];
@@ -2476,7 +2495,7 @@ function saveAgentMemory() {
       turns: agentMemory.turns.slice(-HISTORY_MAX),
       facts: (agentMemory.facts || []).slice(-40),
       summary: String(agentMemory.summary || "").slice(-2400),
-      notes: (agentMemory.notes || []).slice(-30),
+      notes: (agentMemory.notes || []).slice(-80),
       activeNoteId: agentMemory.activeNoteId || null,
     }),
   );
@@ -2541,7 +2560,7 @@ function requestNewConversation() {
     return;
   }
   startNewConversation();
-  showStatus("已开新对话，笔记还在", "info");
+  showStatus("已开新对话，查经记录还在", "info");
 }
 
 function requestClearCurrentChat() {
@@ -2556,7 +2575,7 @@ function requestClearCurrentChat() {
     return;
   }
   startNewConversation({ keepNote: true });
-  showStatus("已清空本轮，笔记还在", "info");
+  showStatus("已清空本轮，查经记录还在", "info");
 }
 
 function clearAgentMemory() {
@@ -2576,14 +2595,14 @@ function normalizeNoteRefs(refs) {
       };
     })
     .filter(Boolean)
-    .slice(0, 6);
+    .slice(0, 12);
 }
 
 function upsertAgentNote(note) {
   const next = {
     id: note.id || newFactId(),
-    title: String(note.title || "查经笔记").trim().slice(0, 24) || "查经笔记",
-    summary: String(note.summary || "").trim().slice(0, 800),
+    title: String(note.title || "查经记录").trim().slice(0, 40) || "查经记录",
+    summary: String(note.summary || note.body || "").trim().slice(0, 8000),
     refs: normalizeNoteRefs(note.refs),
     ref: readingRefLabel(),
     at: note.at || Date.now(),
@@ -2594,7 +2613,7 @@ function upsertAgentNote(note) {
   const index = list.findIndex((item) => item.id === next.id);
   if (index >= 0) list[index] = next;
   else list.push(next);
-  agentMemory.notes = list.slice(-30);
+  agentMemory.notes = list.slice(-80);
   agentMemory.activeNoteId = next.id;
   saveAgentMemory();
   return next;
@@ -2614,7 +2633,7 @@ function continueAgentNote(id) {
   agentMemory.activeNoteId = note.id;
   saveAgentMemory();
   aiNotesOpen = true;
-  openAiSheet("继续笔记");
+  openAiSheet("继续查经记录");
   renderAgentChat(
     `<div class="panelHint">正在根据《${escapeHtml(note.title)}》继续。直接提问即可，例如「再展开这一点」或「相关经文还有哪些」。</div>`,
   );
@@ -2631,7 +2650,7 @@ function agentNotesMatchingFilter() {
 }
 
 function shouldShowAgentNotesInMyPanel() {
-  return myPanelKind === "all" || myPanelKind === "note";
+  return myPanelKind === "all" || myPanelKind === "study";
 }
 
 function agentNoteRefButtons(item) {
@@ -2647,20 +2666,21 @@ function agentNoteRefButtons(item) {
 function agentNoteCardHtml(item, activeId) {
   const refs = agentNoteRefButtons(item);
   return `<article class="aiNoteCard${item.id === activeId ? " active" : ""}">
-    <div class="aiNoteTitle"><span class="noteKindBadge">查经</span>${escapeHtml(item.title)}</div>
-    <div class="aiNoteSummary">${linkVerseRefs(item.summary)}</div>
+    <div class="aiNoteTitle"><span class="noteKindBadge">查经记录</span>${escapeHtml(item.title)}</div>
+    <div class="aiNoteSummary">${formatNoteMarkdown(item.summary)}</div>
     ${refs ? `<div class="aiNoteRefs">${refs}</div>` : ""}
     <div class="aiNoteActions">
+      <button type="button" data-edit-note="${escapeHtml(item.id)}">编辑</button>
       <button type="button" data-continue-note="${escapeHtml(item.id)}">${item.id === activeId ? "正在用这篇" : "继续问"}</button>
       <button type="button" data-add-note-ref="${escapeHtml(item.id)}">加上本节</button>
-      <button type="button" data-write-verse-note="${escapeHtml(item.id)}">写到本节</button>
+      <button type="button" data-write-verse-note="${escapeHtml(item.id)}">写入批注</button>
       <button type="button" data-delete-note="${escapeHtml(item.id)}">${pendingDeleteNoteId === item.id ? "确定删除？" : "删除"}</button>
     </div>
   </article>`;
 }
 
 function renderMyAgentNotes() {
-  if (myNotesHint) myNotesHint.hidden = myPanelKind !== "note" && myPanelKind !== "all";
+  if (myNotesHint) myNotesHint.hidden = !["all", "note", "study"].includes(myPanelKind);
   if (!myAgentNotesEl) return;
   if (!shouldShowAgentNotesInMyPanel()) {
     myAgentNotesEl.hidden = true;
@@ -2669,38 +2689,45 @@ function renderMyAgentNotes() {
   }
   const notes = agentNotesMatchingFilter();
   if (!notes.length) {
+    if (myPanelKind === "study") {
+      myAgentNotesEl.hidden = false;
+      myAgentNotesEl.innerHTML = `<div class="panelHint">还没有查经记录。在助手里聊几句，点「整理成查经记录」，或导入 / 粘贴 Markdown。</div>`;
+      return;
+    }
     myAgentNotesEl.hidden = true;
     myAgentNotesEl.innerHTML = "";
     return;
   }
   myAgentNotesEl.hidden = false;
-  myAgentNotesEl.innerHTML = `<div class="panelTitle">查经笔记 · ${notes.length} 篇</div>${notes
+  myAgentNotesEl.innerHTML = `<div class="panelTitle">查经记录 · ${notes.length} 篇</div>${notes
     .map((item) => agentNoteCardHtml(item, agentMemory.activeNoteId))
     .join("")}`;
 }
 
 async function distillConversationToNote() {
   if (!requireAiKey()) return;
-  const turns = (agentMemory.turns || []).slice(-24);
+  const turns = (agentMemory.turns || []).slice(-40);
   if (turns.length < 2) {
-    showStatus("先聊几句再整理成笔记", "info");
-    openAiSheet("助手 · 智能查经");
+    showStatus("先聊几句再整理成查经记录", "info");
+    openAiSheet("助手");
     return;
   }
-  const token = beginJob("正在整理笔记...");
-  openAiSheet("助手 · 智能查经");
-  renderStudyProgress([{ text: "正在把这次对话收成笔记" }], "等待模型...");
+  const token = beginJob("正在整理查经记录...");
+  openAiSheet("助手");
+  renderStudyProgress([{ text: "正在把这次对话收成查经记录" }], "等待模型...");
   const transcript = turns
     .map((item) => `${item.role === "user" ? "用户" : "助手"}：${item.text}`)
     .join("\n")
-    .slice(0, 6000);
+    .slice(0, 12000);
   try {
     const raw = await llmChat([
       {
         role: "user",
         content: [
-          "把下面圣经阅读对话整理成一条中文笔记。只输出一个 JSON，不要 Markdown。",
-          '{"title":"不超过16字","summary":"200字内要点和结论","refs":[{"book":"约翰福音","chapter":3,"verse":16,"why":"关键经文"}]}',
+          "把下面圣经阅读对话整理成一篇中文查经记录。只输出一个 JSON，不要代码围栏。",
+          '{"title":"不超过20字","body":"Markdown 正文","refs":[{"book":"约翰福音","chapter":3,"verse":16,"why":"关键经文"}]}',
+          "要求：简洁但全面。body 用 Markdown，建议结构：## 问题或背景、## 要点、## 经文、## 结论与应用。",
+          "把对话里出现过的重要论点、经文和结论都写进去，不要只写两三句摘要。大约 600 到 1800 字。",
           "refs 必须来自对话里出现过的章节，禁止编造。没有经文时 refs 为空数组。",
           "对话：",
           transcript,
@@ -2709,36 +2736,36 @@ async function distillConversationToNote() {
     ]);
     if (!jobAlive(token)) return;
     const data = extractJsonObject(raw) || {};
-    const summary = String(data.summary || raw || "").replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+    const summary = String(data.body || data.summary || raw || "").replace(/^```(?:json|markdown)?\s*|\s*```$/g, "").trim();
     const note = upsertAgentNote({
       title: data.title,
       summary,
       refs: data.refs,
     });
-    if (!note) throw new Error("没有整理出可用笔记");
-    rememberFact(`笔记《${note.title}》`, "topic");
+    if (!note) throw new Error("没有整理出可用的查经记录");
+    rememberFact(`查经记录《${note.title}》`, "topic");
     aiNotesOpen = true;
-    renderAgentChat(`<div class="aiNoteSaved">已保存查经笔记《${escapeHtml(note.title)}》。在「我的 → 笔记」里能找到，也可点「继续问」或「写到本节」。</div>`);
-    finishJob(token, `已整理成查经笔记：${note.title}`, "success");
+    renderAgentChat(`<div class="aiNoteSaved">已保存查经记录《${escapeHtml(note.title)}》。在「我的 → 查经记录」里能找到，可编辑、继续问，或写入本节批注。</div>`);
+    finishJob(token, `已整理成查经记录：${note.title}`, "success");
     if (myPanel && !myPanel.hidden) renderMyAgentNotes();
   } catch (error) {
     if (!jobAlive(token)) return;
-    renderAgentChat(`<div class="error">${escapeHtml(error.message || "整理笔记失败")}</div>`);
-    finishJob(token, error.message || "整理笔记失败", "error");
+    renderAgentChat(`<div class="error">${escapeHtml(error.message || "整理查经记录失败")}</div>`);
+    finishJob(token, error.message || "整理查经记录失败", "error");
   }
 }
 
 function syncAiNotesToggle() {
   if (!toggleAiNotesBtn) return;
   const count = (agentMemory.notes || []).length;
-  toggleAiNotesBtn.textContent = count ? `笔记 · ${count}` : "笔记";
+  toggleAiNotesBtn.textContent = count ? `查经记录 · ${count}` : "查经记录";
   toggleAiNotesBtn.classList.toggle("active", !!(aiNotesOpen && count));
 }
 
 function toggleAiNotes() {
   const count = (agentMemory.notes || []).length;
   if (!count) {
-    showStatus("还没有查经笔记。聊几句再点「整理成笔记」。", "info");
+    showStatus("还没有查经记录。聊几句再点「整理成查经记录」。", "info");
     return;
   }
   aiNotesOpen = !aiNotesOpen;
@@ -2755,7 +2782,7 @@ function renderAiNotePeek() {
   }
   const latest = notes[notes.length - 1];
   aiNotePeek.hidden = false;
-  aiNotePeek.innerHTML = `<button type="button" data-open-ai-notes>查经笔记《${escapeHtml(latest.title || "未命名")}》${notes.length > 1 ? ` · 共 ${notes.length} 篇` : ""} · 点开查看</button>`;
+  aiNotePeek.innerHTML = `<button type="button" data-open-ai-notes>查经记录《${escapeHtml(latest.title || "未命名")}》${notes.length > 1 ? ` · 共 ${notes.length} 篇` : ""} · 点开查看</button>`;
 }
 
 function renderAgentNoteList() {
@@ -2770,7 +2797,7 @@ function renderAgentNoteList() {
   }
   const activeId = agentMemory.activeNoteId;
   aiNoteList.hidden = false;
-  aiNoteList.innerHTML = `<div class="aiHistoryHead">查经笔记 · ${agentMemory.notes.length} 篇 · 也会出现在「我的」</div>${notes
+  aiNoteList.innerHTML = `<div class="aiHistoryHead">查经记录 · ${agentMemory.notes.length} 篇 · 在「我的」里也能找到</div>${notes
     .map((item) => agentNoteCardHtml(item, activeId))
     .join("")}`;
 }
@@ -2786,7 +2813,7 @@ function renderAgentMemoryBar() {
   }
   aiMemoryBar.hidden = false;
   const noteChip = note
-    ? `<span class="aiFact active"><span class="aiFactText">笔记 · ${escapeHtml(note.title)}</span><button type="button" data-unpin-note aria-label="不用这篇">×</button></span>`
+    ? `<span class="aiFact active"><span class="aiFactText">查经记录 · ${escapeHtml(note.title)}</span><button type="button" data-unpin-note aria-label="不用这篇">×</button></span>`
     : "";
   const factChips = facts
     .map(
@@ -2846,7 +2873,7 @@ function renderAgentChat(extraHtml = "") {
     head +
     (html || summaryHtml
       ? `${summaryHtml}${html}`
-      : `<div class="panelHint">可以问这节的意思。聊完点「整理成笔记」，会留下查经笔记，在「我的 → 笔记」里能找到，也可继续问或写到本节。</div>`) +
+      : `<div class="panelHint">可以问这节的意思。聊完点「整理成查经记录」，会留下可编辑的 Markdown。长按经文写的是批注，两者名字不同。</div>`) +
     extraHtml;
   aiSheetContent.scrollTop = aiSheetContent.scrollHeight;
 }
@@ -2926,7 +2953,7 @@ async function runAiTask(kind, verseNo, question = "") {
   const verses = aiVerseNumbers(verseNo);
   const labels = {
     summary: "请概括本章",
-    polish: "请润色我的笔记",
+    polish: "请润色我的批注",
     ask: question,
     explain: verses.length > 1 ? `请讲解这 ${verses.length} 节经文（${verseSelectionLabel(verses)}）` : "请讲解这节经文",
   };
@@ -3561,7 +3588,7 @@ async function openMyPanel(kind = "all", options = {}) {
     showStatus("正在读取我的内容，请稍候");
     return;
   }
-  myPanelKind = kind === "study" ? "note" : kind || "all";
+  myPanelKind = kind || "all";
   if (!options.refresh) resetMyManage();
   const token = ++myPanelRequestToken;
   myPanelLoading = true;
@@ -3574,12 +3601,16 @@ async function openMyPanel(kind = "all", options = {}) {
   }
   renderMyProgress();
   renderMyAgentNotes();
-  myResults.innerHTML = `<div class="loading">正在读取我的收藏与笔记...</div>`;
+  myResults.innerHTML = myPanelKind === "study" ? "" : `<div class="loading">正在读取我的收藏与批注...</div>`;
   document.querySelectorAll("[data-my-filter]").forEach((button) => {
     button.classList.toggle("active", button.dataset.myFilter === myPanelKind);
     button.disabled = true;
   });
   try {
+    if (myPanelKind === "study") {
+      renderMyResults([]);
+      return;
+    }
     const tag = myTagFilter.value.trim();
     const data = await api(`/api/user/marks/all?kind=${encodeURIComponent(myPanelKind === "all" ? "" : myPanelKind)}&tag=${encodeURIComponent(tag)}`);
     if (token !== myPanelRequestToken) return;
@@ -3603,7 +3634,10 @@ function myMarkActions(item) {
   const actions = [];
   if (item.favorite) actions.push(["favorite", "取消收藏"]);
   if (item.highlighted) actions.push(["highlight", "取消高亮"]);
-  if (item.note || item.tags) actions.push(["note", "删除笔记"]);
+  if (item.note || item.tags) {
+    actions.push(["edit", "编辑批注"]);
+    actions.push(["note", "删除批注"]);
+  }
   return actions;
 }
 
@@ -3611,7 +3645,7 @@ function myConfirmLabel(action, item) {
   const ref = `${item.bookName || ""} ${item.chapter}:${item.verse}`.trim();
   if (action === "favorite") return `确定取消收藏「${ref}」？`;
   if (action === "highlight") return `确定去掉「${ref}」的高亮？`;
-  return `确定删除「${ref}」的笔记？删除后不能恢复。`;
+  return `确定删除「${ref}」的批注？删除后不能恢复。`;
 }
 
 function renderMyResults(marks) {
@@ -3624,16 +3658,18 @@ function renderMyResults(marks) {
       return;
     }
     myResults.innerHTML = myPanelKind === "note"
-      ? `<div class="panelHint">还没有笔记。长按经文可写经文笔记；助手里聊完点「整理成笔记」会留下查经笔记。</div>`
-      : `<div class="panelHint">这里还是空的</div>`;
+      ? `<div class="panelHint">还没有批注。长按经文即可写。查经记录在旁边的「查经记录」里。</div>`
+      : myPanelKind === "study"
+        ? ""
+        : `<div class="panelHint">这里还是空的</div>`;
     return;
   }
-  const head = myPanelKind === "note" ? `<div class="panelTitle">经文笔记 · ${marks.length} 条</div>` : "";
+  const head = myPanelKind === "note" ? `<div class="panelTitle">批注 · ${marks.length} 条</div>` : "";
   myResults.innerHTML = head + marks
         .map((item) => {
           const key = myMarkKey(item);
           const summary = item.note
-            ? linkVerseRefs(item.note)
+            ? formatNoteMarkdown(item.note)
             : escapeHtml(item.tags || (item.highlighted ? "高亮经文" : item.favorite ? "收藏" : ""));
           const actions = myMarkActions(item);
           const managing = myManageKey === key;
@@ -3653,7 +3689,7 @@ function renderMyResults(marks) {
           const manage = actions.length
             ? `<button class="myItemManage" type="button" data-manage="${escapeHtml(key)}">管理</button>`
             : "";
-          const kind = item.note || item.tags ? `<span class="noteKindBadge">经文</span>` : "";
+          const kind = item.note || item.tags ? `<span class="noteKindBadge">批注</span>` : "";
           return `<div class="myItem${managing ? " managing" : ""}" data-my-item="${escapeHtml(key)}">
             <article class="resultItem">
               <button type="button" class="resultRef" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">${kind}${escapeHtml(item.bookName)} ${item.chapter}:${item.verse} ${item.favorite ? "★" : ""} ${item.highlighted ? "高亮" : ""}</button>
@@ -3695,7 +3731,7 @@ async function patchMyMark(key, patch, message) {
 async function confirmClearMyMark(key, action) {
   if (action === "favorite") return patchMyMark(key, { favorite: false }, "已取消收藏");
   if (action === "highlight") return patchMyMark(key, { highlighted: false, highlightColor: "" }, "已取消高亮");
-  if (action === "note") return patchMyMark(key, { note: "", tags: "" }, "已删除笔记");
+  if (action === "note") return patchMyMark(key, { note: "", tags: "" }, "已删除批注");
 }
 
 function updateVerseMarkDom(mark) {
@@ -4071,7 +4107,7 @@ async function writeAgentNoteToCurrentVerse(id) {
   const block = `【${note.title}】\n${note.summary}`;
   const next = mark.note && mark.note.trim() ? `${mark.note.trim()}\n\n${block}` : block;
   const tags = mark.tags && mark.tags.includes("查经") ? mark.tags : [mark.tags, "查经"].filter(Boolean).join(",");
-  await saveVerseMark({ ...mark, note: next, tags }, { successMessage: `已写到 ${currentBook()?.longName || ""} ${state.chapter}:${verse}` });
+  await saveVerseMark({ ...mark, note: next, tags }, { successMessage: `已写入本节批注` });
 }
 
 function addCurrentVerseToAgentNote(id) {
@@ -4094,31 +4130,371 @@ function addCurrentVerseToAgentNote(id) {
   }
   renderAgentChat();
   renderMyAgentNotes();
-  showStatus(exists ? "这篇笔记已经有这节" : `已加上 ${book.longName} ${state.chapter}:${verse}`, exists ? "info" : "success");
+  showStatus(exists ? "这篇查经记录已经有这节" : `已加上 ${book.longName} ${state.chapter}:${verse}`, exists ? "info" : "success");
+}
+
+function setNoteSheetMode(mode) {
+  noteSheetMode = mode || "verse";
+  const study = noteSheetMode === "study";
+  const paste = noteSheetMode === "paste";
+  if (noteSheetHeadingField) noteSheetHeadingField.hidden = !(study || paste);
+  if (noteSheetTags) noteSheetTags.hidden = study || paste;
+  if (noteSheetPasteActions) noteSheetPasteActions.hidden = !paste;
+  if (saveNoteSheetBtn) saveNoteSheetBtn.hidden = paste;
+  if (insertNoteRefBtn) insertNoteRefBtn.hidden = paste;
 }
 
 function openNoteSheet(verseNo) {
   const verse = Number(verseNo || selectedVerseNumbers[0] || state.activeVerse);
   if (!verse) return;
-  noteSheetVerse = verse;
   const mark = markForVerse(verse);
+  openVerseNoteEditor({
+    ...mark,
+    bookName: currentBook()?.longName || "",
+  });
+}
+
+function openVerseNoteEditor(item) {
+  if (!item) return;
+  editingStudyNoteId = "";
+  noteSheetReturnToMy = !!(myPanel && !myPanel.hidden);
+  noteSheetVerse = Number(item.verse);
+  noteSheetTarget = {
+    version: item.version || state.version,
+    book: Number(item.book || state.book),
+    chapter: Number(item.chapter || state.chapter),
+    verse: Number(item.verse),
+  };
+  setNoteSheetMode("verse");
   closeContentPanels();
   noteSheet.hidden = false;
-  if (noteSheetTitle) noteSheetTitle.textContent = `${currentBook().longName} ${state.chapter}:${verse}`;
-  if (noteSheetText) noteSheetText.value = mark.note || "";
-  if (noteSheetTags) noteSheetTags.value = mark.tags || "";
+  if (noteSheetTitle) noteSheetTitle.textContent = `批注 · ${item.bookName || currentBook()?.longName || ""} ${noteSheetTarget.chapter}:${noteSheetTarget.verse}`;
+  if (noteSheetText) noteSheetText.value = item.note || "";
+  if (noteSheetTags) noteSheetTags.value = item.tags || "";
+  if (noteSheetHeading) noteSheetHeading.value = "";
+  noteSheetText?.focus();
+}
+
+function openStudyNoteEditor(id) {
+  const note = (agentMemory.notes || []).find((item) => item.id === id);
+  if (!note) return;
+  noteSheetReturnToMy = !!(myPanel && !myPanel.hidden);
+  editingStudyNoteId = note.id;
+  noteSheetTarget = null;
+  noteSheetVerse = null;
+  setNoteSheetMode("study");
+  closeContentPanels();
+  noteSheet.hidden = false;
+  if (noteSheetTitle) noteSheetTitle.textContent = "编辑查经记录";
+  if (noteSheetHeading) noteSheetHeading.value = note.title || "";
+  if (noteSheetText) noteSheetText.value = note.summary || "";
+  if (noteSheetTags) noteSheetTags.value = "";
+  noteSheetText?.focus();
+}
+
+function openPasteMarkdownSheet() {
+  editingStudyNoteId = "";
+  noteSheetReturnToMy = !!(myPanel && !myPanel.hidden);
+  noteSheetTarget = null;
+  noteSheetVerse = Number(state.activeVerse || state.lastVerse || 0) || null;
+  setNoteSheetMode("paste");
+  closeContentPanels();
+  noteSheet.hidden = false;
+  if (noteSheetTitle) noteSheetTitle.textContent = "粘贴 Markdown";
+  if (noteSheetHeading) noteSheetHeading.value = "";
+  if (noteSheetText) noteSheetText.value = "";
+  if (noteSheetTags) noteSheetTags.value = "";
   noteSheetText?.focus();
 }
 
 async function saveNoteSheet() {
-  if (!noteSheetVerse) return;
-  const mark = markForVerse(noteSheetVerse);
+  if (noteSheetMode === "paste") return;
+  if (noteSheetMode === "study") {
+    const title = (noteSheetHeading?.value || "").trim();
+    const summary = (noteSheetText?.value || "").trim();
+    if (!summary) {
+      showStatus("请先写下查经记录", "info");
+      return;
+    }
+    const existing = (agentMemory.notes || []).find((item) => item.id === editingStudyNoteId);
+    upsertAgentNote({
+      id: editingStudyNoteId || newFactId(),
+      title: title || existing?.title || "查经记录",
+      summary,
+      refs: existing?.refs || [],
+      at: existing?.at,
+    });
+    noteSheet.hidden = true;
+    keepReadingChromeVisible();
+    showStatus("已保存查经记录", "success");
+    if (!aiSheet?.hidden) renderAgentChat();
+    if (noteSheetReturnToMy) openMyPanel(myPanelKind, { refresh: true });
+    return;
+  }
+  const target = noteSheetTarget || {
+    version: state.version,
+    book: state.book,
+    chapter: state.chapter,
+    verse: noteSheetVerse,
+  };
+  if (!target.verse) return;
+  const mark = Number(target.book) === Number(state.book) && Number(target.chapter) === Number(state.chapter)
+    ? markForVerse(target.verse)
+    : {
+        version: target.version || state.version,
+        book: target.book,
+        chapter: target.chapter,
+        verse: target.verse,
+        favorite: false,
+        highlighted: false,
+        highlightColor: "",
+        note: "",
+        tags: "",
+      };
+  const existing = myMarksByKey.get(myMarkKey(target)) || mark;
   await saveVerseMark(
-    { ...mark, note: noteSheetText?.value || "", tags: noteSheetTags?.value || "" },
-    { successMessage: "已保存笔记" },
+    {
+      ...existing,
+      version: target.version || existing.version || state.version,
+      book: target.book,
+      chapter: target.chapter,
+      verse: target.verse,
+      note: noteSheetText?.value || "",
+      tags: noteSheetTags?.value || "",
+    },
+    { successMessage: "已保存批注" },
   );
   noteSheet.hidden = true;
   keepReadingChromeVisible();
+  if (noteSheetReturnToMy) openMyPanel(myPanelKind, { refresh: true });
+}
+
+function formatNoteStamp(at) {
+  const date = new Date(at || Date.now());
+  if (!Number.isFinite(date.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function studyNoteToMarkdown(note) {
+  const refs = (note.refs || [])
+    .map((ref) => `${ref.book} ${ref.chapter}:${ref.verse}${ref.why ? `（${ref.why}）` : ""}`)
+    .join("；");
+  return [
+    `## 查经记录：${note.title || "未命名"}`,
+    "",
+    `- 类型: 查经记录`,
+    refs ? `- 经文: ${refs}` : "",
+    `- 时间: ${formatNoteStamp(note.updatedAt || note.at)}`,
+    "",
+    note.summary || "",
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+function verseNoteToMarkdown(item) {
+  return [
+    `## 批注：${item.bookName || ""} ${item.chapter}:${item.verse}`.trim(),
+    "",
+    `- 类型: 批注`,
+    `- 译本: ${item.version || state.version}`,
+    `- 位置: ${item.bookName || ""} ${item.chapter}:${item.verse}`.trim(),
+    item.tags ? `- 标签: ${item.tags}` : "",
+    `- 时间: ${item.updatedAt || ""}`,
+    "",
+    item.note || "",
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+function parseRefList(value) {
+  return String(value || "")
+    .split(/[;；,，]/)
+    .map((item) => item.trim())
+    .map((item) => {
+      const match = item.match(/^(.+?)\s+(\d+)\s*[:：]\s*(\d+)/);
+      if (!match) return null;
+      const book = resolveBookName(match[1].replace(/（.*$/, "").trim());
+      if (!book) return null;
+      return { book: book.longName, chapter: Number(match[2]), verse: Number(match[3]) };
+    })
+    .filter(Boolean);
+}
+
+function parseNotesMarkdown(md) {
+  const chunks = String(md || "")
+    .replace(/^\uFEFF/, "")
+    .split(/\n(?:-{3,}|\*{3,})\n/);
+  const items = [];
+  for (const chunk of chunks) {
+    const text = chunk.trim();
+    if (!text) continue;
+    const typeMatch = text.match(/^\s*[-*]\s*类型\s*[:：]\s*(查经记录|批注)/m);
+    const heading = text.match(/^##\s+(?:查经记录|批注)?[：:]?\s*(.+)$/m);
+    const body = text
+      .replace(/^##\s+.+$/m, "")
+      .replace(/^\s*[-*]\s*(类型|经文|译本|位置|标签|时间)\s*[:：].+$/gm, "")
+      .trim();
+    if (typeMatch?.[1] === "批注" || /^##\s+批注/.test(text)) {
+      const place = text.match(/^\s*[-*]\s*位置\s*[:：]\s*(.+)$/m)?.[1] || heading?.[1] || "";
+      const placeMatch = place.match(/^(.+?)\s+(\d+)\s*[:：]\s*(\d+)/);
+      const book = placeMatch ? resolveBookName(placeMatch[1].trim()) : null;
+      if (!book || !placeMatch) continue;
+      items.push({
+        type: "verse",
+        version: text.match(/^\s*[-*]\s*译本\s*[:：]\s*(.+)$/m)?.[1]?.trim() || state.version,
+        book: book.id,
+        bookName: book.longName,
+        chapter: Number(placeMatch[2]),
+        verse: Number(placeMatch[3]),
+        tags: text.match(/^\s*[-*]\s*标签\s*[:：]\s*(.+)$/m)?.[1]?.trim() || "",
+        note: body,
+      });
+      continue;
+    }
+    items.push({
+      type: "study",
+      title: (heading?.[1] || "导入的查经记录").replace(/^查经记录[：:]?\s*/, "").trim(),
+      summary: body,
+      refs: parseRefList(text.match(/^\s*[-*]\s*经文\s*[:：]\s*(.+)$/m)?.[1] || ""),
+    });
+  }
+  if (!items.length && String(md || "").trim()) {
+    const raw = String(md).trim();
+    const heading = raw.match(/^#\s+(.+)$/m);
+    items.push({
+      type: "study",
+      title: heading?.[1] || "导入的查经记录",
+      summary: raw,
+      refs: [],
+    });
+  }
+  return items;
+}
+
+async function importNotesMarkdown(md) {
+  const items = parseNotesMarkdown(md);
+  if (!items.length) {
+    showStatus("没有识别到可导入的 Markdown", "info");
+    return;
+  }
+  let study = 0;
+  let verse = 0;
+  for (const item of items) {
+    if (item.type === "study") {
+      if (!item.summary) continue;
+      upsertAgentNote({ title: item.title, summary: item.summary, refs: item.refs });
+      study += 1;
+      continue;
+    }
+    const current = Number(item.book) === Number(state.book) && Number(item.chapter) === Number(state.chapter)
+      ? markForVerse(item.verse)
+      : {
+          version: item.version || state.version,
+          book: item.book,
+          chapter: item.chapter,
+          verse: item.verse,
+          favorite: false,
+          highlighted: false,
+          highlightColor: "",
+          note: "",
+          tags: "",
+        };
+    const nextNote = current.note && current.note.trim() && current.note.trim() !== item.note
+      ? `${current.note.trim()}\n\n${item.note}`
+      : item.note;
+    await saveVerseMark(
+      {
+        ...current,
+        version: item.version || current.version || state.version,
+        note: nextNote,
+        tags: item.tags || current.tags || "",
+      },
+      { successMessage: "" },
+    );
+    verse += 1;
+  }
+  const parts = [];
+  if (study) parts.push(`${study} 篇查经记录`);
+  if (verse) parts.push(`${verse} 条批注`);
+  showStatus(`已导入 ${parts.join("、") || "内容"}`, "success");
+  if (!aiSheet?.hidden) renderAgentChat();
+  if (noteSheetReturnToMy || (myPanel && !myPanel.hidden)) await openMyPanel(myPanelKind, { refresh: true });
+}
+
+async function downloadTextFile(fileName, text, mime = "text/markdown;charset=utf-8") {
+  if (window.AndroidShareApi && window.AndroidShareApi.shareText) {
+    const result = JSON.parse(window.AndroidShareApi.shareText(text, fileName));
+    if (result.error) throw new Error(result.error);
+    showStatus("选择保存或发送 Markdown", "success");
+    return;
+  }
+  const blob = new Blob([text], { type: mime });
+  const file = new File([blob], fileName, { type: mime });
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({ files: [file], title: fileName });
+    showStatus("Markdown 已分享", "success");
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+  showStatus("Markdown 已导出", "success");
+}
+
+async function exportNotesMarkdown() {
+  const data = await api("/api/user/marks/all?kind=note&limit=1000");
+  const study = [...(agentMemory.notes || [])].reverse();
+  const verses = data.marks || [];
+  if (!study.length && !verses.length) {
+    showStatus("还没有可导出的批注或查经记录", "info");
+    return;
+  }
+  const parts = ["# 本地圣经 · 批注与查经记录", ""];
+  study.forEach((note) => parts.push(studyNoteToMarkdown(note), "", "---", ""));
+  verses.forEach((item) => parts.push(verseNoteToMarkdown(item), "", "---", ""));
+  const fileName = `本地圣经-批注与查经记录-${new Date().toISOString().slice(0, 10)}.md`;
+  await downloadTextFile(fileName, parts.join("\n").replace(/\n---\n\s*$/, "\n"));
+}
+
+async function savePastedMarkdown(kind) {
+  const text = (noteSheetText?.value || "").trim();
+  if (!text) {
+    showStatus("请先粘贴 Markdown", "info");
+    return;
+  }
+  if (/类型\s*[:：]\s*(查经记录|批注)/.test(text) || /\n---\n/.test(text)) {
+    await importNotesMarkdown(text);
+    noteSheet.hidden = true;
+    keepReadingChromeVisible();
+    return;
+  }
+  if (kind === "verse") {
+    const verse = Number(state.activeVerse || state.lastVerse || noteSheetVerse || 0);
+    if (!verse) {
+      showStatus("先打开一节经文，再存为本节批注", "info");
+      return;
+    }
+    const mark = markForVerse(verse);
+    const next = mark.note && mark.note.trim() ? `${mark.note.trim()}\n\n${text}` : text;
+    await saveVerseMark({ ...mark, note: next }, { successMessage: "已存为本节批注" });
+    noteSheet.hidden = true;
+    keepReadingChromeVisible();
+    if (noteSheetReturnToMy) openMyPanel(myPanelKind, { refresh: true });
+    return;
+  }
+  const title = (noteSheetHeading?.value || "").trim() || text.match(/^#\s+(.+)$/m)?.[1] || "粘贴的查经记录";
+  upsertAgentNote({ title, summary: text, refs: [] });
+  noteSheet.hidden = true;
+  keepReadingChromeVisible();
+  showStatus("已存为查经记录", "success");
+  if (!aiSheet?.hidden) renderAgentChat();
+  if (noteSheetReturnToMy) openMyPanel(myPanelKind, { refresh: true });
 }
 
 async function showCommentarySheet(verseNo) {
@@ -5251,6 +5627,12 @@ myTagFilter?.addEventListener("input", () => {
 });
 insertNoteRefBtn?.addEventListener("click", insertNoteVerseRef);
 function handleAgentNoteClick(event) {
+  const edit = event.target.closest("[data-edit-note]");
+  if (edit) {
+    event.stopPropagation();
+    openStudyNoteEditor(edit.dataset.editNote);
+    return;
+  }
   const addRef = event.target.closest("[data-add-note-ref]");
   if (addRef) {
     event.stopPropagation();
@@ -5283,7 +5665,7 @@ function handleAgentNoteClick(event) {
     deleteAgentNote(id);
     renderAgentChat();
     renderMyAgentNotes();
-    showStatus("已删除笔记", "info");
+    showStatus("已删除查经记录", "info");
   }
 }
 aiNoteList?.addEventListener("click", handleAgentNoteClick);
@@ -5405,6 +5787,26 @@ aiKeyInput?.addEventListener("input", saveAiSettings);
 mimoAsrKeyInput?.addEventListener("change", saveAiSettings);
 mimoAsrKeyInput?.addEventListener("input", saveAiSettings);
 saveNoteSheetBtn?.addEventListener("click", saveNoteSheet);
+exportNotesMdBtn?.addEventListener("click", () => {
+  exportNotesMarkdown().catch((error) => showStatus(error.message || "导出失败", "error"));
+});
+importNotesMdBtn?.addEventListener("click", () => importNotesMdFile?.click());
+pasteNotesMdBtn?.addEventListener("click", openPasteMarkdownSheet);
+importNotesMdFile?.addEventListener("change", async () => {
+  const file = importNotesMdFile.files?.[0];
+  importNotesMdFile.value = "";
+  if (!file) return;
+  try {
+    const text = await file.text();
+    await importNotesMarkdown(text);
+  } catch (error) {
+    showStatus(error.message || "导入失败", "error");
+  }
+});
+noteSheetPasteActions?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-paste-as]");
+  if (button) savePastedMarkdown(button.dataset.pasteAs);
+});
 recentSearchesEl?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-recent-search]");
   if (!button) return;
@@ -5720,6 +6122,11 @@ myResults.addEventListener("click", async (event) => {
   const pick = event.target.closest("[data-manage-action]");
   if (pick) {
     event.preventDefault();
+    if (pick.dataset.manageAction === "edit") {
+      const item = myMarksByKey.get(pick.dataset.markKey);
+      if (item) openVerseNoteEditor(item);
+      return;
+    }
     myManageKey = pick.dataset.markKey;
     myManageAction = pick.dataset.manageAction;
     renderMyResults([...myMarksByKey.values()]);

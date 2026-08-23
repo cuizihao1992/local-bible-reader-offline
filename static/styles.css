@@ -276,9 +276,12 @@ select, input[type="search"], input[type="text"] {
 }
 .chipRow button.active { background: var(--accent); color: #fff; }
 #noteSheetText {
-  width: 100%; min-height: 140px; border: 1px solid var(--line); border-radius: var(--radius);
+  width: 100%; min-height: 180px; border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--control); color: var(--ink); padding: 10px; font: inherit; resize: vertical;
 }
+.noteMdH { font-weight: 700; margin: 8px 0 4px; }
+.aiNoteSummary { white-space: pre-wrap; }
+.myNoteFiles { margin: 8px 0 12px; }
 #noteSheetTags {
   width: 100%; min-height: 38px; margin: 10px 0; border: 1px solid var(--line);
   border-radius: var(--radius); background: var(--control); color: var(--ink); padding: 0 10px;

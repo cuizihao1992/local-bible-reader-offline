@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.29.0</p>
+            <p>设置 · 1.30.0</p>
           </div>
         </div>
       </div>
@@ -372,16 +372,24 @@
 
       <section id="noteSheet" class="sheetPanel panel" hidden>
         <div class="sheetHeader panelHeader">
-          <div id="noteSheetTitle" class="sheetTitle">笔记</div>
+          <div id="noteSheetTitle" class="sheetTitle">批注</div>
           <button id="closeNoteSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
         <div class="sheetBody">
-          <textarea id="noteSheetText" placeholder="写下笔记。可插入 约翰福音 3:16 这样的引用，保存后能点着跳转。"></textarea>
+          <label id="noteSheetHeadingField" class="field compactField" hidden>
+            <span>标题</span>
+            <input id="noteSheetHeading" type="text" placeholder="查经记录标题" autocomplete="off" />
+          </label>
+          <textarea id="noteSheetText" placeholder="支持 Markdown。可写 约翰福音 3:16，保存后能点着跳转。"></textarea>
           <input id="noteSheetTags" type="text" placeholder="标签，用逗号分隔" />
+          <div id="noteSheetPasteActions" class="chipRow" hidden>
+            <button type="button" data-paste-as="study">存为查经记录</button>
+            <button type="button" data-paste-as="verse">存为本节批注</button>
+          </div>
         </div>
         <div class="sheetFooter dataButtons">
           <button id="insertNoteRefBtn" type="button">插入本节引用</button>
-          <button id="saveNoteSheetBtn" type="button">保存笔记</button>
+          <button id="saveNoteSheetBtn" type="button">保存</button>
         </div>
       </section>
 
@@ -415,13 +423,13 @@
             <button type="button" data-ai-action="study">查经</button>
             <button type="button" data-ai-action="explain">讲解</button>
             <button type="button" data-ai-action="summary">摘要</button>
-            <button type="button" data-ai-action="polish">润色笔记</button>
+            <button type="button" data-ai-action="polish">润色批注</button>
           </div>
           <div id="aiToolRow" class="chipRow aiToolRow">
             <button id="newAiChatBtn" type="button">新对话</button>
-            <button id="saveAiNoteBtn" type="button">整理成笔记</button>
+            <button id="saveAiNoteBtn" type="button">整理成查经记录</button>
             <button id="clearAiMemoryBtn" type="button">清空本轮</button>
-            <button id="toggleAiNotesBtn" type="button">笔记</button>
+            <button id="toggleAiNotesBtn" type="button">查经记录</button>
           </div>
           <div id="aiNotePeek" class="aiNotePeek" hidden></div>
           <div id="aiNoteList" class="aiNoteList" hidden></div>
@@ -467,10 +475,17 @@
           <button type="button" data-my-filter="all" class="active">全部</button>
           <button type="button" data-my-filter="favorite">收藏</button>
           <button type="button" data-my-filter="highlight">高亮</button>
-          <button type="button" data-my-filter="note">笔记</button>
+          <button type="button" data-my-filter="note">批注</button>
+          <button type="button" data-my-filter="study">查经记录</button>
           </div>
-          <input id="myTagFilter" type="search" placeholder="按标签或笔记内容筛选" />
-          <div id="myNotesHint" class="panelHint">长按经文写「经文笔记」；助手里整理的是「查经笔记」，都可以在这里找到，查经笔记还能继续问。</div>
+          <input id="myTagFilter" type="search" placeholder="按标签或内容筛选" />
+          <div id="myNotesHint" class="panelHint">批注挂在某一节上；查经记录是一次对话的整理，可继续问。都支持 Markdown，可导入导出。</div>
+          <div class="dataButtons myNoteFiles">
+            <button id="exportNotesMdBtn" type="button">导出 Markdown</button>
+            <button id="importNotesMdBtn" type="button">导入 Markdown</button>
+            <button id="pasteNotesMdBtn" type="button">粘贴 Markdown</button>
+            <input id="importNotesMdFile" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden />
+          </div>
         </div>
         <div id="myAgentNotes" class="myAgentNotes" hidden></div>
         <div id="myResults" class="resultList"></div>
@@ -501,7 +516,7 @@
         <div id="myTabUpdates" class="myTabPane" data-my-pane="updates" hidden>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.29.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.30.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -535,7 +550,7 @@
         <button type="button" data-hl-color="rose" title="玫红"></button>
         <button type="button" data-hl-color="" title="取消高亮">取消高亮</button>
       </div>
-      <button type="button" data-menu-action="note">笔记</button>
+      <button type="button" data-menu-action="note">批注</button>
       <button type="button" data-menu-action="copy">复制</button>
       <button type="button" data-menu-action="explain">讲解</button>
       <button type="button" id="verseMenuMoreBtn" data-menu-action="more">更多</button>
@@ -564,7 +579,7 @@
       <div class="actionBarButtons">
         <button type="button" data-bar-action="favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l2.2 4.5 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L4.8 9.7l5-.7z"/></svg>收藏</button>
         <button type="button" data-bar-action="highlight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19h14M8 16l8-8 3 3-8 8H8z"/></svg>高亮</button>
-        <button type="button" data-bar-action="note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h9l3 3v11H6zM15 5v4h4"/></svg>笔记</button>
+        <button type="button" data-bar-action="note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h9l3 3v11H6zM15 5v4h4"/></svg>批注</button>
         <button type="button" data-bar-action="explain"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h10M5 18h7"/></svg>讲解</button>
         <button type="button" data-bar-action="copy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="1.5"/><path d="M5 16V5h10"/></svg>复制</button>
         <button type="button" data-bar-action="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg>更多</button>
