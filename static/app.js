@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.24.0";
+const APP_VERSION = "1.25.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -224,6 +224,8 @@ const aiSheetContent = $("#aiSheetContent");
 const aiNoteList = $("#aiNoteList");
 const aiMemoryBar = $("#aiMemoryBar");
 const saveAiNoteBtn = $("#saveAiNoteBtn");
+const newAiChatBtn = $("#newAiChatBtn");
+const insertNoteRefBtn = $("#insertNoteRefBtn");
 const aiAskForm = $("#aiAskForm");
 const aiAskInput = $("#aiAskInput");
 const closeAiSheetBtn = $("#closeAiSheetBtn");
@@ -780,7 +782,7 @@ function verseMarkClasses(mark) {
 function renderNoteEditor(verse) {
   const mark = markForVerse(verse);
   if (!mark.note && !mark.tags) return "";
-  return `<div class="notePreview">${mark.tags ? `<div class="noteTags">${escapeHtml(mark.tags)}</div>` : ""}<div class="noteText">${escapeHtml(mark.note)}</div></div>`;
+  return `<div class="notePreview">${mark.tags ? `<div class="noteTags">${escapeHtml(mark.tags)}</div>` : ""}<div class="noteText">${linkVerseRefs(mark.note)}</div></div>`;
 }
 
 function renderStrongList(strongs) {
@@ -2382,14 +2384,59 @@ function rememberAgentTurn(role, text) {
   saveAgentMemory();
 }
 
-function clearAgentMemory() {
+let pendingNewChat = false;
+let pendingClearChat = false;
+let pendingDeleteNoteId = "";
+
+function resetChatActionButtons() {
+  pendingNewChat = false;
+  pendingClearChat = false;
+  if (newAiChatBtn) newAiChatBtn.textContent = "新对话";
+  if (clearAiMemoryBtn) clearAiMemoryBtn.textContent = "清空本轮";
+}
+
+function startNewConversation({ keepNote = false } = {}) {
   agentMemory.turns = [];
-  agentMemory.facts = [];
   agentMemory.summary = "";
-  agentMemory.activeNoteId = null;
+  if (!keepNote) agentMemory.activeNoteId = null;
   saveAgentMemory();
+  resetChatActionButtons();
   renderAgentChat();
-  showStatus("已清空对话记忆，查经笔记仍保留", "info");
+}
+
+function requestNewConversation() {
+  if (pendingClearChat) resetChatActionButtons();
+  if (!(agentMemory.turns || []).length) {
+    startNewConversation();
+    showStatus("已经是新对话", "info");
+    return;
+  }
+  if (!pendingNewChat) {
+    pendingNewChat = true;
+    if (newAiChatBtn) newAiChatBtn.textContent = "确定新开？";
+    return;
+  }
+  startNewConversation();
+  showStatus("已开新对话，笔记还在", "info");
+}
+
+function requestClearCurrentChat() {
+  if (pendingNewChat) resetChatActionButtons();
+  if (!(agentMemory.turns || []).length) {
+    showStatus("这一轮还没有对话", "info");
+    return;
+  }
+  if (!pendingClearChat) {
+    pendingClearChat = true;
+    if (clearAiMemoryBtn) clearAiMemoryBtn.textContent = "确定清空？";
+    return;
+  }
+  startNewConversation({ keepNote: true });
+  showStatus("已清空本轮，笔记还在", "info");
+}
+
+function clearAgentMemory() {
+  requestClearCurrentChat();
 }
 
 function normalizeNoteRefs(refs) {
@@ -2515,11 +2562,12 @@ function renderAgentNoteList() {
         .join("");
       return `<article class="aiNoteCard${item.id === activeId ? " active" : ""}">
         <div class="aiNoteTitle">${escapeHtml(item.title)}</div>
-        <div class="aiNoteSummary">${escapeHtml(item.summary)}</div>
+        <div class="aiNoteSummary">${linkVerseRefs(item.summary)}</div>
         ${refs ? `<div class="aiNoteRefs">${refs}</div>` : ""}
         <div class="aiNoteActions">
           <button type="button" data-continue-note="${escapeHtml(item.id)}">${item.id === activeId ? "正在用这篇" : "继续"}</button>
-          <button type="button" data-delete-note="${escapeHtml(item.id)}">删除</button>
+          <button type="button" data-add-note-ref="${escapeHtml(item.id)}">加上本节</button>
+          <button type="button" data-delete-note="${escapeHtml(item.id)}">${pendingDeleteNoteId === item.id ? "确定删除？" : "删除"}</button>
         </div>
       </article>`;
     })
@@ -2597,7 +2645,7 @@ function renderAgentChat(extraHtml = "") {
     head +
     (html || summaryHtml
       ? `${summaryHtml}${html}`
-      : `<div class="panelHint">可以问这节的意思，或点搜索里的「智能查经」。聊完可点「整理成笔记」，之后还能按笔记继续问。</div>`) +
+      : `<div class="panelHint">可以问这节的意思，或点搜索里的「智能查经」。聊完点「整理成笔记」，之后可点「继续」。经文笔记里也能插入 约翰福音 3:16 这样的引用并跳转。</div>`) +
     extraHtml;
   aiSheetContent.scrollTop = aiSheetContent.scrollHeight;
 }
@@ -3335,7 +3383,9 @@ function renderMyResults(marks) {
     ? marks
         .map((item) => {
           const key = myMarkKey(item);
-          const summary = item.note || item.tags || (item.highlighted ? "高亮经文" : item.favorite ? "收藏" : "");
+          const summary = item.note
+            ? linkVerseRefs(item.note)
+            : escapeHtml(item.tags || (item.highlighted ? "高亮经文" : item.favorite ? "收藏" : ""));
           const actions = myMarkActions(item);
           const managing = myManageKey === key;
           let extra = "";
@@ -3355,10 +3405,10 @@ function renderMyResults(marks) {
             ? `<button class="myItemManage" type="button" data-manage="${escapeHtml(key)}">管理</button>`
             : "";
           return `<div class="myItem${managing ? " managing" : ""}" data-my-item="${escapeHtml(key)}">
-            <button class="resultItem" type="button" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">
-              <div class="resultRef">${escapeHtml(item.bookName)} ${item.chapter}:${item.verse} ${item.favorite ? "★" : ""} ${item.highlighted ? "高亮" : ""}</div>
-              <div class="resultText">${escapeHtml(summary)}</div>
-            </button>
+            <article class="resultItem">
+              <button type="button" class="resultRef" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">${escapeHtml(item.bookName)} ${item.chapter}:${item.verse} ${item.favorite ? "★" : ""} ${item.highlighted ? "高亮" : ""}</button>
+              <div class="resultText">${summary}</div>
+            </article>
             ${manage}
             ${extra}
           </div>`;
@@ -3737,6 +3787,50 @@ function renderCompareSources() {
       return `<button type="button" class="${checked ? "active" : ""}" data-pick-compare="${escapeHtml(item.id)}">${escapeHtml(item.shortName || item.name)}</button>`;
     })
     .join("");
+}
+
+function insertNoteVerseRef() {
+  if (!noteSheetText) return;
+  const nums = selectedVerseNumbers.length ? selectedVerseNumbers : noteSheetVerse ? [noteSheetVerse] : [];
+  const label = verseSelectionLabel(nums);
+  if (!label) {
+    showStatus("先选一节经文再插入引用");
+    return;
+  }
+  const el = noteSheetText;
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? start;
+  const before = el.value.slice(0, start);
+  const after = el.value.slice(end);
+  const padL = before && !/\s$/.test(before) ? " " : "";
+  const padR = after && !/^\s/.test(after) ? " " : "";
+  el.value = `${before}${padL}${label}${padR}${after}`;
+  const cursor = (before + padL + label + padR).length;
+  el.focus();
+  el.setSelectionRange(cursor, cursor);
+  showStatus(`已插入 ${label}`, "success");
+}
+
+function addCurrentVerseToAgentNote(id) {
+  const note = (agentMemory.notes || []).find((item) => item.id === id);
+  const book = currentBook();
+  const verse = Number(state.activeVerse || state.lastVerse || selectedVerseNumbers[0] || 0);
+  if (!note || !book || !verse) {
+    showStatus("先打开一节经文，再点加上本节");
+    return;
+  }
+  const refs = Array.isArray(note.refs) ? note.refs.slice() : [];
+  const exists = refs.some(
+    (item) => item.book === book.longName && Number(item.chapter) === Number(state.chapter) && Number(item.verse) === verse,
+  );
+  if (!exists) {
+    refs.push({ book: book.longName, chapter: Number(state.chapter), verse, why: "手加" });
+    note.refs = refs.slice(0, 8);
+    note.updatedAt = Date.now();
+    saveAgentMemory();
+  }
+  renderAgentChat();
+  showStatus(exists ? "这篇笔记已经有这节" : `已加上 ${book.longName} ${state.chapter}:${verse}`, exists ? "info" : "success");
 }
 
 function openNoteSheet(verseNo) {
@@ -4849,9 +4943,17 @@ closeCommentarySheetBtn?.addEventListener("click", dismissSheet);
 closeShareSheetBtn?.addEventListener("click", dismissSheet);
 closeNoteSheetBtn?.addEventListener("click", dismissSheet);
 closeAiSheetBtn?.addEventListener("click", dismissSheet);
+newAiChatBtn?.addEventListener("click", requestNewConversation);
 saveAiNoteBtn?.addEventListener("click", distillConversationToNote);
-clearAiMemoryBtn?.addEventListener("click", clearAgentMemory);
+clearAiMemoryBtn?.addEventListener("click", requestClearCurrentChat);
+insertNoteRefBtn?.addEventListener("click", insertNoteVerseRef);
 aiNoteList?.addEventListener("click", (event) => {
+  const addRef = event.target.closest("[data-add-note-ref]");
+  if (addRef) {
+    event.stopPropagation();
+    addCurrentVerseToAgentNote(addRef.dataset.addNoteRef);
+    return;
+  }
   const cont = event.target.closest("[data-continue-note]");
   if (cont) {
     event.stopPropagation();
@@ -4861,7 +4963,14 @@ aiNoteList?.addEventListener("click", (event) => {
   const del = event.target.closest("[data-delete-note]");
   if (del) {
     event.stopPropagation();
-    deleteAgentNote(del.dataset.deleteNote);
+    const id = del.dataset.deleteNote;
+    if (pendingDeleteNoteId !== id) {
+      pendingDeleteNoteId = id;
+      renderAgentNoteList();
+      return;
+    }
+    pendingDeleteNoteId = "";
+    deleteAgentNote(id);
     renderAgentChat();
     showStatus("已删除笔记", "info");
   }
@@ -5291,11 +5400,15 @@ myResults.addEventListener("click", async (event) => {
   }
   const button = event.target.closest("[data-jump-book]");
   if (!button) return;
-  await jumpToReference({
-    book: Number(button.dataset.jumpBook),
-    chapter: Number(button.dataset.jumpChapter),
-    verse: Number(button.dataset.jumpVerse),
-  });
+  event.stopPropagation();
+  await jumpFromPeek(
+    {
+      book: Number(button.dataset.jumpBook),
+      chapter: Number(button.dataset.jumpChapter),
+      verse: Number(button.dataset.jumpVerse),
+    },
+    { kind: "my", title: "返回我的", restore: () => openMyPanel(myPanelKind) },
+  );
 });
 
 strongContent.addEventListener("click", async (event) => {

@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.24.0</p>
+            <p>设置 · 1.25.0</p>
           </div>
         </div>
       </div>
@@ -350,10 +350,11 @@
           <button id="closeNoteSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
         <div class="sheetBody">
-          <textarea id="noteSheetText" placeholder="写下笔记"></textarea>
+          <textarea id="noteSheetText" placeholder="写下笔记。可插入 约翰福音 3:16 这样的引用，保存后能点着跳转。"></textarea>
           <input id="noteSheetTags" type="text" placeholder="标签，用逗号分隔" />
         </div>
         <div class="sheetFooter dataButtons">
+          <button id="insertNoteRefBtn" type="button">插入本节引用</button>
           <button id="saveNoteSheetBtn" type="button">保存笔记</button>
         </div>
       </section>
@@ -382,8 +383,9 @@
         <div class="sheetHeader panelHeader">
           <div id="aiSheetTitle" class="sheetTitle">助手 · 智能查经</div>
           <div class="sheetHeaderActions">
+            <button id="newAiChatBtn" class="textBtn" type="button">新对话</button>
             <button id="saveAiNoteBtn" class="textBtn" type="button">整理成笔记</button>
-            <button id="clearAiMemoryBtn" class="textBtn" type="button">清空记忆</button>
+            <button id="clearAiMemoryBtn" class="textBtn" type="button">清空本轮</button>
             <button id="closeAiSheetBtn" class="textBtn" type="button">关闭</button>
           </div>
         </div>
@@ -450,7 +452,7 @@
         </div>
         <div class="sheetSection settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.24.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.25.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

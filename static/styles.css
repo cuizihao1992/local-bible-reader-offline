@@ -407,6 +407,19 @@ select, input[type="search"], input[type="text"] {
   cursor: pointer;
 }
 .resultRef { color: var(--accent); font-size: 13px; font-weight: 600; }
+article.resultItem > .resultRef {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  padding: 0;
+  min-height: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
 .resultText { font-size: 14px; line-height: 1.7; font-family: var(--read-font); }
 .mark { background: color-mix(in srgb, var(--accent-2) 22%, transparent); }
 
@@ -610,7 +623,7 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
 .notePreview { background: transparent; border-left: 2px solid var(--accent-2); border-radius: 0; }
 .noteTags { color: var(--accent-2); font-size: 12px; font-weight: 600; }
 .noteText { white-space: pre-wrap; font-size: 14px; line-height: 1.7; }
-.sheetHeaderActions { display: flex; align-items: center; gap: 4px; }
+.sheetHeaderActions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .aiSheetContent {
   min-height: 80px;
   margin-bottom: 12px;
