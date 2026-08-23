@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.19.0";
+const APP_VERSION = "1.20.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -2167,13 +2167,13 @@ async function runAgent(question, options = {}) {
     }
   }
   rememberAgentTurn("user", query);
-  openAiSheet("助手", options.verseNo || state.activeVerse);
+  openAiSheet(mode === "study" ? "智能查经" : "助手 · 智能查经", options.verseNo || state.activeVerse);
   const steps = [{ text: `正在理解：${query.slice(0, 40)}` }];
   renderStudyProgress(steps, "等待模型...");
   const skill = await loadBibleStudySkill();
   if (!jobAlive(token)) return;
   const messages = [{ role: "system", content: agentSystemPrompt(skill, mode) }];
-  agentMemory.turns.slice(-10).forEach((item) => {
+  agentMemory.turns.slice(-PROMPT_TURNS).forEach((item) => {
     messages.push({ role: item.role === "user" ? "user" : "assistant", content: item.text });
   });
   try {
@@ -2288,25 +2288,28 @@ function forgetFact(query) {
   return { tool: "forget", ok: true, removed: before - agentMemory.facts.length };
 }
 
+const HISTORY_MAX = 120;
+const HISTORY_COMPACT_KEEP = 80;
+const PROMPT_TURNS = 10;
+
 function compactAgentTurns() {
-  if (agentMemory.turns.length <= 24) return;
-  const keep = 16;
-  const dropped = agentMemory.turns.slice(0, -keep);
+  if (agentMemory.turns.length <= HISTORY_MAX) return;
+  const dropped = agentMemory.turns.slice(0, -HISTORY_COMPACT_KEEP);
   const chunk = dropped
     .map((item) => `${item.role === "user" ? "用户" : "助手"}：${String(item.text || "").slice(0, 80)}`)
     .join("\n");
-  agentMemory.summary = `${agentMemory.summary ? `${agentMemory.summary}\n` : ""}${chunk}`.slice(-1800);
-  agentMemory.turns = agentMemory.turns.slice(-keep);
+  agentMemory.summary = `${agentMemory.summary ? `${agentMemory.summary}\n` : ""}${chunk}`.slice(-2400);
+  agentMemory.turns = agentMemory.turns.slice(-HISTORY_COMPACT_KEEP);
 }
 
 function loadAgentMemory() {
   try {
     const saved = JSON.parse(localStorage.getItem(MEMORY_KEY) || "{}");
-    agentMemory.turns = Array.isArray(saved.turns) ? saved.turns.slice(-24) : [];
+    agentMemory.turns = Array.isArray(saved.turns) ? saved.turns.slice(-HISTORY_MAX) : [];
     agentMemory.facts = Array.isArray(saved.facts)
       ? saved.facts.filter((item) => item && item.text).slice(-40)
       : [];
-    agentMemory.summary = String(saved.summary || "").slice(-2000);
+    agentMemory.summary = String(saved.summary || "").slice(-2400);
   } catch {
     agentMemory.turns = [];
     agentMemory.facts = [];
@@ -2319,9 +2322,9 @@ function saveAgentMemory() {
   localStorage.setItem(
     MEMORY_KEY,
     JSON.stringify({
-      turns: agentMemory.turns.slice(-24),
+      turns: agentMemory.turns.slice(-HISTORY_MAX),
       facts: (agentMemory.facts || []).slice(-40),
-      summary: String(agentMemory.summary || "").slice(-2000),
+      summary: String(agentMemory.summary || "").slice(-2400),
     }),
   );
 }
@@ -2372,25 +2375,62 @@ function renderAgentMemoryBar() {
     .join("");
 }
 
+function formatTurnDay(at) {
+  const date = new Date(at);
+  if (!Number.isFinite(date.getTime())) return "";
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startThat = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diff = Math.round((startToday - startThat) / 86400000);
+  if (diff === 0) return "今天";
+  if (diff === 1) return "昨天";
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function formatTurnTime(at) {
+  const date = new Date(at);
+  if (!Number.isFinite(date.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function renderAgentTurnsHtml(turns) {
+  let lastDay = "";
+  return turns
+    .map((item) => {
+      const day = item.at ? formatTurnDay(item.at) : "";
+      const sep = day && day !== lastDay ? `<div class="aiDaySep">${escapeHtml(day)}</div>` : "";
+      if (day) lastDay = day;
+      const who = item.role === "user" ? "我" : "助手";
+      const time = item.at ? formatTurnTime(item.at) : "";
+      const body = item.role === "assistant" ? linkVerseRefs(item.text) : escapeHtml(item.text);
+      return `${sep}<div class="aiTurn ${item.role}"><div class="aiTurnMeta">${who}${time ? ` · ${escapeHtml(time)}` : ""}${item.ref ? ` · ${escapeHtml(item.ref)}` : ""}</div><div class="aiTurnText">${body}</div></div>`;
+    })
+    .join("");
+}
+
 function renderAgentChat(extraHtml = "") {
   if (!aiSheetContent) return;
   renderAgentMemoryBar();
-  const turns = agentMemory.turns.slice(-16);
-  const html = turns
-    .map((item) => {
-      const who = item.role === "user" ? "我" : "助手";
-      const body = item.role === "assistant" ? linkVerseRefs(item.text) : escapeHtml(item.text);
-      return `<div class="aiTurn ${item.role}"><div class="aiTurnMeta">${who}${item.ref ? ` · ${escapeHtml(item.ref)}` : ""}</div><div class="aiTurnText">${body}</div></div>`;
-    })
-    .join("");
+  const turns = agentMemory.turns || [];
+  const summary = String(agentMemory.summary || "").trim();
+  const head = `<div class="aiHistoryHead">对话记录${turns.length ? ` · ${turns.length} 条` : ""}</div>`;
+  const summaryHtml = summary
+    ? `<div class="aiSummary"><div class="aiTurnMeta">更早的对话</div>${escapeHtml(summary)}</div>`
+    : "";
+  const html = renderAgentTurnsHtml(turns);
   aiSheetContent.innerHTML =
-    (html || `<div class="panelHint">可以问这节的意思，或说「帮我找抬葡萄」。助手会记住你的偏好和查过的主题，经文仍只从本机译本取。</div>`) + extraHtml;
+    head +
+    (html || summaryHtml
+      ? `${summaryHtml}${html}`
+      : `<div class="panelHint">可以问这节的意思，或点搜索里的「智能查经」。查经、讲解、闲聊都在这里，记录会留下来。</div>`) +
+    extraHtml;
   aiSheetContent.scrollTop = aiSheetContent.scrollHeight;
 }
 
 function agentChatMessages(userText) {
   const messages = [{ role: "system", content: agentSystemPrompt(bibleStudySkillText || BIBLE_STUDY_SKILL_FALLBACK, "ask") }];
-  agentMemory.turns.slice(-10).forEach((item) => {
+  agentMemory.turns.slice(-PROMPT_TURNS).forEach((item) => {
     messages.push({ role: item.role === "user" ? "user" : "assistant", content: item.text });
   });
   if (userText) messages.push({ role: "user", content: userText });
@@ -2446,7 +2486,7 @@ function openAiSheet(title, verseNo, focusAsk = false) {
   closeContentPanels();
   if (verseNo) state.activeVerse = Number(verseNo);
   aiSheet.hidden = false;
-  if (aiSheetTitle) aiSheetTitle.textContent = title || "助手";
+  if (aiSheetTitle) aiSheetTitle.textContent = title || "助手 · 智能查经";
   renderAgentChat();
   if (focusAsk) aiAskInput?.focus();
 }
@@ -4562,7 +4602,8 @@ peekCloseBtn?.addEventListener("click", clearPeek);
 studySearchBtn?.addEventListener("click", () => {
   const query = quickInput?.value.trim();
   if (!query) {
-    showStatus("先输入要找的内容，例如：约书亚记里抬葡萄");
+    openAiSheet("智能查经");
+    showStatus("智能查经就是这个助手。先输入内容再点，或直接在这里接着问。", "info");
     return;
   }
   runBibleStudy(query);

@@ -609,7 +609,35 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
   padding: 0 2px;
   min-width: 18px;
 }
+.aiHistoryHead {
+  font-family: var(--ui-font);
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.aiDaySep {
+  text-align: center;
+  font-family: var(--ui-font);
+  font-size: 11px;
+  color: var(--muted);
+  margin: 4px 0 2px;
+}
+.aiSummary {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--soft);
+  color: var(--muted);
+  font-family: var(--ui-font);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+}
 .aiChat { display: grid; gap: 8px; white-space: normal; }
+#aiSheet .sheetBody {
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
 .aiTurn { padding: 8px 10px; border-radius: 10px; }
 .aiTurn.user { background: var(--soft); }
 .aiTurn.assistant { background: color-mix(in srgb, var(--accent) 12%, var(--soft)); }
