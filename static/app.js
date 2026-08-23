@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.26.0";
+const APP_VERSION = "1.27.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -61,6 +61,11 @@ const dictionarySelect = $("#dictionarySelect");
 const dictionaryInput = $("#dictionaryInput");
 const dictionaryBtn = $("#dictionaryBtn");
 const dictionaryHint = $("#dictionaryHint");
+const dictionarySheetSelect = $("#dictionarySheetSelect");
+const dictionarySheetInput = $("#dictionarySheetInput");
+const dictionarySheetBtn = $("#dictionarySheetBtn");
+const dictionarySheetForm = $("#dictionarySheetForm");
+const openDictionarySheetBtn = $("#openDictionarySheetBtn");
 const exportDataBtn = $("#exportDataBtn");
 const importDataBtn = $("#importDataBtn");
 const importDataFile = $("#importDataFile");
@@ -132,6 +137,7 @@ const selectionSummary = $("#selectionSummary");
 const cancelSelectionBtn = $("#cancelSelectionBtn");
 const mobileSearchBtn = $("#mobileSearchBtn");
 const mobileMenuBtn = $("#mobileMenuBtn");
+const mobileAiBtn = $("#mobileAiBtn");
 const mobileMyBtn = $("#mobileMyBtn");
 const searchToggleBtn = $("#searchToggleBtn");
 const versionChipBtn = $("#versionChipBtn");
@@ -227,6 +233,7 @@ const aiNoteList = $("#aiNoteList");
 const aiMemoryBar = $("#aiMemoryBar");
 const saveAiNoteBtn = $("#saveAiNoteBtn");
 const newAiChatBtn = $("#newAiChatBtn");
+const toggleAiNotesBtn = $("#toggleAiNotesBtn");
 const insertNoteRefBtn = $("#insertNoteRefBtn");
 const aiAskForm = $("#aiAskForm");
 const aiAskInput = $("#aiAskInput");
@@ -489,7 +496,7 @@ function applySettings() {
   if (readFontSelect) readFontSelect.value = state.readFont === "sans" ? "sans" : "serif";
   if (copyFormatSelect) copyFormatSelect.value = state.copyFormat;
   if (ttsRateSelect) ttsRateSelect.value = String(state.ttsRate);
-  strongToggle.checked = state.showStrong;
+  if (strongToggle) strongToggle.checked = state.showStrong;
   if (strongToggleReader) strongToggleReader.checked = state.showStrong;
   if (audioAutoNext) audioAutoNext.checked = state.audioAutoNext;
   if (audioAutoNextSheet) audioAutoNextSheet.checked = state.audioAutoNext;
@@ -516,9 +523,34 @@ function closeSidebar() {
   document.body.classList.remove("sidebarOpen");
 }
 
-function openSidebar() {
+function openSidebar(tab) {
   document.body.classList.add("sidebarOpen");
   closeTopPanels(false);
+  if (tab) setSidebarTab(tab);
+}
+
+function setSidebarTab(name) {
+  const tab = name === "dictionary" || name === "system" ? name : "assistant";
+  document.querySelectorAll("[data-sidebar-tab]").forEach((button) => {
+    const on = button.dataset.sidebarTab === tab;
+    button.classList.toggle("active", on);
+    button.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  document.querySelectorAll("[data-sidebar-section]").forEach((section) => {
+    section.classList.toggle("active", section.dataset.sidebarSection === tab);
+  });
+}
+
+function setMyTab(name) {
+  const tab = name === "resources" || name === "updates" ? name : "marks";
+  document.querySelectorAll("[data-my-tab]").forEach((button) => {
+    const on = button.dataset.myTab === tab;
+    button.classList.toggle("active", on);
+    button.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  document.querySelectorAll("[data-my-pane]").forEach((pane) => {
+    pane.hidden = pane.dataset.myPane !== tab;
+  });
 }
 
 function keepReadingChromeVisible(ms = 1600) {
@@ -664,10 +696,37 @@ function renderCommentaries() {
 }
 
 function renderDictionaries() {
-  dictionarySelect.innerHTML = state.dictionaries
+  const html = state.dictionaries
     .map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === state.dictionary ? "selected" : ""}>${escapeHtml(item.title)}</option>`)
     .join("");
+  if (dictionarySelect) dictionarySelect.innerHTML = html;
+  if (dictionarySheetSelect) dictionarySheetSelect.innerHTML = html;
   if (!state.dictionary && state.dictionaries[0]) state.dictionary = state.dictionaries[0].id;
+  if (state.dictionary) {
+    if (dictionarySelect) dictionarySelect.value = state.dictionary;
+    if (dictionarySheetSelect) dictionarySheetSelect.value = state.dictionary;
+  }
+}
+
+function setDictionarySource(id) {
+  if (!id) return;
+  state.dictionary = id;
+  if (dictionarySelect && dictionarySelect.value !== id) dictionarySelect.value = id;
+  if (dictionarySheetSelect && dictionarySheetSelect.value !== id) dictionarySheetSelect.value = id;
+  saveState();
+}
+
+function setDictionaryQuery(query) {
+  const value = String(query || "");
+  if (dictionaryInput) dictionaryInput.value = value;
+  if (dictionarySheetInput) dictionarySheetInput.value = value;
+}
+
+function openDictionarySheet() {
+  closeTopPanels();
+  closeSidebar();
+  dictionaryPanel.hidden = false;
+  dictionarySheetInput?.focus();
 }
 
 function rememberCurrentBook() {
@@ -2574,6 +2633,7 @@ async function distillConversationToNote() {
     });
     if (!note) throw new Error("没有整理出可用笔记");
     rememberFact(`笔记《${note.title}》`, "topic");
+    aiNotesOpen = true;
     renderAgentChat(`<div class="aiNoteSaved">已保存笔记《${escapeHtml(note.title)}》。点「继续」可以按这篇再问。</div>`);
     finishJob(token, `已整理成笔记：${note.title}`, "success");
   } catch (error) {
@@ -2583,12 +2643,32 @@ async function distillConversationToNote() {
   }
 }
 
+let aiNotesOpen = false;
+
+function syncAiNotesToggle() {
+  if (!toggleAiNotesBtn) return;
+  const count = (agentMemory.notes || []).length;
+  toggleAiNotesBtn.textContent = count ? `笔记 · ${count}` : "笔记";
+  toggleAiNotesBtn.classList.toggle("active", !!(aiNotesOpen && count));
+}
+
+function toggleAiNotes() {
+  const count = (agentMemory.notes || []).length;
+  if (!count) {
+    showStatus("还没有查经笔记。聊几句再点「整理成笔记」。", "info");
+    return;
+  }
+  aiNotesOpen = !aiNotesOpen;
+  renderAgentNoteList();
+}
+
 function renderAgentNoteList() {
   if (!aiNoteList) return;
+  syncAiNotesToggle();
   const notes = [...(agentMemory.notes || [])].reverse().slice(0, 12);
-  if (!notes.length) {
+  if (!aiNotesOpen || !notes.length) {
     aiNoteList.hidden = true;
-    aiNoteList.innerHTML = "";
+    if (!notes.length) aiNoteList.innerHTML = "";
     return;
   }
   const activeId = agentMemory.activeNoteId;
@@ -2687,7 +2767,7 @@ function renderAgentChat(extraHtml = "") {
     head +
     (html || summaryHtml
       ? `${summaryHtml}${html}`
-      : `<div class="panelHint">可以问这节的意思，或点搜索里的「智能查经」。聊完点「整理成笔记」，之后可点「继续」。经文笔记里也能插入 约翰福音 3:16 这样的引用并跳转。</div>`) +
+      : `<div class="panelHint">可以问这节的意思，或点底栏「助手」。聊完点「整理成笔记」，再点「笔记」查看或继续。经文笔记里也能插入 约翰福音 3:16 这样的引用并跳转。</div>`) +
     extraHtml;
   aiSheetContent.scrollTop = aiSheetContent.scrollHeight;
 }
@@ -2754,9 +2834,11 @@ function aiContext(verseNo, verseList) {
 
 function openAiSheet(title, verseNo, focusAsk = false) {
   closeContentPanels();
+  closeSidebar();
   if (verseNo) state.activeVerse = Number(verseNo);
   aiSheet.hidden = false;
-  if (aiSheetTitle) aiSheetTitle.textContent = title || "助手 · 智能查经";
+  if (aiSheetTitle) aiSheetTitle.textContent = title || "助手";
+  setNav("ai");
   renderAgentChat();
   if (focusAsk) aiAskInput?.focus();
 }
@@ -3335,20 +3417,27 @@ async function openStrong(code) {
   }
 }
 
-async function searchDictionary(query = dictionaryInput.value.trim()) {
-  if (!query || !state.dictionary) {
-    showStatus("请输入词条");
+async function searchDictionary(query) {
+  const value = String(query || dictionarySheetInput?.value || dictionaryInput?.value || "").trim();
+  if (!value || !state.dictionary) {
+    showStatus(!state.dictionary ? "请先选择辞典" : "请输入词条");
+    if (dictionaryPanel?.hidden) openDictionarySheet();
     return;
   }
+  setDictionaryQuery(value);
   const token = ++dictionaryRequestToken;
-  dictionaryBtn.disabled = true;
-  dictionaryBtn.textContent = "查找中";
+  const buttons = [dictionaryBtn, dictionarySheetBtn].filter(Boolean);
+  buttons.forEach((button) => {
+    button.disabled = true;
+    button.textContent = "查找中";
+  });
   closeContentPanels();
+  closeSidebar();
   dictionaryPanel.hidden = false;
   try {
-    const data = await api(`/api/dictionary/search?source=${encodeURIComponent(state.dictionary)}&q=${encodeURIComponent(query)}`);
+    const data = await api(`/api/dictionary/search?source=${encodeURIComponent(state.dictionary)}&q=${encodeURIComponent(value)}`);
     if (token !== dictionaryRequestToken) return;
-    dictionarySummary.textContent = `“${query}” · ${data.title} · ${data.results.length} 条`;
+    if (dictionarySummary) dictionarySummary.textContent = `“${value}” · ${data.title} · ${data.results.length} 条`;
     dictionaryResults.innerHTML = data.results.length
       ? data.results
           .map(
@@ -3366,15 +3455,18 @@ async function searchDictionary(query = dictionaryInput.value.trim()) {
           )
           .join("")
       : `<div class="panelHint">没有找到词条</div>`;
-    dictionaryHint.textContent = `${data.results.length} 条`;
+    if (dictionaryHint) dictionaryHint.textContent = `${data.results.length} 条`;
   } catch (error) {
     if (token !== dictionaryRequestToken) return;
-    dictionaryHint.textContent = error.message;
+    if (dictionaryHint) dictionaryHint.textContent = error.message;
+    if (dictionarySummary) dictionarySummary.textContent = error.message;
     dictionaryResults.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
   } finally {
     if (token === dictionaryRequestToken) {
-      dictionaryBtn.disabled = false;
-      dictionaryBtn.textContent = "查";
+      buttons.forEach((button) => {
+        button.disabled = false;
+        button.textContent = "查";
+      });
     }
   }
 }
@@ -3400,8 +3492,10 @@ async function openMyPanel(kind = "all", options = {}) {
   myPanelLoading = true;
   if (!options.refresh) {
     closeContentPanels();
+    closeSidebar();
     myPanel.hidden = false;
     setNav("my");
+    setMyTab(options.tab || "marks");
   }
   renderMyProgress();
   myResults.innerHTML = `<div class="loading">正在读取我的收藏与笔记...</div>`;
@@ -3809,8 +3903,8 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     return;
   }
   if (action === "dictionary") {
-    dictionaryInput.value = verseTextForNumber(verseNo).slice(0, 12);
-    await searchDictionary(dictionaryInput.value);
+    setDictionaryQuery(verseTextForNumber(verseNo).slice(0, 12));
+    await searchDictionary(dictionaryInput?.value || dictionarySheetInput?.value);
   }
 }
 
@@ -4873,7 +4967,7 @@ commentarySelect?.addEventListener("change", () => {
   loadCommentary();
 });
 
-strongToggle.addEventListener("change", () => {
+strongToggle?.addEventListener("change", () => {
   state.showStrong = strongToggle.checked;
   if (strongToggleReader) strongToggleReader.checked = state.showStrong;
   saveState();
@@ -4889,17 +4983,36 @@ function syncAudioAutoNext(checked) {
 audioAutoNext?.addEventListener("change", () => syncAudioAutoNext(audioAutoNext.checked));
 audioAutoNextSheet?.addEventListener("change", () => syncAudioAutoNext(audioAutoNextSheet.checked));
 
-dictionarySelect.addEventListener("change", () => {
-  state.dictionary = dictionarySelect.value;
-  saveState();
-});
+dictionarySelect?.addEventListener("change", () => setDictionarySource(dictionarySelect.value));
+dictionarySheetSelect?.addEventListener("change", () => setDictionarySource(dictionarySheetSelect.value));
 
-dictionaryBtn.addEventListener("click", () => searchDictionary());
-dictionaryInput.addEventListener("keydown", (event) => {
+dictionaryBtn?.addEventListener("click", () => searchDictionary());
+dictionarySheetBtn?.addEventListener("click", () => searchDictionary());
+openDictionarySheetBtn?.addEventListener("click", openDictionarySheet);
+$("#openAiSheetBtn")?.addEventListener("click", () => openAiSheet("助手", state.activeVerse || state.lastVerse, true));
+dictionarySheetForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  searchDictionary();
+});
+dictionaryInput?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
     searchDictionary();
   }
+});
+dictionarySheetInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    searchDictionary();
+  }
+});
+document.querySelector(".sidebarTabs")?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-sidebar-tab]");
+  if (button) setSidebarTab(button.dataset.sidebarTab);
+});
+document.querySelector("#myPanel .panelTabs")?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-my-tab]");
+  if (button) setMyTab(button.dataset.myTab);
 });
 
 themeSelect.addEventListener("change", () => {
@@ -4989,6 +5102,14 @@ prevBtn.addEventListener("click", () => moveChapter(-1));
 nextBtn.addEventListener("click", () => moveChapter(1));
 prevEdge?.addEventListener("click", () => moveChapter(-1));
 nextEdge?.addEventListener("click", () => moveChapter(1));
+mobileAiBtn?.addEventListener("click", () => {
+  if (aiSheet && !aiSheet.hidden) {
+    closeTopPanels();
+    keepReadingChromeVisible();
+    return;
+  }
+  openAiSheet("助手", state.activeVerse || state.lastVerse, true);
+});
 mobileMyBtn.addEventListener("click", () => {
   if (!myPanel.hidden) {
     closeTopPanels();
@@ -5012,6 +5133,7 @@ closeAiSheetBtn?.addEventListener("click", dismissSheet);
 newAiChatBtn?.addEventListener("click", requestNewConversation);
 saveAiNoteBtn?.addEventListener("click", distillConversationToNote);
 clearAiMemoryBtn?.addEventListener("click", requestClearCurrentChat);
+toggleAiNotesBtn?.addEventListener("click", toggleAiNotes);
 insertNoteRefBtn?.addEventListener("click", insertNoteVerseRef);
 aiNoteList?.addEventListener("click", (event) => {
   const addRef = event.target.closest("[data-add-note-ref]");

@@ -16,23 +16,16 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>本地圣经</h1>
-            <p>设置 · 1.26.0</p>
+            <p>设置 · 1.27.0</p>
           </div>
         </div>
       </div>
-      <label class="toggleField">
-        <input id="strongToggle" type="checkbox" />
-        <span>显示 Strong 编号</span>
-      </label>
-      <div class="dictionaryPanel">
-        <div class="panelTitle">辞典 / 百科</div>
-        <select id="dictionarySelect"></select>
-        <div class="dictionarySearch">
-          <input id="dictionaryInput" type="search" placeholder="搜索词条" />
-          <button id="dictionaryBtn" type="button">查</button>
-        </div>
-        <div id="dictionaryHint" class="panelHint"></div>
+      <div class="sidebarTabs" role="tablist" aria-label="设置分类">
+        <button type="button" data-sidebar-tab="assistant" class="active" role="tab" aria-selected="true">助手</button>
+        <button type="button" data-sidebar-tab="dictionary" role="tab" aria-selected="false">辞典</button>
+        <button type="button" data-sidebar-tab="system" role="tab" aria-selected="false">系统</button>
       </div>
+      <div id="sidebarAssistant" class="sidebarSection active" data-sidebar-section="assistant">
       <div class="settingsPanel">
         <div class="panelTitle">对话模型</div>
         <label class="field compactField">
@@ -77,12 +70,29 @@
           <input id="smartVoiceToggle" type="checkbox" />
           <span>智能口令（大模型理解，稍慢）</span>
         </label>
-        <div class="panelHint">已内置小米普通 Key 和 Token Plan，默认用 Token Plan。可在上面改成普通 Key，或换成自己的 Key。查经和讲解用所选模型，经文仍只从本机译本取。口令识别继续用小米。</div>
+        <div class="panelHint">已内置小米普通 Key 和 Token Plan，默认用 Token Plan。查经和讲解用所选模型，经文仍只从本机译本取。口令识别继续用小米。</div>
+        <button id="openAiSheetBtn" type="button">打开助手</button>
       </div>
+      </div>
+      <div id="sidebarDictionary" class="sidebarSection" data-sidebar-section="dictionary">
+      <div class="dictionaryPanel">
+        <div class="panelTitle">辞典 / 百科</div>
+        <select id="dictionarySelect" aria-label="辞典来源"></select>
+        <div class="dictionarySearch">
+          <input id="dictionaryInput" type="search" placeholder="搜索词条" />
+          <button id="dictionaryBtn" type="button">查</button>
+        </div>
+        <div id="dictionaryHint" class="panelHint">词条结果会在下方面板打开。</div>
+        <button id="openDictionarySheetBtn" type="button">打开辞典面板</button>
+      </div>
+      </div>
+      <div id="sidebarSystem" class="sidebarSection" data-sidebar-section="system">
       <div class="settingsPanel">
         <div class="panelTitle">本地诊断</div>
         <button id="diagnosticsBtn" type="button">检查数据目录</button>
         <div id="diagnosticsHint" class="panelHint"></div>
+      </div>
+      <div class="panelHint">主题、字号、Strong 编号在右上角阅读设置。译本在顶栏译本名。收藏和高亮在「我的」。</div>
       </div>
       <select id="versionSelect" hidden></select>
       <select id="commentarySelect" hidden></select>
@@ -121,7 +131,10 @@
 
       <section id="readerSettingsPanel" class="readerSettingsPanel" hidden>
         <div class="sheetHeader readerSettingsHeader">
-          <div class="sheetTitle">阅读设置</div>
+          <div>
+            <div class="sheetTitle">阅读设置</div>
+            <div class="panelHint">只改阅读外观。对话模型在设置里的「助手」。</div>
+          </div>
           <button id="closeReaderSettingsBtn" class="textBtn" type="button">关闭</button>
         </div>
         <div class="sheetBody readerSettingsGrid">
@@ -246,7 +259,10 @@
 
       <section id="searchPanel" class="sheetPanel panel" hidden>
         <div class="sheetHeader panelHeader">
-          <div class="sheetTitle">搜索</div>
+          <div>
+            <div class="sheetTitle">搜索</div>
+            <div class="panelHint">出处如 约3:16，或关键词。智能查经会打开助手。</div>
+          </div>
           <button id="closeSearchBtn" class="textBtn" type="button">关闭</button>
         </div>
         <div class="sheetBody">
@@ -313,10 +329,20 @@
 
       <section id="dictionaryPanel" class="sheetPanel panel" hidden>
         <div class="sheetHeader panelHeader">
-          <div id="dictionarySummary" class="sheetTitle"></div>
+          <div>
+            <div class="sheetTitle">辞典</div>
+            <div id="dictionarySummary" class="panelHint">选来源，输入词条。</div>
+          </div>
           <button id="closeDictionaryBtn" class="textBtn" type="button">关闭</button>
         </div>
         <div class="sheetBody">
+          <form id="dictionarySheetForm" class="sheetSearchForm" role="search">
+            <select id="dictionarySheetSelect" aria-label="辞典来源"></select>
+            <div class="dictionarySearch">
+              <input id="dictionarySheetInput" type="search" placeholder="搜索词条" autocomplete="off" />
+              <button id="dictionarySheetBtn" type="button">查</button>
+            </div>
+          </form>
           <div id="dictionaryResults" class="resultList"></div>
         </div>
       </section>
@@ -379,29 +405,30 @@
         </div>
       </section>
 
-      <section id="aiSheet" class="sheetPanel panel" hidden>
+      <section id="aiSheet" class="sheetPanel panel aiSheet" hidden>
         <div class="sheetHeader panelHeader">
-          <div id="aiSheetTitle" class="sheetTitle">助手 · 智能查经</div>
-          <div class="sheetHeaderActions">
-            <button id="newAiChatBtn" class="textBtn" type="button">新对话</button>
-            <button id="saveAiNoteBtn" class="textBtn" type="button">整理成笔记</button>
-            <button id="clearAiMemoryBtn" class="textBtn" type="button">清空本轮</button>
-            <button id="closeAiSheetBtn" class="textBtn" type="button">关闭</button>
-          </div>
+          <div id="aiSheetTitle" class="sheetTitle">助手</div>
+          <button id="closeAiSheetBtn" class="textBtn" type="button">关闭</button>
         </div>
         <div class="sheetBody">
           <div id="aiActionRow" class="chipRow">
             <button type="button" data-ai-action="study">查经</button>
-            <button type="button" data-ai-action="explain">讲解经文</button>
-            <button type="button" data-ai-action="summary">本章摘要</button>
+            <button type="button" data-ai-action="explain">讲解</button>
+            <button type="button" data-ai-action="summary">摘要</button>
             <button type="button" data-ai-action="polish">润色笔记</button>
+          </div>
+          <div id="aiToolRow" class="chipRow aiToolRow">
+            <button id="newAiChatBtn" type="button">新对话</button>
+            <button id="saveAiNoteBtn" type="button">整理成笔记</button>
+            <button id="clearAiMemoryBtn" type="button">清空本轮</button>
+            <button id="toggleAiNotesBtn" type="button">笔记</button>
           </div>
           <div id="aiNoteList" class="aiNoteList" hidden></div>
           <div id="aiMemoryBar" class="aiMemoryBar" hidden></div>
           <div id="aiSheetContent" class="aiSheetContent aiChat"></div>
         </div>
         <div class="sheetFooter">
-          <form id="aiAskForm" class="sheetSearchForm">
+          <form id="aiAskForm" class="sheetSearchForm aiAskForm">
             <input id="aiAskInput" type="search" placeholder="接着问，或查经：约书亚记抬葡萄" autocomplete="off" />
             <button type="submit">发送</button>
           </form>
@@ -426,7 +453,13 @@
           <div class="sheetTitle">我的</div>
           <button id="closeMyPanelBtn" class="textBtn" type="button">关闭</button>
         </div>
+        <div class="panelTabs" role="tablist" aria-label="我的分类">
+          <button type="button" data-my-tab="marks" class="active" role="tab" aria-selected="true">标注</button>
+          <button type="button" data-my-tab="resources" role="tab" aria-selected="false">资源</button>
+          <button type="button" data-my-tab="updates" role="tab" aria-selected="false">更新</button>
+        </div>
         <div class="sheetBody">
+        <div id="myTabMarks" class="myTabPane" data-my-pane="marks">
         <div id="myProgressCard" class="myProgressCard"></div>
         <div class="myFilters">
           <div class="chipRow myFilterChips">
@@ -438,7 +471,9 @@
           <input id="myTagFilter" type="search" placeholder="按标签筛选" />
         </div>
         <div id="myResults" class="resultList"></div>
-        <div class="sheetSection settingsPanel">
+        </div>
+        <div id="myTabResources" class="myTabPane" data-my-pane="resources" hidden>
+        <div class="settingsPanel">
           <div class="panelTitle">离线资源</div>
           <div id="packageList" class="packageList"></div>
           <div id="packageProgress" class="downloadProgress" hidden>
@@ -451,8 +486,19 @@
           <div id="packageHint" class="panelHint">可下载更多译本和注释库</div>
         </div>
         <div class="sheetSection settingsPanel">
+          <div class="panelTitle">个人数据</div>
+          <div class="dataButtons">
+            <button id="exportDataBtn" type="button">导出</button>
+            <button id="importDataBtn" type="button">导入</button>
+            <input id="importDataFile" type="file" accept="application/json" hidden />
+          </div>
+          <div id="userDataHint" class="panelHint"></div>
+        </div>
+        </div>
+        <div id="myTabUpdates" class="myTabPane" data-my-pane="updates" hidden>
+        <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.26.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.27.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -467,14 +513,6 @@
           </div>
           <div id="updateNetworkHint" class="panelHint">下载走系统代理。Clash 用规则模式时，把 github.com 和 githubusercontent.com 加进代理。</div>
         </div>
-        <div class="sheetSection settingsPanel">
-          <div class="panelTitle">个人数据</div>
-          <div class="dataButtons">
-            <button id="exportDataBtn" type="button">导出</button>
-            <button id="importDataBtn" type="button">导入</button>
-            <input id="importDataFile" type="file" accept="application/json" hidden />
-          </div>
-          <div id="userDataHint" class="panelHint"></div>
         </div>
         </div>
       </section>
@@ -548,6 +586,10 @@
       <button id="voiceBtn" type="button" aria-label="按住口令">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 00-3 3v5a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M6 11a6 6 0 0012 0M12 17v3"/></svg>
         口令
+      </button>
+      <button id="mobileAiBtn" type="button" data-nav="ai">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12a2 2 0 012 2v7a2 2 0 01-2 2h-5l-4 3v-3H6a2 2 0 01-2-2V8a2 2 0 012-2z"/></svg>
+        助手
       </button>
       <button id="mobileMyBtn" type="button" data-nav="my">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M6 19c1.4-3 3.4-4.5 6-4.5S16.6 16 18 19"/></svg>
