@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>设置</h1>
-            <p>1.33.0 · 助手、辞典和系统</p>
+            <p>1.34.0 · 助手、辞典和系统</p>
           </div>
         </div>
         <button id="closeSidebarBtn" class="textBtn sidebarSheetClose" type="button">关闭</button>
@@ -477,6 +477,7 @@
         </div>
         <div class="sheetBody">
         <div id="myTabMarks" class="myTabPane" data-my-pane="marks">
+        <div id="todayVersePeek" class="todayVerseCard compact"></div>
         <div id="myProgressCard" class="myProgressCard"></div>
         <div class="myFilters">
           <div class="chipRow myFilterChips">
@@ -500,7 +501,8 @@
         <div id="myResults" class="resultList"></div>
         </div>
         <div id="myTabLibrary" class="myTabPane" data-my-pane="library" hidden>
-          <div class="panelHint">收录适合反复读的短经文，正文跟当前译本。每日一节还没做，现在可以按主题浏览，点一条跳到本章。</div>
+          <div id="todayVerseCard" class="todayVerseCard"></div>
+          <div class="panelHint">下面是全部经文库。今日这一节按日期从库里轮换，正文跟当前译本。点经文跳到本章。</div>
           <div id="verseLibraryThemes" class="chipRow"></div>
           <input id="verseLibrarySearch" type="search" placeholder="搜索引用或经文" />
           <div id="verseLibraryHint" class="panelHint"></div>
@@ -532,7 +534,7 @@
         <div id="myTabUpdates" class="myTabPane" data-my-pane="updates" hidden>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.33.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.34.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

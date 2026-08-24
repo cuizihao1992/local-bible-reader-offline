@@ -1,6 +1,7 @@
 import { fallbackBooks } from "../lib/books.js";
 import { decodeModuleText, looksEncrypted } from "../lib/text.js";
 import { htmlToMarkdown, looksLikeHttpUrl, publicHttpUrl } from "../lib/webextract.js";
+import { pickTodayVerse } from "../lib/verse-library.js";
 
 const base = process.env.BIBLE_READER_URL || "http://127.0.0.1:8766";
 
@@ -108,8 +109,9 @@ assert(appJs.includes("function setMyTab"), "My panel tab switcher missing");
 assert(indexHtml.includes("data-my-tab=\"library\""), "Verse library tab missing");
 assert(indexHtml.includes("id=\"verseLibraryList\""), "Verse library list missing");
 assert(appJs.includes("/api/verse-library"), "Verse library client call missing");
-assert(!appJs.includes("function pickDailyVerse"), "Daily verse picker should not exist yet");
-assert(!appJs.includes("dailyVerseDate"), "Daily verse schedule should not exist yet");
+assert(appJs.includes("function pickTodayVerse"), "Today verse picker missing");
+assert(indexHtml.includes("id=\"todayVerseCard\""), "Today verse card missing");
+assert(indexHtml.includes("id=\"todayVersePeek\""), "Today verse peek missing");
 const verseLibrary = await getJson("/api/verse-library?version=" + encodeURIComponent("和合本.db"));
 assert(Array.isArray(verseLibrary.items) && verseLibrary.items.length >= 120, "Verse library too small");
 assert(Array.isArray(verseLibrary.themes) && verseLibrary.themes.some((theme) => theme.id === "comfort"), "Verse library themes missing");
@@ -117,6 +119,9 @@ const john316 = verseLibrary.items.find((item) => item.book === 43 && item.chapt
 assert(john316 && String(john316.text).includes("永生"), "John 3:16 missing from verse library");
 const emptyTheme = verseLibrary.items.every((item) => Array.isArray(item.themes) && item.themes.length);
 assert(emptyTheme, "Verse library items must have themes");
+const jan1 = pickTodayVerse(verseLibrary.items, new Date(2026, 0, 1));
+assert(jan1 && jan1.id === verseLibrary.items[0].id, "Jan 1 should be the first library verse");
+assert(!appJs.includes("每日一节还没做"), "Today verse should no longer say it is unfinished");
 assert(appJs.includes("function toggleAiNotes"), "AI notes collapse missing");
 assert(indexHtml.includes("id=\"myAgentNotes\""), "My panel study notes missing");
 assert(indexHtml.includes("id=\"myNotesHint\""), "Unified notes hint missing");

@@ -340,6 +340,42 @@ select, input[type="search"], input[type="text"] {
 .myProgressCard {
   margin-bottom: 12px; padding: 12px; background: var(--soft); border-radius: var(--radius); font-size: 13px; line-height: 1.6;
 }
+.todayVerseCard {
+  margin-bottom: 12px;
+  padding: 14px 14px 12px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--soft));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 12px;
+}
+.todayVerseCard.compact { padding: 12px; }
+.todayVerseMeta {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.todayVerseBody {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.todayVerseText {
+  font-family: var(--read-font);
+  font-size: 17px;
+  line-height: 1.7;
+}
+.todayVerseCard .dataButtons { margin-top: 10px; }
+.todayVerseCard .dataButtons button { min-height: 34px; }
+.resultItem.todayVerseItem {
+  outline: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+}
 .myUpdateRow { margin-top: 14px; }
 .myUpdateRow button, #checkUpdateBtn, #downloadUpdateBtn {
   min-height: 38px; border: 0; border-radius: var(--radius);

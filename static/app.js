@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.33.0";
+const APP_VERSION = "1.34.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -134,6 +134,8 @@ const verseLibraryThemes = $("#verseLibraryThemes");
 const verseLibrarySearch = $("#verseLibrarySearch");
 const verseLibraryHint = $("#verseLibraryHint");
 const verseLibraryList = $("#verseLibraryList");
+const todayVerseCard = $("#todayVerseCard");
+const todayVersePeek = $("#todayVersePeek");
 const closeMyPanelBtn = $("#closeMyPanelBtn");
 const content = $("#content");
 const verseMenu = $("#verseMenu");
@@ -3610,31 +3612,86 @@ const myMarksByKey = new Map();
 let verseLibraryCache = null;
 let verseLibraryTheme = "";
 let verseLibraryLoading = false;
+let verseLibraryLoadPromise = null;
+
+function pickTodayVerse(items, date = new Date()) {
+  if (!Array.isArray(items) || !items.length) return null;
+  const start = new Date(date.getFullYear(), 0, 1);
+  const today = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const index = Math.round((today - start) / 86400000) % items.length;
+  return { ...items[index], index };
+}
+
+function todayVerseDateLabel(date = new Date()) {
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function currentMyTab() {
+  return document.querySelector("#myPanel [data-my-tab].active")?.dataset.myTab || "marks";
+}
 
 async function loadVerseLibrary(force = false) {
-  if (verseLibraryLoading) {
-    showStatus("正在读取经文库，请稍候");
-    return;
-  }
   const version = state.version;
   if (!force && verseLibraryCache && verseLibraryCache.version === version) {
     renderVerseLibrary();
-    return;
+    renderTodayVerseCards();
+    return verseLibraryCache;
+  }
+  if (verseLibraryLoading && verseLibraryLoadPromise) {
+    await verseLibraryLoadPromise;
+    renderVerseLibrary();
+    renderTodayVerseCards();
+    return verseLibraryCache;
   }
   verseLibraryLoading = true;
   if (verseLibraryHint) verseLibraryHint.textContent = "正在读取经文库…";
-  if (verseLibraryList) verseLibraryList.innerHTML = `<div class="loading">正在读取经文库...</div>`;
+  if (verseLibraryList && !verseLibraryCache) verseLibraryList.innerHTML = `<div class="loading">正在读取经文库...</div>`;
+  verseLibraryLoadPromise = (async () => {
+    try {
+      const data = await api(`/api/verse-library?version=${encodeURIComponent(version)}`);
+      verseLibraryCache = data;
+    } catch (error) {
+      verseLibraryCache = null;
+      if (verseLibraryHint) verseLibraryHint.textContent = "";
+      if (verseLibraryList) verseLibraryList.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+      throw error;
+    } finally {
+      verseLibraryLoading = false;
+    }
+  })();
   try {
-    const data = await api(`/api/verse-library?version=${encodeURIComponent(version)}`);
-    verseLibraryCache = data;
+    await verseLibraryLoadPromise;
     renderVerseLibrary();
-  } catch (error) {
-    verseLibraryCache = null;
-    if (verseLibraryHint) verseLibraryHint.textContent = "";
-    if (verseLibraryList) verseLibraryList.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
-  } finally {
-    verseLibraryLoading = false;
+    renderTodayVerseCards();
+  } catch {
+    renderTodayVerseCards();
   }
+  return verseLibraryCache;
+}
+
+function renderTodayVerseCards() {
+  const today = pickTodayVerse(verseLibraryCache?.items);
+  const html = todayVerseCardHtml(today, false);
+  const peek = todayVerseCardHtml(today, true);
+  if (todayVerseCard) todayVerseCard.innerHTML = html;
+  if (todayVersePeek) todayVersePeek.innerHTML = peek;
+}
+
+function todayVerseCardHtml(today, compact) {
+  if (!today) {
+    return verseLibraryLoading
+      ? `<div class="panelHint">正在读取今日经文…</div>`
+      : `<div class="panelHint">今日经文还没读出来</div>`;
+  }
+  const badges = (today.themeNames || []).map((name) => `<span class="verseLibBadge">${escapeHtml(name)}</span>`).join("");
+  const extra = compact
+    ? `<div class="dataButtons"><button type="button" data-open-library>看经文库</button></div>`
+    : "";
+  return `<div class="todayVerseMeta">今日经文 · ${escapeHtml(todayVerseDateLabel())}</div>
+    <button class="todayVerseBody" type="button" data-jump-book="${today.book}" data-jump-chapter="${today.chapter}" data-jump-verse="${today.verse}">
+      <div class="resultRef">${escapeHtml(today.ref || "")}${badges}</div>
+      <div class="${compact ? "resultText" : "todayVerseText"}">${escapeHtml(today.text || "（当前译本没有这节）")}</div>
+    </button>${extra}`;
 }
 
 function renderVerseLibrary() {
@@ -3642,11 +3699,12 @@ function renderVerseLibrary() {
   if (!verseLibraryThemes || !verseLibraryList) return;
   if (!data) {
     verseLibraryThemes.innerHTML = "";
-    verseLibraryList.innerHTML = `<div class="panelHint">经文库还没读出来</div>`;
+    if (!verseLibraryLoading) verseLibraryList.innerHTML = `<div class="panelHint">经文库还没读出来</div>`;
     return;
   }
   const query = String(verseLibrarySearch?.value || "").trim().toLowerCase();
   const themes = data.themes || [];
+  const today = pickTodayVerse(data.items);
   verseLibraryThemes.innerHTML =
     `<button type="button" data-verse-theme="" class="${verseLibraryTheme ? "" : "active"}">全部</button>` +
     themes
@@ -3672,12 +3730,29 @@ function renderVerseLibrary() {
   verseLibraryList.innerHTML = items
     .map((item) => {
       const badges = (item.themeNames || []).map((name) => `<span class="verseLibBadge">${escapeHtml(name)}</span>`).join("");
-      return `<button class="resultItem" type="button" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">
-        <div class="resultRef">${escapeHtml(item.ref || "")}${badges}</div>
+      const isToday = today && item.id === today.id;
+      return `<button class="resultItem${isToday ? " todayVerseItem" : ""}" type="button" data-jump-book="${item.book}" data-jump-chapter="${item.chapter}" data-jump-verse="${item.verse}">
+        <div class="resultRef">${isToday ? "今日 · " : ""}${escapeHtml(item.ref || "")}${badges}</div>
         <div class="resultText">${escapeHtml(item.text || "（当前译本没有这节）")}</div>
       </button>`;
     })
     .join("");
+}
+
+async function jumpFromMyVerse(button) {
+  const tab = currentMyTab();
+  await jumpFromPeek(
+    {
+      book: Number(button.dataset.jumpBook),
+      chapter: Number(button.dataset.jumpChapter),
+      verse: Number(button.dataset.jumpVerse),
+    },
+    {
+      kind: "my",
+      title: tab === "library" ? "返回经文库" : "返回我的",
+      restore: () => openMyPanel(myPanelKind, { tab }),
+    },
+  );
 }
 
 function myMarkKey(item) {
@@ -3705,6 +3780,7 @@ async function openMyPanel(kind = "all", options = {}) {
     await loadVerseLibrary();
     return;
   }
+  loadVerseLibrary();
   renderMyProgress();
   renderMyAgentNotes();
   myResults.innerHTML = myPanelKind === "study" ? "" : `<div class="loading">正在读取我的收藏与批注...</div>`;
@@ -5698,15 +5774,22 @@ verseLibraryList?.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-jump-book]");
   if (!button) return;
   event.stopPropagation();
-  await jumpFromPeek(
-    {
-      book: Number(button.dataset.jumpBook),
-      chapter: Number(button.dataset.jumpChapter),
-      verse: Number(button.dataset.jumpVerse),
-    },
-    { kind: "library", title: "返回经文库", restore: () => openMyPanel(myPanelKind, { tab: "library" }) },
-  );
+  await jumpFromMyVerse(button);
 });
+async function handleTodayVerseClick(event) {
+  if (event.target.closest("[data-open-library]")) {
+    event.stopPropagation();
+    setMyTab("library");
+    await loadVerseLibrary();
+    return;
+  }
+  const button = event.target.closest("[data-jump-book]");
+  if (!button) return;
+  event.stopPropagation();
+  await jumpFromMyVerse(button);
+}
+todayVerseCard?.addEventListener("click", handleTodayVerseClick);
+todayVersePeek?.addEventListener("click", handleTodayVerseClick);
 
 themeSelect.addEventListener("change", () => {
   state.theme = themeSelect.value;
@@ -6267,7 +6350,7 @@ document.body.addEventListener("click", async (event) => {
     return;
   }
   const jump = event.target.closest("[data-jump-book]");
-  if (jump && !searchResults.contains(jump) && !myResults.contains(jump) && !(verseLibraryList && verseLibraryList.contains(jump))) {
+  if (jump && !searchResults.contains(jump) && !myResults.contains(jump) && !(verseLibraryList && verseLibraryList.contains(jump)) && !(todayVerseCard && todayVerseCard.contains(jump)) && !(todayVersePeek && todayVersePeek.contains(jump))) {
     const ref = {
       book: Number(jump.dataset.jumpBook),
       chapter: Number(jump.dataset.jumpChapter),
