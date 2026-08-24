@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.34.0";
+const APP_VERSION = "1.35.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -117,6 +117,7 @@ const audioPanel = $("#audioPanel");
 const audioFileList = $("#audioFileList");
 const ttsStatus = $("#ttsStatus");
 const ttsPlayBtn = $("#ttsPlayBtn");
+const ttsFromHereBtn = $("#ttsFromHereBtn");
 const ttsStopBtn = $("#ttsStopBtn");
 const closeAudioBtn = $("#closeAudioBtn");
 const audioAutoNextSheet = $("#audioAutoNextSheet");
@@ -4178,6 +4179,10 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     await openShareSheet(selectedVerseNumbers.length ? selectedVerseNumbers : [verseNo]);
     return;
   }
+  if (action === "speak") {
+    await speakChapter({ fromVerse: Number(verseNo) || 1 });
+    return;
+  }
   if (action === "favorite") {
     const verses = selectedVerseNumbers.length ? selectedVerseNumbers : [verseNo];
     const next = !mark.favorite;
@@ -4963,14 +4968,15 @@ function setSpeakingVerse(id) {
   rememberReadingPosition(Number(verseNo));
 }
 
-function chapterSpeakItems() {
+function chapterSpeakItems(fromVerse = 0) {
+  const start = Number(fromVerse) || 0;
   return [...content.querySelectorAll(".verse[data-verse]")]
     .map((el) => {
       const verse = Number(el.dataset.verse);
       const text = el.querySelector(".verseText")?.textContent.trim() || "";
       return text ? { id: `v${verse}`, verse, text } : null;
     })
-    .filter(Boolean);
+    .filter((item) => item && (!start || item.verse >= start));
 }
 
 function applyTtsRate() {
@@ -4988,14 +4994,16 @@ function syncTtsSession(result) {
   return ttsSession;
 }
 
-function speakChapter() {
-  if (speaking) {
+function speakChapter(options = {}) {
+  const fromVerse = Number(options.fromVerse) || 0;
+  if (speaking && !fromVerse) {
     stopSpeaking();
     return;
   }
+  if (speaking) stopSpeaking();
   openAudioSheet();
   const book = currentBook();
-  const items = chapterSpeakItems();
+  const items = chapterSpeakItems(fromVerse);
   if (!items.length) {
     setTtsStatus("这一章没有可朗读的经文");
     showStatus("没有可朗读的经文");
@@ -5004,6 +5012,10 @@ function speakChapter() {
   applyTtsRate();
   ttsSession += 1;
   const session = ttsSession;
+  const title = `${book ? book.longName : ""} ${state.chapter}章${fromVerse ? ` · 从${fromVerse}节` : ""}`;
+  if (window.AndroidTtsApi && window.AndroidTtsApi.setNowPlaying) {
+    try { window.AndroidTtsApi.setNowPlaying(title, items[0].text); } catch {}
+  }
   if (window.AndroidTtsApi && (window.AndroidTtsApi.speakQueue || window.AndroidTtsApi.speak)) {
     let result = {};
     try {
@@ -5028,8 +5040,8 @@ function speakChapter() {
       showStatus("正在启动朗读引擎");
       return;
     }
-    setTtsStatus(`正在朗读 ${book ? book.longName : ""} ${state.chapter} 章`);
-    showStatus("开始朗读本章");
+    setTtsStatus(`正在朗读 ${title}`);
+    showStatus(fromVerse ? `从第 ${fromVerse} 节开始朗读` : "开始朗读本章");
     return;
   }
   if (!window.speechSynthesis) {
@@ -5062,8 +5074,8 @@ function speakChapter() {
     window.speechSynthesis.speak(utterance);
   };
   setSpeaking(true);
-  setTtsStatus(`正在朗读 ${book ? book.longName : ""} ${state.chapter} 章`);
-  showStatus("开始朗读本章");
+  setTtsStatus(`正在朗读 ${title}`);
+  showStatus(fromVerse ? `从第 ${fromVerse} 节开始朗读` : "开始朗读本章");
   speakNext(0);
 }
 
@@ -6006,6 +6018,10 @@ closeAudioBtn?.addEventListener("click", dismissSheet);
 ttsPlayBtn?.addEventListener("click", () => {
   if (speaking) stopSpeaking();
   else speakChapter();
+});
+ttsFromHereBtn?.addEventListener("click", () => {
+  const from = state.activeVerse || state.lastVerse || 1;
+  speakChapter({ fromVerse: from });
 });
 ttsStopBtn?.addEventListener("click", stopSpeaking);
 closeConfirmSheetBtn?.addEventListener("click", () => closeConfirmSheet(true));

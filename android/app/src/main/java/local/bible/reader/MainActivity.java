@@ -159,6 +159,9 @@ public class MainActivity extends Activity {
         String name = uri.getQueryParameter("name");
         byte[] bytes = offlineApi.readModuleImage(offlineApi.commentaryFile(source), name);
         if (bytes == null || bytes.length == 0) {
+            bytes = offlineApi.readModuleImage(offlineApi.dictionaryFile(source), name);
+        }
+        if (bytes == null || bytes.length == 0) {
             return new WebResourceResponse("text/plain", "utf-8", new ByteArrayInputStream(new byte[0]));
         }
         String lower = name == null ? "" : name.toLowerCase();

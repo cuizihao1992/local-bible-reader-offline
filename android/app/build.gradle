@@ -10,8 +10,8 @@ android {
         applicationId "local.bible.reader.next"
         minSdk 26
         targetSdk 35
-        versionCode 46
-        versionName "1.34.0"
+        versionCode 47
+        versionName "1.35.0"
     }
 
     signingConfigs {
@@ -48,6 +48,8 @@ def dataRoot = providers.gradleProperty("bibleDataRoot").orElse("D:/bibleDownloa
 def webSource = rootProject.projectDir.parentFile.toPath().resolve("static").toFile()
 def projectRoot = rootProject.projectDir.parentFile
 def bibleSource = dataRoot.map { new File(it, "bibles") }
+def origSource = dataRoot.map { new File(it, "orig") }
+def dictSource = dataRoot.map { new File(it, "cd") }
 def bundledBibleFiles = [
         "和合本.db",
         "和合本修订版.db",
@@ -58,6 +60,8 @@ def bundledBibleFiles = [
 tasks.register("syncOfflineAssets") {
     inputs.dir(webSource)
     inputs.dir(bibleSource)
+    inputs.dir(origSource)
+    inputs.dir(dictSource)
     outputs.dir("$buildDir/generated/offlineAssets")
     doLast {
         delete("$buildDir/generated/offlineAssets")
@@ -90,6 +94,24 @@ tasks.register("syncOfflineAssets") {
             from(sourceDir)
             include(bundledBibleFiles)
             into("$buildDir/generated/offlineAssets/bibles")
+        }
+        def origFile = new File(origSource.get(), "cbol.db")
+        if (origFile.exists()) {
+            copy {
+                from(origFile)
+                into("$buildDir/generated/offlineAssets/orig")
+            }
+        }
+        def dictDir = dictSource.get()
+        if (dictDir.exists()) {
+            copy {
+                from(dictDir)
+                include("*.db")
+                eachFile { details ->
+                    if (details.file.length() > 20L * 1024 * 1024) details.exclude()
+                }
+                into("$buildDir/generated/offlineAssets/dictionaries")
+            }
         }
     }
 }

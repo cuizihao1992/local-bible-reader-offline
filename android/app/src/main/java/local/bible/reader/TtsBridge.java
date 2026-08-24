@@ -25,6 +25,12 @@ import java.util.List;
 import java.util.Locale;
 
 public class TtsBridge {
+    private static volatile TtsBridge current;
+
+    public static TtsBridge current() {
+        return current;
+    }
+
     private static final class Utterance {
         final String id;
         final String text;
@@ -53,6 +59,8 @@ public class TtsBridge {
     private volatile String engineLabel = "系统语音";
     private volatile String pendingSpeak = null;
     private volatile String pendingQueue = null;
+    private volatile String nowPlayingTitle = "朗读";
+    private volatile String nowPlayingText = "";
 
     private final List<String> enginesToTry = new ArrayList<>();
     private int engineIndex = 0;
@@ -63,7 +71,15 @@ public class TtsBridge {
         this.activity = activity;
         this.webView = webView;
         this.audioManager = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
+        current = this;
         activity.runOnUiThread(this::ensureTts);
+    }
+
+    @JavascriptInterface
+    public String setNowPlaying(String title, String text) {
+        nowPlayingTitle = title == null || title.trim().isEmpty() ? "朗读" : title.trim();
+        nowPlayingText = text == null ? "" : text.trim();
+        return "{\"ok\":true}";
     }
 
     @JavascriptInterface
@@ -127,6 +143,7 @@ public class TtsBridge {
             }
             generation++;
             cancelled = false;
+            askNotificationPermission();
             if (!ready || tts == null) {
                 pendingQueue = jsonArray;
                 pendingSpeak = null;
@@ -145,6 +162,14 @@ public class TtsBridge {
 
     @JavascriptInterface
     public String stop() {
+        return stopInternal(true);
+    }
+
+    void stopFromSystem() {
+        stopInternal(false);
+    }
+
+    private String stopInternal(boolean hideSession) {
         generation++;
         cancelled = true;
         pendingSpeak = null;
@@ -156,6 +181,7 @@ public class TtsBridge {
             queueIndex = 0;
             hardStopPlayback();
             abandonFocus();
+            if (hideSession) TtsPlaybackService.hide(activity);
             emit("stop", "", gen);
         });
         try {
@@ -166,6 +192,8 @@ public class TtsBridge {
     }
 
     public void shutdown() {
+        if (current == this) current = null;
+        try { TtsPlaybackService.hide(activity); } catch (Exception ignored) {}
         cancelled = true;
         pendingSpeak = null;
         pendingQueue = null;
@@ -272,6 +300,7 @@ public class TtsBridge {
                     queue.clear();
                     queueIndex = 0;
                     abandonFocus();
+                    TtsPlaybackService.hide(activity);
                     emit("error", languageHint("朗读失败"), parsed.generation);
                 });
             }
@@ -339,6 +368,7 @@ public class TtsBridge {
         queueIndex = 0;
         speaking = true;
         tts.setSpeechRate(speechRate);
+        TtsPlaybackService.show(activity, nowPlayingTitle, items.get(0).text);
         speakCurrent(gen);
     }
 
@@ -347,10 +377,12 @@ public class TtsBridge {
         if (queueIndex >= queue.size()) {
             speaking = false;
             abandonFocus();
+            TtsPlaybackService.hide(activity);
             emit("done", "", gen);
             return;
         }
         Utterance item = queue.get(queueIndex);
+        TtsPlaybackService.show(activity, nowPlayingTitle, item.text);
         Bundle params = new Bundle();
         params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC);
         requestFocus();
@@ -358,8 +390,15 @@ public class TtsBridge {
         if (result != TextToSpeech.SUCCESS) {
             speaking = false;
             abandonFocus();
+            TtsPlaybackService.hide(activity);
             emit("error", languageHint("当前语音引擎无法朗读"), gen);
         }
+    }
+
+    private void askNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33) return;
+        if (activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
+        activity.runOnUiThread(() -> activity.requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 41));
     }
 
     private void advanceQueue(int gen) {

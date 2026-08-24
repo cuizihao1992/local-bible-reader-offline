@@ -250,6 +250,10 @@ assert(appJs.includes("inlineCompareList") || appJs.includes("data-toggle-compar
 assert(indexHtml.includes("id=\"confirmSheet\""), "Voice confirm sheet missing");
 assert(indexHtml.includes("id=\"closeAudioBtn\""), "Audio sheet close button missing");
 assert(indexHtml.includes("id=\"ttsPlayBtn\""), "TTS play button missing");
+assert(indexHtml.includes("id=\"ttsFromHereBtn\""), "Speak-from-verse button missing");
+assert(indexHtml.includes("data-menu-action=\"speak\""), "Verse menu speak action missing");
+assert(appJs.includes("fromVerse"), "Speak-from-verse option missing");
+assert(appJs.includes("setNowPlaying"), "Android now-playing metadata missing");
 assert(indexHtml.includes("class=\"sheetBody\""), "Sheet body layout missing");
 assert(appJs.includes("handleAndroidTts"), "Android TTS callback missing");
 assert(appJs.includes("ttsSession"), "TTS session token missing");

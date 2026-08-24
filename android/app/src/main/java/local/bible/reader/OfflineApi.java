@@ -27,6 +27,8 @@ public class OfflineApi {
     private final Context context;
     private final File bibleDir;
     private final File commentaryDir;
+    private final File dictionaryDir;
+    private final File origDir;
     private final SQLiteDatabase userDb;
     private volatile JSONObject downloadStatus = new JSONObject();
 
@@ -54,8 +56,12 @@ public class OfflineApi {
         this.context = context.getApplicationContext();
         this.bibleDir = new File(context.getFilesDir(), "bibles");
         this.commentaryDir = new File(context.getFilesDir(), "commentaries");
+        this.dictionaryDir = new File(context.getFilesDir(), "dictionaries");
+        this.origDir = new File(context.getFilesDir(), "orig");
         this.commentaryDir.mkdirs();
-        copyBundledBibles();
+        copyBundledDir("bibles", bibleDir);
+        copyBundledDir("orig", origDir);
+        copyBundledDir("dictionaries", dictionaryDir);
         this.userDb = SQLiteDatabase.openOrCreateDatabase(new File(context.getFilesDir(), "user.sqlite"), null);
         initUserDb();
     }
@@ -77,11 +83,11 @@ public class OfflineApi {
             if ("/api/packages".equals(path)) return new JSONObject().put("packages", packages()).toString();
             if ("/api/commentaries".equals(path)) return new JSONObject().put("commentaries", commentaries()).toString();
             if ("/api/commentary".equals(path)) return commentary(uri).toString();
-            if ("/api/dictionaries".equals(path)) return new JSONObject().put("dictionaries", new JSONArray()).toString();
-            if ("/api/dictionary/search".equals(path)) return new JSONObject().put("results", new JSONArray()).put("query", query(uri, "q")).put("title", "").toString();
+            if ("/api/dictionaries".equals(path)) return new JSONObject().put("dictionaries", dictionaries()).toString();
+            if ("/api/dictionary/search".equals(path)) return dictionarySearch(uri).toString();
             if ("/api/audio".equals(path)) return new JSONObject().put("audio", new JSONArray()).toString();
             if ("/api/diagnostics".equals(path)) return diagnostics().toString();
-            if ("/api/strong".equals(path)) return new JSONObject().put("error", "Android 离线版暂未内置原文库").toString();
+            if ("/api/strong".equals(path)) return lookupStrong(query(uri, "code")).toString();
             if ("/api/import/url".equals(path)) return WebExtract.extract(context, query(uri, "url")).toString();
             if ("/api/verse-library".equals(path)) return verseLibrary(uri).toString();
             return new JSONObject().put("error", "Android 离线版暂未支持此接口：" + path).toString();
@@ -106,15 +112,15 @@ public class OfflineApi {
         }
     }
 
-    private void copyBundledBibles() {
-        bibleDir.mkdirs();
+    private void copyBundledDir(String assetDir, File targetDir) {
+        targetDir.mkdirs();
         try {
-            String[] files = context.getAssets().list("bibles");
+            String[] files = context.getAssets().list(assetDir);
             if (files == null) return;
             for (String name : files) {
-                File target = new File(bibleDir, name);
+                File target = new File(targetDir, name);
                 if (target.exists() && target.length() > 0) continue;
-                try (InputStream in = context.getAssets().open("bibles/" + name);
+                try (InputStream in = context.getAssets().open(assetDir + "/" + name);
                      FileOutputStream out = new FileOutputStream(target)) {
                     byte[] buffer = new byte[1024 * 64];
                     int read;
@@ -313,6 +319,180 @@ public class OfflineApi {
         return array;
     }
 
+    private JSONArray dictionaries() throws Exception {
+        JSONArray array = new JSONArray();
+        File[] files = dictionaryDir.listFiles((dir, name) -> name.endsWith(".db"));
+        if (files == null) return array;
+        List<File> sorted = new ArrayList<>();
+        for (File file : files) sorted.add(file);
+        sorted.sort(Comparator.comparing(File::getName));
+        for (File file : sorted) {
+            String name = file.getName();
+            int count = 0;
+            boolean readable = true;
+            SQLiteDatabase db = SQLiteDatabase.openDatabase(file.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
+            try {
+                if (hasTable(db, "Dictionary")) {
+                    try (Cursor cursor = db.rawQuery("select count(*) from Dictionary", null)) {
+                        if (cursor.moveToNext()) count = cursor.getInt(0);
+                    }
+                    try (Cursor sample = db.rawQuery("select Description from Dictionary where Description is not null and Description <> '' limit 1", null)) {
+                        if (sample.moveToNext()) readable = !looksEncrypted(sample.getString(0));
+                    }
+                }
+            } catch (Exception ignored) {
+            } finally {
+                db.close();
+            }
+            array.put(new JSONObject()
+                    .put("id", name)
+                    .put("title", name.replace(".db", ""))
+                    .put("fileName", name)
+                    .put("count", count)
+                    .put("readable", readable));
+        }
+        return array;
+    }
+
+    private JSONObject dictionarySearch(Uri uri) throws Exception {
+        String sourceId = query(uri, "source");
+        String keyword = query(uri, "q").trim();
+        if (keyword.isEmpty()) throw new Exception("请输入词条关键词");
+        File file = dictionaryFile(sourceId);
+        if (!file.exists()) throw new Exception("找不到辞典");
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(file.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
+        JSONArray results = new JSONArray();
+        try {
+            boolean hasImages = hasColumn(db, "Dictionary", "Images");
+            String sql = hasImages
+                    ? "select id, Word, Description, ComeFrom, Images from Dictionary where Word like ? order by length(Word), Word limit 30"
+                    : "select id, Word, Description, ComeFrom from Dictionary where Word like ? order by length(Word), Word limit 30";
+            try (Cursor cursor = db.rawQuery(sql, new String[]{"%" + keyword + "%"})) {
+                while (cursor.moveToNext()) {
+                    JSONObject decoded = decodeModuleText(cursor.getString(2));
+                    JSONArray images = decoded.optJSONArray("images");
+                    if (images == null) images = new JSONArray();
+                    if (hasImages) {
+                        for (String extra : parseImageNames(cursor.getString(4))) {
+                            boolean exists = false;
+                            for (int i = 0; i < images.length(); i++) {
+                                if (extra.equals(images.optString(i))) exists = true;
+                            }
+                            if (!exists) images.put(extra);
+                        }
+                    }
+                    JSONArray imageObjs = new JSONArray();
+                    for (int i = 0; i < images.length(); i++) {
+                        String imageName = images.optString(i);
+                        imageObjs.put(new JSONObject()
+                                .put("name", imageName)
+                                .put("url", "/api/dictionary/image?source=" + android.net.Uri.encode(sourceId) + "&name=" + android.net.Uri.encode(imageName)));
+                    }
+                    results.put(new JSONObject()
+                            .put("id", cursor.getInt(0))
+                            .put("word", cursor.getString(1))
+                            .put("comeFrom", cursor.getString(3) == null ? "" : cursor.getString(3))
+                            .put("text", decoded.optString("text"))
+                            .put("encrypted", decoded.optBoolean("encrypted"))
+                            .put("images", imageObjs));
+                }
+            }
+        } finally {
+            db.close();
+        }
+        return new JSONObject()
+                .put("source", sourceId)
+                .put("title", sourceId.replace(".db", ""))
+                .put("query", keyword)
+                .put("results", results);
+    }
+
+    private JSONObject lookupStrong(String code) throws Exception {
+        java.util.regex.Matcher match = java.util.regex.Pattern.compile("^(?:W)?([HG])0*(\\d{1,5})$", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(String.valueOf(code == null ? "" : code).trim());
+        if (!match.matches()) throw new Exception("Strong 编号格式无效");
+        File orig = new File(origDir, "cbol.db");
+        if (!orig.exists()) throw new Exception("找不到原文库 cbol.db");
+        String type = match.group(1).toUpperCase(java.util.Locale.US);
+        String rawNumber = match.group(2);
+        String number = String.format(java.util.Locale.US, "%05d", Integer.parseInt(rawNumber));
+        String table = "H".equals(type) ? "hfhl" : "gfhl";
+        String column = "H".equals(type) ? "hsnum" : "gsnum";
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(orig.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
+        try (Cursor cursor = db.rawQuery("select " + column + ", txt, orig, orig_fhl from " + table + " where " + column + "=?", new String[]{number})) {
+            if (!cursor.moveToNext()) throw new Exception("找不到 Strong 编号：" + type + Integer.parseInt(rawNumber));
+            return new JSONObject()
+                    .put("code", type + Integer.parseInt(rawNumber))
+                    .put("type", type)
+                    .put("number", number)
+                    .put("original", cleanText(cursor.getString(2)))
+                    .put("transliteration", cleanText(cursor.getString(3)))
+                    .put("definition", cleanText(cursor.getString(1)))
+                    .put("occurrences", findStrongOccurrences(type, rawNumber));
+        } finally {
+            db.close();
+        }
+    }
+
+    private JSONArray findStrongOccurrences(String type, String number) throws Exception {
+        JSONArray occurrences = new JSONArray();
+        String padded = String.format(java.util.Locale.US, "%05d", Integer.parseInt(number));
+        File kjv = new File(bibleDir, "KJV.db");
+        File target = kjv.exists() ? kjv : null;
+        if (target == null) {
+            File[] files = bibleDir.listFiles((dir, name) -> name.endsWith(".db"));
+            if (files != null && files.length > 0) target = files[0];
+        }
+        if (target == null) return occurrences;
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(target.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
+        try (Cursor cursor = db.rawQuery(
+                "select Book, Chapter, Verse from Bible where Scripture like ? or Scripture like ? order by Book, Chapter, Verse limit 30",
+                new String[]{"%<W" + type + number + ">%", "%<W" + type + padded + ">%"}
+        )) {
+            while (cursor.moveToNext()) {
+                int book = cursor.getInt(0);
+                occurrences.put(new JSONObject()
+                        .put("version", target.getName().replace(".db", ""))
+                        .put("book", book)
+                        .put("bookName", bookName(book))
+                        .put("chapter", cursor.getInt(1))
+                        .put("verse", cursor.getInt(2)));
+            }
+        } finally {
+            db.close();
+        }
+        return occurrences;
+    }
+
+    private JSONArray extractStrongs(String scripture) throws Exception {
+        JSONArray array = new JSONArray();
+        if (scripture == null) return array;
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("<W([HG])0*(\\d{1,5})>", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(scripture);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (matcher.find()) {
+            String type = matcher.group(1).toUpperCase(java.util.Locale.US);
+            String raw = matcher.group(2);
+            String key = type + raw;
+            if (!seen.add(key)) continue;
+            array.put(new JSONObject()
+                    .put("code", type + Integer.parseInt(raw))
+                    .put("type", type)
+                    .put("number", String.format(java.util.Locale.US, "%05d", Integer.parseInt(raw))));
+        }
+        return array;
+    }
+
+    private JSONObject decodeModuleText(String value) throws Exception {
+        JSONArray images = new JSONArray();
+        for (String name : parseImageNames(value)) images.put(name);
+        if (value == null || value.trim().isEmpty()) {
+            return new JSONObject().put("text", "").put("encrypted", false).put("images", images);
+        }
+        if (looksEncrypted(value)) {
+            return new JSONObject().put("text", "").put("encrypted", true).put("images", images);
+        }
+        return new JSONObject().put("text", cleanText(value)).put("encrypted", false).put("images", images);
+    }
+
     private JSONObject commentary(Uri uri) throws Exception {
         String source = query(uri, "source");
         int book = intQuery(uri, "book", 1);
@@ -432,10 +612,11 @@ public class OfflineApi {
         try (Cursor cursor = db.rawQuery("select Verse, Scripture from Bible where Book=? and Chapter=? order by Verse",
                 new String[]{String.valueOf(book), String.valueOf(chapter)})) {
             while (cursor.moveToNext()) {
+                String scripture = cursor.getString(1);
                 verses.put(new JSONObject()
                         .put("verse", cursor.getInt(0))
-                        .put("text", cleanText(cursor.getString(1)))
-                        .put("strongs", new JSONArray()));
+                        .put("text", cleanText(scripture))
+                        .put("strongs", extractStrongs(scripture)));
             }
             if (hasTable(db, "Titles")) {
                 try (Cursor titleCursor = db.rawQuery("select Verse, Scripture from Titles where Book=? and Chapter=? order by Verse",
@@ -806,13 +987,16 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.34.0")
+                .put("version", "1.35.0")
                 .put("versionCount", versions().length());
     }
 
     private JSONObject diagnostics() throws Exception {
         JSONArray checks = new JSONArray();
+        File orig = new File(origDir, "cbol.db");
         checks.put(new JSONObject().put("name", "离线经文库").put("ok", versions().length() > 0).put("detail", versions().length() + " 个译本"));
+        checks.put(new JSONObject().put("name", "原文库").put("ok", orig.exists()).put("detail", orig.exists() ? orig.getName() : "未安装"));
+        checks.put(new JSONObject().put("name", "辞典").put("ok", countDbFiles(dictionaryDir) > 0).put("detail", countDbFiles(dictionaryDir) + " 个"));
         checks.put(new JSONObject().put("name", "用户数据库").put("ok", true).put("detail", "App 私有目录"));
         return new JSONObject().put("ok", versions().length() > 0).put("checks", checks);
     }
@@ -1017,6 +1201,10 @@ public class OfflineApi {
 
     File commentaryFile(String source) {
         return new File(commentaryDir, safeName(source));
+    }
+
+    File dictionaryFile(String source) {
+        return new File(dictionaryDir, safeName(source));
     }
 
     private String cleanText(String value) {

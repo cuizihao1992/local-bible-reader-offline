@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>设置</h1>
-            <p>1.34.0 · 助手、辞典和系统</p>
+            <p>1.35.0 · 助手、辞典和系统</p>
           </div>
         </div>
         <button id="closeSidebarBtn" class="textBtn sidebarSheetClose" type="button">关闭</button>
@@ -308,6 +308,7 @@
           <div id="ttsStatus" class="panelHint">用手机系统朗读本章。点喇叭或下面的按钮开始。小米请尽量装 Google 语音或讯飞。</div>
           <div class="dataButtons">
             <button id="ttsPlayBtn" type="button">朗读本章</button>
+            <button id="ttsFromHereBtn" type="button">从本节朗读</button>
             <button id="ttsStopBtn" type="button">停止</button>
           </div>
           <label class="field compactField">
@@ -534,7 +535,7 @@
         <div id="myTabUpdates" class="myTabPane" data-my-pane="updates" hidden>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.34.0</div>
+          <div id="updateStatus" class="panelHint">当前版本 1.35.0</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>
@@ -581,6 +582,7 @@
         <button type="button" data-menu-action="ask">提问</button>
         <button type="button" data-menu-action="share">分享</button>
         <button type="button" data-menu-action="dictionary">查词</button>
+        <button type="button" data-menu-action="speak">从本节朗读</button>
         <button type="button" data-menu-action="multi">多选</button>
       </div>
     </div>
