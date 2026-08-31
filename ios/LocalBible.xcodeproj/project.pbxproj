@@ -1,0 +1,328 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* AppDelegate.swift */; };
+		A10000000000000000000002 /* WebViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* WebViewController.swift */; };
+		A10000000000000000000003 /* SchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* SchemeHandler.swift */; };
+		A10000000000000000000004 /* OfflineApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* OfflineApi.swift */; };
+		A10000000000000000000005 /* DataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* DataStore.swift */; };
+		A10000000000000000000006 /* Sqlite.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* Sqlite.swift */; };
+		A10000000000000000000007 /* Books.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Books.swift */; };
+		A10000000000000000000008 /* JsonUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* JsonUtil.swift */; };
+		A10000000000000000000009 /* NativeJS.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* NativeJS.swift */; };
+		A1000000000000000000000A /* TtsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* TtsController.swift */; };
+		A1000000000000000000000B /* ShareController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* ShareController.swift */; };
+		A1000000000000000000000C /* VoiceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* VoiceController.swift */; };
+		A1000000000000000000000D /* www in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000001 /* www */; };
+		A1000000000000000000000E /* bibles in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000002 /* bibles */; };
+		A1000000000000000000000F /* orig in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000003 /* orig */; };
+		A10000000000000000000010 /* dictionaries in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000004 /* dictionaries */; };
+		A10000000000000000000011 /* commentaries in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000005 /* commentaries */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B00000000000000000000001 /* LocalBible.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBible.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B10000000000000000000002 /* WebViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewController.swift; sourceTree = "<group>"; };
+		B10000000000000000000003 /* SchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemeHandler.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* OfflineApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineApi.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* DataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* Sqlite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sqlite.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* Books.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Books.swift; sourceTree = "<group>"; };
+		B10000000000000000000008 /* JsonUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JsonUtil.swift; sourceTree = "<group>"; };
+		B10000000000000000000009 /* NativeJS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeJS.swift; sourceTree = "<group>"; };
+		B1000000000000000000000A /* TtsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TtsController.swift; sourceTree = "<group>"; };
+		B1000000000000000000000B /* ShareController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareController.swift; sourceTree = "<group>"; };
+		B1000000000000000000000C /* VoiceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceController.swift; sourceTree = "<group>"; };
+		B1000000000000000000000D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C10000000000000000000001 /* www */ = {isa = PBXFileReference; lastKnownFileType = folder; path = www; sourceTree = "<group>"; };
+		C10000000000000000000002 /* bibles */ = {isa = PBXFileReference; lastKnownFileType = folder; path = bibles; sourceTree = "<group>"; };
+		C10000000000000000000003 /* orig */ = {isa = PBXFileReference; lastKnownFileType = folder; path = orig; sourceTree = "<group>"; };
+		C10000000000000000000004 /* dictionaries */ = {isa = PBXFileReference; lastKnownFileType = folder; path = dictionaries; sourceTree = "<group>"; };
+		C10000000000000000000005 /* commentaries */ = {isa = PBXFileReference; lastKnownFileType = folder; path = commentaries; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D10000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		E10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000002 /* LocalBible */,
+				E10000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E10000000000000000000002 /* LocalBible */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000001 /* AppDelegate.swift */,
+				B10000000000000000000002 /* WebViewController.swift */,
+				B10000000000000000000003 /* SchemeHandler.swift */,
+				B10000000000000000000004 /* OfflineApi.swift */,
+				B10000000000000000000005 /* DataStore.swift */,
+				B10000000000000000000006 /* Sqlite.swift */,
+				B10000000000000000000007 /* Books.swift */,
+				B10000000000000000000008 /* JsonUtil.swift */,
+				B10000000000000000000009 /* NativeJS.swift */,
+				B1000000000000000000000A /* TtsController.swift */,
+				B1000000000000000000000B /* ShareController.swift */,
+				B1000000000000000000000C /* VoiceController.swift */,
+				B1000000000000000000000D /* Info.plist */,
+				C10000000000000000000001 /* www */,
+				C10000000000000000000002 /* bibles */,
+				C10000000000000000000003 /* orig */,
+				C10000000000000000000004 /* dictionaries */,
+				C10000000000000000000005 /* commentaries */,
+			);
+			path = LocalBible;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000001 /* LocalBible.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F10000000000000000000001 /* LocalBible */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F20000000000000000000002 /* Build configuration list for PBXNativeTarget "LocalBible" */;
+			buildPhases = (
+				F30000000000000000000001 /* Sync assets */,
+				F30000000000000000000002 /* Sources */,
+				D10000000000000000000001 /* Frameworks */,
+				F30000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LocalBible;
+			productName = LocalBible;
+			productReference = B00000000000000000000001 /* LocalBible.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F00000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+					F10000000000000000000001 = {
+						CreatedOnToolsVersion = 15.4;
+					};
+				};
+			};
+			buildConfigurationList = F20000000000000000000001 /* Build configuration list for PBXProject "LocalBible" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				"zh-Hans",
+				Base,
+			);
+			mainGroup = E10000000000000000000001;
+			productRefGroup = E10000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F10000000000000000000001 /* LocalBible */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F30000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000000000000000000000D /* www in Resources */,
+				A1000000000000000000000E /* bibles in Resources */,
+				A1000000000000000000000F /* orig in Resources */,
+				A10000000000000000000010 /* dictionaries in Resources */,
+				A10000000000000000000011 /* commentaries in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F30000000000000000000001 /* Sync assets */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Sync assets";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/../scripts/sync-ios-assets.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F30000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* AppDelegate.swift in Sources */,
+				A10000000000000000000002 /* WebViewController.swift in Sources */,
+				A10000000000000000000003 /* SchemeHandler.swift in Sources */,
+				A10000000000000000000004 /* OfflineApi.swift in Sources */,
+				A10000000000000000000005 /* DataStore.swift in Sources */,
+				A10000000000000000000006 /* Sqlite.swift in Sources */,
+				A10000000000000000000007 /* Books.swift in Sources */,
+				A10000000000000000000008 /* JsonUtil.swift in Sources */,
+				A10000000000000000000009 /* NativeJS.swift in Sources */,
+				A1000000000000000000000A /* TtsController.swift in Sources */,
+				A1000000000000000000000B /* ShareController.swift in Sources */,
+				A1000000000000000000000C /* VoiceController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F40000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F40000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		F40000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LocalBible/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.35.0;
+				PRODUCT_BUNDLE_IDENTIFIER = local.bible.reader.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F40000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LocalBible/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.35.0;
+				PRODUCT_BUNDLE_IDENTIFIER = local.bible.reader.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F20000000000000000000001 /* Build configuration list for PBXProject "LocalBible" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F40000000000000000000001 /* Debug */,
+				F40000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F20000000000000000000002 /* Build configuration list for PBXNativeTarget "LocalBible" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F40000000000000000000003 /* Debug */,
+				F40000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F00000000000000000000001 /* Project object */;
+}

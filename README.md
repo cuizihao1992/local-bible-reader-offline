@@ -49,6 +49,18 @@ npm run desktop
 npm run dist:win
 ```
 
+## iOS
+
+同一仓库 `ios/`，WKWebView 套现在的网页。需要 Mac + Xcode，不能在 Windows 上出 ipa。
+
+```bash
+export BIBLE_DATA_ROOT="$HOME/bibleDownload"
+./scripts/sync-ios-assets.sh
+open ios/LocalBible.xcodeproj
+```
+
+说明见 [`ios/README.md`](ios/README.md)。
+
 ## Android 离线 APK
 
 ```powershell

@@ -11,3 +11,11 @@ android/.idea/
 .DS_Store
 Thumbs.db
 static/ai-defaults.js
+ios/LocalBible/www/*
+!ios/LocalBible/www/.gitkeep
+ios/LocalBible/bibles/*.db
+ios/LocalBible/orig/*.db
+ios/LocalBible/dictionaries/*.db
+ios/LocalBible/commentaries/*.db
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
