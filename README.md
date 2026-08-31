@@ -54,10 +54,11 @@ npm run dist:win
 同一仓库 `ios/`，WKWebView 套现在的网页。需要 Mac + Xcode，不能在 Windows 上出 ipa。
 
 ```bash
-export BIBLE_DATA_ROOT="$HOME/bibleDownload"
 ./scripts/sync-ios-assets.sh
 open ios/LocalBible.xcodeproj
 ```
+
+没有本地 `bibleDownload` 时，脚本会从 GitHub Release `ios-data-v1` 下载内置译本包。
 
 说明见 [`ios/README.md`](ios/README.md)。
 

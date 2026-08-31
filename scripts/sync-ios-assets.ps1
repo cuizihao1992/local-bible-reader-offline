@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $dest = Join-Path $root "ios\LocalBible"
 $data = if ($env:BIBLE_DATA_ROOT) { $env:BIBLE_DATA_ROOT } else { "D:\bibleDownload" }
+$zipUrl = if ($env:IOS_DATA_URL) { $env:IOS_DATA_URL } else { "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/ios-data-v1/ios-offline-data.zip" }
 
 New-Item -ItemType Directory -Force -Path (Join-Path $dest "www"), (Join-Path $dest "bibles"), (Join-Path $dest "orig"), (Join-Path $dest "dictionaries"), (Join-Path $dest "commentaries") | Out-Null
 Remove-Item -Recurse -Force (Join-Path $dest "www")
@@ -31,6 +32,15 @@ if (Test-Path -LiteralPath $cd) {
   Get-ChildItem -LiteralPath $cd -Filter "*.db" | Where-Object { $_.Length -lt 20MB } | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $dest "dictionaries\$($_.Name)") -Force
   }
+}
+
+$kjv = Join-Path $dest "bibles\KJV.db"
+if (!(Test-Path -LiteralPath $kjv)) {
+  $tmp = Join-Path $root "dist\ios-offline-data.zip"
+  New-Item -ItemType Directory -Force -Path (Join-Path $root "dist") | Out-Null
+  Write-Host "Downloading iOS data from GitHub Releases..."
+  Invoke-WebRequest -Uri $zipUrl -OutFile $tmp
+  Expand-Archive -LiteralPath $tmp -DestinationPath $dest -Force
 }
 
 Write-Host "iOS assets synced to $dest"

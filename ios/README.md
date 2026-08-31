@@ -9,16 +9,14 @@
 ## 第一次编译
 
 1. 把本仓库拷到 Mac（或 git clone）。
-2. 准备译本数据，默认目录 `~/bibleDownload`（可用环境变量 `BIBLE_DATA_ROOT` 覆盖），里面要有：
-   - `bibles/和合本.db`、`和合本修订版.db`、`KJV.db`、`WEB.db`
-   - `orig/cbol.db`
-   - `cd/` 下小于 20MB 的辞典（会拷证主百科）
+2. 译本数据不必整盘拷到 Mac。同步脚本会：
+   - 若本机有 `BIBLE_DATA_ROOT`（默认 `~/bibleDownload`），从本地拷
+   - 否则从 GitHub Release `ios-data-v1` 下载约 60MB 的 `ios-offline-data.zip`（和合本、修订版、KJV、WEB、原文库、证主百科）
 3. 同步资源：
 
 ```bash
 cd /path/to/bible-reader
 chmod +x scripts/sync-ios-assets.sh
-export BIBLE_DATA_ROOT="$HOME/bibleDownload"
 ./scripts/sync-ios-assets.sh
 ```
 
