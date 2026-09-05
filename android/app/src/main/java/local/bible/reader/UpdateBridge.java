@@ -14,10 +14,10 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.util.List;
 
 public class UpdateBridge {
-    private static final String LATEST_RELEASE_URL = "https://api.github.com/repos/cuizihao1992/local-bible-reader-offline/releases/latest";
-    private static final String CURRENT_VERSION = "1.35.0";
+    private static final String CURRENT_VERSION = "1.36.0";
     private final Activity activity;
     private volatile JSONObject downloadStatus = new JSONObject();
 
@@ -28,30 +28,14 @@ public class UpdateBridge {
     @JavascriptInterface
     public String checkLatest() {
         try {
-            JSONObject release = new JSONObject(readText(LATEST_RELEASE_URL));
+            JSONObject release = fetchAppRelease();
             HttpSupport.JSONProxy proxy = HttpSupport.snapshot(activity);
-            JSONObject result = new JSONObject()
+            return release
                     .put("currentVersion", CURRENT_VERSION)
-                    .put("tagName", release.optString("tag_name"))
-                    .put("version", release.optString("tag_name").replaceFirst("^v", ""))
-                    .put("name", release.optString("name"))
-                    .put("body", release.optString("body"))
-                    .put("publishedAt", release.optString("published_at"))
                     .put("proxyType", proxy.type)
                     .put("proxyHost", proxy.host)
-                    .put("proxyPort", proxy.port);
-            JSONArray assets = new JSONArray();
-            JSONArray sourceAssets = release.optJSONArray("assets");
-            if (sourceAssets != null) {
-                for (int index = 0; index < sourceAssets.length(); index += 1) {
-                    JSONObject asset = sourceAssets.getJSONObject(index);
-                    assets.put(new JSONObject()
-                            .put("name", asset.optString("name"))
-                            .put("size", asset.optLong("size"))
-                            .put("url", asset.optString("browser_download_url")));
-                }
-            }
-            return result.put("assets", assets).toString();
+                    .put("proxyPort", proxy.port)
+                    .toString();
         } catch (Throwable error) {
             return errorJson(error);
         }
@@ -84,7 +68,7 @@ public class UpdateBridge {
     @JavascriptInterface
     public String downloadAndInstall(String downloadUrl, String fileName, String expectedSizeText) {
         try {
-            if (downloadUrl == null || !downloadUrl.startsWith("https://github.com/")) {
+            if (!DownloadMirrors.isAllowedDownload(downloadUrl)) {
                 throw new IllegalArgumentException("更新下载地址不正确");
             }
             File target = updateFile(fileName);
@@ -167,16 +151,74 @@ public class UpdateBridge {
         }
     }
 
+    private JSONObject fetchAppRelease() throws Exception {
+        Exception lastError = null;
+        for (String url : DownloadMirrors.releaseApiCandidates()) {
+            try {
+                String text = readText(url);
+                JSONObject picked;
+                if (text.trim().startsWith("[")) {
+                    picked = DownloadMirrors.pickAppRelease(new JSONArray(text));
+                } else {
+                    JSONObject latest = new JSONObject(text);
+                    picked = DownloadMirrors.isAppTag(latest.optString("tag_name")) && DownloadMirrors.hasApk(latest)
+                            ? latest
+                            : null;
+                }
+                if (picked == null) continue;
+                return githubReleaseToResult(picked);
+            } catch (Exception error) {
+                lastError = error;
+            }
+        }
+        for (String url : DownloadMirrors.latestJsonCandidates()) {
+            try {
+                return DownloadMirrors.fromCatalog(new JSONObject(readText(url)), CURRENT_VERSION);
+            } catch (Exception error) {
+                lastError = error;
+            }
+        }
+        throw lastError == null ? new RuntimeException("检查更新失败") : lastError;
+    }
+
+    private JSONObject githubReleaseToResult(JSONObject release) throws Exception {
+        JSONArray assets = new JSONArray();
+        JSONArray sourceAssets = release.optJSONArray("assets");
+        if (sourceAssets != null) {
+            for (int index = 0; index < sourceAssets.length(); index += 1) {
+                JSONObject asset = sourceAssets.getJSONObject(index);
+                assets.put(new JSONObject()
+                        .put("name", asset.optString("name"))
+                        .put("size", asset.optLong("size"))
+                        .put("url", asset.optString("browser_download_url")));
+            }
+        }
+        return new JSONObject()
+                .put("tagName", release.optString("tag_name"))
+                .put("version", release.optString("tag_name").replaceFirst("^v", ""))
+                .put("name", release.optString("name"))
+                .put("body", release.optString("body"))
+                .put("publishedAt", release.optString("published_at"))
+                .put("source", "github")
+                .put("assets", assets);
+    }
+
     private void downloadWithRetry(String urlText, File target, long expected, int maxAttempts) throws Exception {
         Exception lastError = null;
-        for (int attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        List<String> urls = DownloadMirrors.candidates(urlText);
+        int attempt = 0;
+        for (String url : urls) {
+            attempt += 1;
             try {
-                downloadTo(urlText, target, expected, attempt);
+                setDownloadStatus("apk", "downloading", target.exists() ? target.length() : 0, expected,
+                        "正在下载 APK（源 " + attempt + "/" + urls.size() + "）");
+                downloadTo(url, target, expected, attempt);
                 return;
             } catch (Exception error) {
                 lastError = error;
-                setDownloadStatus("apk", "retrying", target.exists() ? target.length() : 0, expected, "下载失败，重试 " + attempt + "/" + maxAttempts);
-                Thread.sleep(1200L * attempt);
+                setDownloadStatus("apk", "retrying", target.exists() ? target.length() : 0, expected,
+                        "下载失败，换源 " + attempt + "/" + urls.size());
+                Thread.sleep(800L * attempt);
             }
         }
         throw lastError == null ? new RuntimeException("APK 下载失败") : lastError;
@@ -230,7 +272,7 @@ public class UpdateBridge {
 
     private String friendlyDownloadError(Throwable error) {
         String message = error == null || error.getMessage() == null ? "APK 下载失败" : error.getMessage();
-        return message + "。若只用规则分流，请把 github.com、api.github.com、*.githubusercontent.com 走代理，或临时开全局。也可到 GitHub Release 用浏览器下载。";
+        return message + "。已尝试 GitHub 和国内加速。仍失败时可开全局代理，或到 GitHub Release 用浏览器下载。";
     }
 
     private void setDownloadStatus(String id, String state, long downloaded, long total, String message) {

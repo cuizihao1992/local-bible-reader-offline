@@ -1,0 +1,23 @@
+{
+  "version": "1.36.0",
+  "tagName": "v1.36.0",
+  "name": "v1.36.0",
+  "body": "iOS 可在应用内下载更多译本和基础注释。安卓检查更新会跳过数据包 tag，下载失败时自动换国内加速。",
+  "publishedAt": "2026-08-31",
+  "apk": {
+    "name": "local-bible-reader-offline-1.36.0-release.apk",
+    "size": 63447796,
+    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.0/local-bible-reader-offline-1.36.0-release.apk",
+    "mirrors": []
+  },
+  "packages": {
+    "extra-bibles": {
+      "fileName": "bibles-extra-v1.3.0.zip",
+      "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.3.0/bibles-extra-v1.3.0.zip"
+    },
+    "commentaries": {
+      "fileName": "commentaries-v1.3.0.zip",
+      "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.3.0/commentaries-v1.3.0.zip"
+    }
+  }
+}

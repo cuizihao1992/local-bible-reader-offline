@@ -7,6 +7,7 @@ final class WebViewController: UIViewController, WKScriptMessageHandler {
     private var api: OfflineApi!
     private var tts: TtsController!
     private var voice: VoiceController!
+    private var packageInstaller: PackageInstaller!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -35,6 +36,8 @@ final class WebViewController: UIViewController, WKScriptMessageHandler {
 
         tts = TtsController(webView: webView)
         voice = VoiceController(webView: webView)
+        packageInstaller = PackageInstaller(store: store, webView: webView)
+        api.packages = packageInstaller
         let index = store.www.appendingPathComponent("index.html")
         if !FileManager.default.fileExists(atPath: index.path) {
             let label = UILabel(frame: view.bounds)
@@ -66,6 +69,10 @@ final class WebViewController: UIViewController, WKScriptMessageHandler {
                 setNeedsStatusBarAppearanceUpdate()
             } else if body["op"] as? String == "keepScreen" {
                 UIApplication.shared.isIdleTimerDisabled = (body["value"] as? Bool) == true
+            } else if body["op"] as? String == "installPackage" {
+                packageInstaller.install(id: body["id"] as? String ?? "", url: body["url"] as? String ?? "")
+            } else if body["op"] as? String == "clearDownloadCache" {
+                _ = packageInstaller.clearCache()
             }
         default:
             break

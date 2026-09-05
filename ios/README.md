@@ -38,11 +38,11 @@ Xcode 每次编译也会跑 `scripts/sync-ios-assets.sh`。若 Mac 上没有 `BI
 - 读经、搜索、收藏/高亮/批注、进度、经文库、原文 Strong、辞典
 - 系统朗读（锁屏可停）、分享图片/文本
 - 口令录音并走小米识别（需麦克风权限和 Key）
+- 「我的」里下载更多译本、基础注释（和安卓同一套 GitHub zip，失败会换国内加速）
 
 ## 首版没有的
 
 - 不能像安卓那样下载 GitHub APK 直接安装，更新走 TestFlight / App Store
-- 注释资源包 zip 安装（可把 `.db` 手动放进 `ios/LocalBible/commentaries/` 再同步）
 - App Store 图标集（可先用默认，再补 `Assets.xcassets`）
 
 ## 网页地址

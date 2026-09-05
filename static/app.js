@@ -1,10 +1,15 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.35.0";
+const APP_VERSION = "1.36.0";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
 const GITHUB_REPO = "cuizihao1992/local-bible-reader-offline";
-const GITHUB_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=20`;
+const LATEST_JSON_URLS = [
+  `https://cdn.jsdelivr.net/gh/${GITHUB_REPO}@main/latest.json`,
+  `https://fastly.jsdelivr.net/gh/${GITHUB_REPO}@main/latest.json`,
+  `https://raw.githubusercontent.com/${GITHUB_REPO}/main/latest.json`,
+];
 
 const state = {
   versions: [],
@@ -5189,7 +5194,7 @@ function startPackageProgressPolling() {
 async function installResourcePackage(packageId, url) {
   if (!window.AndroidBibleApi || !window.AndroidBibleApi.installPackage) {
     if (url) window.open(url, "_blank");
-    else showStatus("请在 Android 版下载资源包");
+    else showStatus("请在手机版「我的」下载资源包");
     return;
   }
   const result = JSON.parse(window.AndroidBibleApi.installPackage(packageId, url || ""));
@@ -5394,11 +5399,14 @@ function localApkStatus(apk) {
 }
 
 function formatProxyHint(release) {
-  if (!window.AndroidUpdateApi) return "电脑版下载走系统 / 浏览器网络。";
-  if (release?.proxyType && release.proxyType !== "direct" && release.proxyHost) {
-    return `当前系统 HTTP 代理 ${release.proxyHost}:${release.proxyPort}。规则分流仍可能把 GitHub CDN 直连，失败时请开全局或把 githubusercontent 加入代理。`;
+  if (!window.AndroidUpdateApi) return "电脑版会先查 GitHub，失败则用 latest.json。";
+  if (release?.source === "latest.json") {
+    return "GitHub 接口不可用，已改用仓库 latest.json。下载 APK 和资源包时会自动尝试国内加速。";
   }
-  return "当前没有系统 HTTP 代理。Clash 等软件开「规则」时不会自动填代理，GitHub 常直连失败；开全局，或把 github.com、api.github.com、*.githubusercontent.com 走代理。";
+  if (release?.proxyType && release.proxyType !== "direct" && release.proxyHost) {
+    return `当前系统 HTTP 代理 ${release.proxyHost}:${release.proxyPort}。下载失败时应用会自动换国内加速源。`;
+  }
+  return "没有系统 HTTP 代理时，应用会自动尝试 GitHub 国内加速。仍失败可开全局，或用浏览器打开 GitHub Release。";
 }
 
 function refreshUpdateAction(apk, newer) {
@@ -5415,6 +5423,70 @@ function refreshUpdateAction(apk, newer) {
   else downloadUpdateBtn.textContent = newer ? "下载更新" : "下载 APK";
 }
 
+function isAppReleaseTag(tag) {
+  return /^v?\d+\.\d+/.test(String(tag || ""));
+}
+
+function releaseFromGithub(data) {
+  return {
+    currentVersion: APP_VERSION,
+    tagName: data.tag_name,
+    version: String(data.tag_name || "").replace(/^v/i, ""),
+    name: data.name,
+    body: data.body,
+    publishedAt: data.published_at,
+    source: "github",
+    assets: (data.assets || []).map((asset) => ({
+      name: asset.name,
+      size: asset.size,
+      url: asset.browser_download_url,
+    })),
+  };
+}
+
+function pickGithubAppRelease(list) {
+  if (!Array.isArray(list)) return null;
+  return list.find((item) => !item.draft && isAppReleaseTag(item.tag_name) && (item.assets || []).some((asset) => /\.apk$/i.test(asset.name))) || null;
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`检查更新失败：${response.status}`);
+  return response.json();
+}
+
+async function fetchLatestRelease() {
+  try {
+    const list = await fetchJson(GITHUB_RELEASES_API);
+    const picked = pickGithubAppRelease(list);
+    if (picked) return releaseFromGithub(picked);
+  } catch {
+    /* GitHub 不可用时改用 latest.json */
+  }
+  let lastError = new Error("检查更新失败");
+  for (const url of LATEST_JSON_URLS) {
+    try {
+      const catalog = await fetchJson(url);
+      const apk = catalog.apk || {};
+      return {
+        currentVersion: APP_VERSION,
+        tagName: catalog.tagName || `v${catalog.version || APP_VERSION}`,
+        version: String(catalog.version || "").replace(/^v/i, ""),
+        name: catalog.name,
+        body: catalog.body,
+        publishedAt: catalog.publishedAt,
+        source: "latest.json",
+        assets: apk.url
+          ? [{ name: apk.name, size: apk.size || 0, url: apk.url }, ...(apk.mirrors || []).map((mirror) => ({ name: apk.name, size: apk.size || 0, url: mirror }))]
+          : [],
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
 async function checkForUpdates() {
   if (updateCheckBusy) {
     showStatus("正在检查更新，请稍候");
@@ -5429,21 +5501,7 @@ async function checkForUpdates() {
       release = JSON.parse(window.AndroidUpdateApi.checkLatest());
       if (release.error) throw new Error(release.error);
     } else {
-      const response = await fetch(GITHUB_RELEASE_API, { headers: { Accept: "application/vnd.github+json" } });
-      if (!response.ok) throw new Error(`检查更新失败：${response.status}`);
-      const data = await response.json();
-      release = {
-        currentVersion: APP_VERSION,
-        tagName: data.tag_name,
-        version: String(data.tag_name || "").replace(/^v/i, ""),
-        name: data.name,
-        body: data.body,
-        assets: (data.assets || []).map((asset) => ({
-          name: asset.name,
-          size: asset.size,
-          url: asset.browser_download_url,
-        })),
-      };
+      release = await fetchLatestRelease();
     }
     lastUpdateInfo = release;
     const latest = release.version || "";
@@ -6193,7 +6251,7 @@ checkUpdateBtn.addEventListener("click", checkForUpdates);
 downloadUpdateBtn.addEventListener("click", downloadUpdate);
 clearDownloadsBtn?.addEventListener("click", () => {
   if (!window.AndroidUpdateApi && !window.AndroidBibleApi) {
-    showStatus("清除下载仅在 Android 版可用");
+    showStatus("清除下载仅在手机版可用");
     return;
   }
   let bytes = 0;

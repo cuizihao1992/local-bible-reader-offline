@@ -33,6 +33,7 @@ enum NativeJS {
           return '{"started":true}';
         }
       };
+      window.__iosPackageStatus = window.__iosPackageStatus || {};
       window.AndroidUpdateApi = {
         checkLatest: function () {
           return JSON.stringify({
@@ -40,7 +41,7 @@ enum NativeJS {
             version: '\(JsonUtil.appVersion)',
             tagName: 'v\(JsonUtil.appVersion)',
             name: 'v\(JsonUtil.appVersion)',
-            body: 'iOS 请通过 TestFlight 或 App Store 更新应用。译本和注释可继续在应用内下载。',
+            body: 'iOS 请通过 TestFlight 或 App Store 更新应用。译本和注释可在「我的」里下载。',
             assets: []
           });
         },
@@ -52,9 +53,17 @@ enum NativeJS {
       window.AndroidBibleApi = window.AndroidBibleApi || {};
       window.AndroidBibleApi.setNightMode = function (night) { send('native', { op: 'night', value: !!night }); };
       window.AndroidBibleApi.setKeepScreenOn = function (keep) { send('native', { op: 'keepScreen', value: !!keep }); };
-      window.AndroidBibleApi.installPackage = function () { return '{"error":"iOS 首版暂不支持资源包安装，请用电脑或安卓下载注释"}'; };
-      window.AndroidBibleApi.downloadStatus = function () { return '{}'; };
-      window.AndroidBibleApi.clearDownloadCache = function () { return '{"ok":true}'; };
+      window.AndroidBibleApi.installPackage = function (id, url) {
+        send('native', { op: 'installPackage', id: id, url: url });
+        return '{"started":true}';
+      };
+      window.AndroidBibleApi.downloadStatus = function () {
+        return JSON.stringify(window.__iosPackageStatus || {});
+      };
+      window.AndroidBibleApi.clearDownloadCache = function () {
+        send('native', { op: 'clearDownloadCache' });
+        return '{"ok":true,"bytes":0}';
+      };
     })();
     """
 }

@@ -178,7 +178,7 @@ public class OfflineApi {
                 .put("title", title)
                 .put("description", description)
                 .put("fileName", fileName)
-                .put("url", "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.3.0/" + fileName)
+                .put("url", DownloadMirrors.packageUrl(fileName))
                 .put("installedCount", installed)
                 .put("fullCount", fullCount)
                 .put("installed", "extra-bibles".equals(id) ? installed >= 8 : installed >= 3);
@@ -196,37 +196,36 @@ public class OfflineApi {
         } else {
             throw new Exception("未知资源包：" + packageId);
         }
-        String urlText = downloadUrl != null && downloadUrl.startsWith("https://github.com/") ? downloadUrl : "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.3.0/" + fileName;
+        String urlText = downloadUrl != null && DownloadMirrors.isAllowedDownload(downloadUrl)
+                ? downloadUrl
+                : DownloadMirrors.packageUrl(fileName);
         targetDir.mkdirs();
         File downloadDir = new File(context.getCacheDir(), "downloads");
         downloadDir.mkdirs();
         File cached = new File(downloadDir, fileName);
         File temp = new File(downloadDir, fileName + ".part");
+        long expected = DownloadMirrors.expectedZipSize(packageId);
         long downloaded = cached.exists() ? cached.length() : 0;
-        long total = downloaded;
-        if (!isCompleteZip(cached)) {
-            String resolved = HttpSupport.resolveRedirects(context, urlText, 20000, 30000);
-            HttpURLConnection connection = HttpSupport.open(context, resolved, 20000, 120000);
-            int status = connection.getResponseCode();
-            if (status < 200 || status >= 300) throw new Exception("下载失败：" + status);
-            total = connection.getContentLengthLong();
-            downloaded = 0;
-            setDownloadStatus(packageId, "downloading", 0, total, "正在下载资源包");
-            try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
-                byte[] buffer = new byte[1024 * 64];
-                int read;
-                while ((read = in.read(buffer)) > 0) {
-                    out.write(buffer, 0, read);
-                    downloaded += read;
-                    setDownloadStatus(packageId, "downloading", downloaded, total, "正在下载资源包");
+        long total = expected > 0 ? expected : downloaded;
+        if (!isCompleteZip(cached, expected)) {
+            Exception lastError = null;
+            java.util.List<String> urls = DownloadMirrors.candidates(urlText);
+            boolean saved = false;
+            for (int i = 0; i < urls.size(); i++) {
+                try {
+                    downloadZip(urls.get(i), temp, packageId, expected, i + 1, urls.size());
+                    if (cached.exists() && !cached.delete()) throw new Exception("无法替换已下载的资源包");
+                    if (!temp.renameTo(cached)) throw new Exception("保存资源包失败");
+                    saved = true;
+                    downloaded = cached.length();
+                    total = downloaded;
+                    break;
+                } catch (Exception error) {
+                    lastError = error;
+                    if (temp.exists() && !temp.delete()) temp.deleteOnExit();
                 }
-            } finally {
-                connection.disconnect();
             }
-            if (cached.exists() && !cached.delete()) throw new Exception("无法替换已下载的资源包");
-            if (!temp.renameTo(cached)) {
-                throw new Exception("保存资源包失败");
-            }
+            if (!saved) throw lastError == null ? new Exception("资源包下载失败") : lastError;
         } else {
             setDownloadStatus(packageId, "installing", downloaded, total, "已有资源包，正在安装");
         }
@@ -265,14 +264,38 @@ public class OfflineApi {
         }
     }
 
-    private boolean isCompleteZip(File file) {
-        if (file == null || !file.isFile() || file.length() < 1024 * 1024) return false;
+    private void downloadZip(String urlText, File temp, String packageId, long expected, int index, int totalSources) throws Exception {
+        String resolved = HttpSupport.resolveRedirects(context, urlText, 20000, 30000);
+        HttpURLConnection connection = HttpSupport.open(context, resolved, 20000, 120000);
+        int status = connection.getResponseCode();
+        if (status < 200 || status >= 300) throw new Exception("下载失败：" + status);
+        long total = connection.getContentLengthLong();
+        if (total <= 0) total = expected;
+        long downloaded = 0;
+        setDownloadStatus(packageId, "downloading", 0, total, "正在下载资源包（源 " + index + "/" + totalSources + "）");
+        try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
+            byte[] buffer = new byte[1024 * 64];
+            int read;
+            while ((read = in.read(buffer)) > 0) {
+                out.write(buffer, 0, read);
+                downloaded += read;
+                setDownloadStatus(packageId, "downloading", downloaded, total, "正在下载资源包");
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private boolean isCompleteZip(File file, long expected) {
+        if (file == null || !file.isFile() || file.length() < 10L * 1024 * 1024) return false;
         try (FileInputStream in = new FileInputStream(file)) {
             byte[] header = new byte[2];
-            return in.read(header) == 2 && header[0] == 'P' && header[1] == 'K';
+            if (in.read(header) != 2 || header[0] != 'P' || header[1] != 'K') return false;
         } catch (Exception error) {
             return false;
         }
+        if (expected > 10L * 1024 * 1024) return file.length() >= expected - 2048;
+        return true;
     }
 
     private long deleteChildren(File dir) {
@@ -987,7 +1010,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.35.0")
+                .put("version", "1.36.0")
                 .put("versionCount", versions().length());
     }
 

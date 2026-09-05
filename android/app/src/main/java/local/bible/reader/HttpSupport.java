@@ -13,9 +13,9 @@ import java.net.URL;
 import java.util.List;
 
 final class HttpSupport {
-    static final String USER_AGENT = "LocalBibleReader/1.35.0";
+    static final String USER_AGENT = "LocalBibleReader/1.36.0";
     static final String BROWSER_UA =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 LocalBibleReader/1.35.0";
+            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 LocalBibleReader/1.36.0";
 
     static {
         try {

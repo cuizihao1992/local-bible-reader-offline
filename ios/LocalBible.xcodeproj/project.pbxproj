@@ -19,6 +19,9 @@
 		A1000000000000000000000A /* TtsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* TtsController.swift */; };
 		A1000000000000000000000B /* ShareController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* ShareController.swift */; };
 		A1000000000000000000000C /* VoiceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* VoiceController.swift */; };
+		A10000000000000000000012 /* PackageInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* PackageInstaller.swift */; };
+		A10000000000000000000013 /* ZipUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* ZipUtil.swift */; };
+		A10000000000000000000014 /* DownloadMirrors.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* DownloadMirrors.swift */; };
 		A1000000000000000000000D /* www in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000001 /* www */; };
 		A1000000000000000000000E /* bibles in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000002 /* bibles */; };
 		A1000000000000000000000F /* orig in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000003 /* orig */; };
@@ -40,6 +43,9 @@
 		B1000000000000000000000A /* TtsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TtsController.swift; sourceTree = "<group>"; };
 		B1000000000000000000000B /* ShareController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareController.swift; sourceTree = "<group>"; };
 		B1000000000000000000000C /* VoiceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceController.swift; sourceTree = "<group>"; };
+		B1000000000000000000000E /* PackageInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageInstaller.swift; sourceTree = "<group>"; };
+		B1000000000000000000000F /* ZipUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZipUtil.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* DownloadMirrors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadMirrors.swift; sourceTree = "<group>"; };
 		B1000000000000000000000D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C10000000000000000000001 /* www */ = {isa = PBXFileReference; lastKnownFileType = folder; path = www; sourceTree = "<group>"; };
 		C10000000000000000000002 /* bibles */ = {isa = PBXFileReference; lastKnownFileType = folder; path = bibles; sourceTree = "<group>"; };
@@ -82,6 +88,9 @@
 				B1000000000000000000000A /* TtsController.swift */,
 				B1000000000000000000000B /* ShareController.swift */,
 				B1000000000000000000000C /* VoiceController.swift */,
+				B1000000000000000000000E /* PackageInstaller.swift */,
+				B1000000000000000000000F /* ZipUtil.swift */,
+				B10000000000000000000011 /* DownloadMirrors.swift */,
 				B1000000000000000000000D /* Info.plist */,
 				C10000000000000000000001 /* www */,
 				C10000000000000000000002 /* bibles */,
@@ -209,6 +218,9 @@
 				A1000000000000000000000A /* TtsController.swift in Sources */,
 				A1000000000000000000000B /* ShareController.swift in Sources */,
 				A1000000000000000000000C /* VoiceController.swift in Sources */,
+				A10000000000000000000012 /* PackageInstaller.swift in Sources */,
+				A10000000000000000000013 /* ZipUtil.swift in Sources */,
+				A10000000000000000000014 /* DownloadMirrors.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -257,7 +269,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LocalBible/Info.plist;
@@ -266,7 +278,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.35.0;
+				MARKETING_VERSION = 1.36.0;
+				OTHER_LDFLAGS = (
+					"-lz",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = local.bible.reader.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -281,7 +296,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LocalBible/Info.plist;
@@ -290,7 +305,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.35.0;
+				MARKETING_VERSION = 1.36.0;
+				OTHER_LDFLAGS = (
+					"-lz",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = local.bible.reader.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

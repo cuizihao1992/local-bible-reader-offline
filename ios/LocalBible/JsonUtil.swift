@@ -1,7 +1,7 @@
 import Foundation
 
 enum JsonUtil {
-    static let appVersion = "1.35.0"
+    static let appVersion = "1.36.0"
 
     static func data(_ object: Any) -> Data {
         (try? JSONSerialization.data(withJSONObject: object, options: [])) ?? Data("{}".utf8)

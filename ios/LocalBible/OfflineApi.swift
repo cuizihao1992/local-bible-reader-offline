@@ -2,6 +2,7 @@ import Foundation
 
 final class OfflineApi {
     let store: DataStore
+    weak var packages: PackageInstaller?
 
     init(store: DataStore) {
         self.store = store
@@ -37,6 +38,8 @@ final class OfflineApi {
                 "platform": "ios-offline",
                 "version": JsonUtil.appVersion,
                 "versionCount": store.dbFiles(in: store.bibles).count,
+                "commentaryCount": store.dbFiles(in: store.commentaries).count,
+                "dictionaryCount": store.dbFiles(in: store.dictionaries).count,
             ])
         case "/api/versions":
             return JsonUtil.data(["versions": versions()])
@@ -63,7 +66,7 @@ final class OfflineApi {
         case "/api/user/export":
             return try handlePost("/api/user/export", "{}")
         case "/api/packages":
-            return JsonUtil.data(["packages": [] as [Any]])
+            return JsonUtil.data(["packages": packages?.packages() ?? []])
         case "/api/commentaries":
             return JsonUtil.data(["commentaries": commentaries()])
         case "/api/commentary":
