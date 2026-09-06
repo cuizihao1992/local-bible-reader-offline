@@ -46,10 +46,10 @@ final class DataStore {
     }
 
     func dbFiles(in directory: URL) -> [URL] {
-        (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil))
-            ?.filter { $0.pathExtension.lowercased() == "db" }
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        return files
+            .filter { $0.pathExtension.lowercased() == "db" }
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-            ?? []
     }
 
     private func copyFolder(_ name: String, to dest: URL) {

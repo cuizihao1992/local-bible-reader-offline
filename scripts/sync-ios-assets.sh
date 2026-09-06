@@ -42,7 +42,23 @@ download_bundle() {
   else
     wget -O "$tmp" "$ZIP_URL"
   fi
-  unzip -o "$tmp" -d "$DEST"
+  # Windows zip uses backslashes and UTF-8 Chinese names; macOS unzip fails with
+  # "Illegal byte sequence". Extract with Python so 和合本.db etc. land correctly.
+  python3 - "$tmp" "$DEST" <<'PY'
+import sys, zipfile
+from pathlib import Path
+src, dest = sys.argv[1], Path(sys.argv[2])
+with zipfile.ZipFile(src) as z:
+    for info in z.infolist():
+        name = info.filename.replace("\\", "/")
+        if not name or name.endswith("/"):
+            continue
+        out = dest / name
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with z.open(info) as inf, open(out, "wb") as outf:
+            outf.write(inf.read())
+        print("extracted", out)
+PY
 }
 
 copy_from_data

@@ -20,7 +20,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         if path.hasPrefix("/api/") {
             let method = urlSchemeTask.request.httpMethod ?? "GET"
             var body: String?
-            if let data = urlSchemeTask.request.httpBody {
+            if let data = requestBody(urlSchemeTask.request) {
                 body = String(data: data, encoding: .utf8)
             }
             let (data, mime) = api.handle(method: method, url: url, body: body)
@@ -42,10 +42,40 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
 
+    private func requestBody(_ request: URLRequest) -> Data? {
+        if let data = request.httpBody, !data.isEmpty { return data }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        let bufferSize = 4096
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+        var data = Data()
+        while stream.hasBytesAvailable {
+            let read = stream.read(buffer, maxLength: bufferSize)
+            if read <= 0 { break }
+            data.append(buffer, count: read)
+        }
+        return data.isEmpty ? nil : data
+    }
+
     private func finish(_ task: WKURLSchemeTask, data: Data, mime: String, url: URL) {
-        let response = URLResponse(url: url, mimeType: mime, expectedContentLength: data.count, textEncodingName: "utf-8")
+        let contentType: String
+        if mime.contains("charset") || (!mime.hasPrefix("text/") && mime != "application/json") {
+            contentType = mime
+        } else {
+            contentType = "\(mime); charset=utf-8"
+        }
+        let headers = [
+            "Content-Type": contentType,
+            "Content-Length": "\(data.count)",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-cache",
+        ]
+        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)
+            ?? URLResponse(url: url, mimeType: mime, expectedContentLength: data.count, textEncodingName: "utf-8")
         task.didReceive(response)
-        task.didReceive(data)
+        if !data.isEmpty { task.didReceive(data) }
         task.didFinish()
     }
 

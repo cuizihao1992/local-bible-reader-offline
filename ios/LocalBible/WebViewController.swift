@@ -1,7 +1,7 @@
 import UIKit
 import WebKit
 
-final class WebViewController: UIViewController, WKScriptMessageHandler {
+final class WebViewController: UIViewController, WKScriptMessageHandler, WKUIDelegate {
     private var webView: WKWebView!
     private var store: DataStore!
     private var api: OfflineApi!
@@ -31,6 +31,7 @@ final class WebViewController: UIViewController, WKScriptMessageHandler {
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         webView.scrollView.bounces = false
         webView.allowsBackForwardNavigationGestures = false
+        webView.uiDelegate = self
         if #available(iOS 16.4, *) { webView.isInspectable = true }
         view.addSubview(webView)
 
@@ -77,5 +78,27 @@ final class WebViewController: UIViewController, WKScriptMessageHandler {
         default:
             break
         }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
+        if prompt.hasPrefix("__bible_api_get__") {
+            let path = String(prompt.dropFirst("__bible_api_get__".count))
+            completionHandler(api.handlePath("GET", path))
+            return
+        }
+        if prompt.hasPrefix("__bible_api_post__") {
+            let path = String(prompt.dropFirst("__bible_api_post__".count))
+            completionHandler(api.handlePath("POST", path, body: defaultText))
+            return
+        }
+        completionHandler(defaultText)
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        completionHandler()
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        completionHandler(true)
     }
 }

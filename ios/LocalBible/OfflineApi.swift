@@ -8,6 +8,23 @@ final class OfflineApi {
         self.store = store
     }
 
+    func handlePath(_ method: String, _ path: String, body: String? = nil) -> String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let raw = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        let absolute = "bible://app\(raw)"
+        let url: URL
+        if let parsed = URL(string: absolute) {
+            url = parsed
+        } else if let encoded = absolute.addingPercentEncoding(withAllowedCharacters: .urlFragmentAllowed),
+                  let parsed = URL(string: encoded) {
+            url = parsed
+        } else {
+            return JsonUtil.string(["error": "无效请求路径"])
+        }
+        let (data, _) = handle(method: method, url: url, body: body)
+        return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
     func handle(method: String, url: URL, body: String?) -> (Data, String) {
         let path = url.path
         if path == "/api/commentary/image" || path == "/api/dictionary/image" {

@@ -51,6 +51,20 @@ enum NativeJS {
         clearDownloadCache: function () { return '{"ok":true}'; }
       };
       window.AndroidBibleApi = window.AndroidBibleApi || {};
+      window.AndroidBibleApi.getJson = function (path) {
+        try {
+          return window.prompt('__bible_api_get__' + path) || '{}';
+        } catch (e) {
+          return JSON.stringify({ error: String(e && e.message ? e.message : e) });
+        }
+      };
+      window.AndroidBibleApi.postJson = function (path, payload) {
+        try {
+          return window.prompt('__bible_api_post__' + path, payload || '{}') || '{}';
+        } catch (e) {
+          return JSON.stringify({ error: String(e && e.message ? e.message : e) });
+        }
+      };
       window.AndroidBibleApi.setNightMode = function (night) { send('native', { op: 'night', value: !!night }); };
       window.AndroidBibleApi.setKeepScreenOn = function (keep) { send('native', { op: 'keepScreen', value: !!keep }); };
       window.AndroidBibleApi.installPackage = function (id, url) {
