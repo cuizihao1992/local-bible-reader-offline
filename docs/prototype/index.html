@@ -9,7 +9,7 @@
   <body>
     <aside class="catalog">
       <h1>本地圣经</h1>
-      <p class="meta">1.36.1 重构原型 · 390×844 手机框<br />文案对齐现网，无后端。点击即切换画面。</p>
+      <p class="meta">1.36.2 重构原型 · 390×844 手机框<br />文案对齐现网，无后端。点击即切换画面。</p>
       <div class="catalog-actions">
         <button type="button" id="toggleDark">夜间预览</button>
         <button type="button" id="toggleDesktop">桌面示意</button>
@@ -537,7 +537,7 @@
 
             <div class="pane" data-pane="updates">
               <div class="sheetTitle" style="font-size:15px">版本更新</div>
-              <div class="panelHint">当前版本 1.36.1</div>
+              <div class="panelHint">当前版本 1.36.2</div>
               <div class="dataButtons">
                 <button type="button" class="primaryBtn">检查更新</button>
                 <button type="button" disabled>下载更新</button>
@@ -553,7 +553,7 @@
             <div class="sheetHeader">
               <div>
                 <div class="sheetTitle">设置</div>
-                <div class="panelHint">1.36.1 · 助手、辞典和系统</div>
+                <div class="panelHint">1.36.2 · 助手、辞典和系统</div>
               </div>
               <button class="textBtn" type="button" data-go="reader">关闭</button>
             </div>
@@ -659,15 +659,17 @@
             </div>
             <button type="button" data-go="note">批注</button>
             <button type="button">复制</button>
-            <button type="button" data-go="ai">讲解</button>
             <button type="button">更多</button>
+            <div class="verseMenuMore">
+            <button type="button" data-go="ai">讲解</button>
+            <button type="button" data-go="ai">提问</button>
             <button type="button" data-go="compare">对照</button>
             <button type="button" data-go="commentary">注释</button>
-            <button type="button" data-go="ai">提问</button>
             <button type="button" data-go="share">分享</button>
             <button type="button" data-go="dictionary">查词</button>
             <button type="button" data-go="audio">从本节朗读</button>
             <button type="button" data-go="multi">多选</button>
+            </div>
           </div>
 
           <div id="selectionBar" class="selectionBar">
@@ -693,7 +695,7 @@
       <div class="desktop-frame" aria-label="桌面示意">
         <aside class="desk-side">
           <div class="sheetTitle">设置</div>
-          <p class="panelHint">1.36.1 · 助手、辞典和系统</p>
+          <p class="panelHint">1.36.2 · 助手、辞典和系统</p>
           <div class="tabs">
             <button type="button" class="active">助手</button>
             <button type="button">辞典</button>

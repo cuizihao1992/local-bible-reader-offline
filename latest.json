@@ -1,13 +1,13 @@
 {
-  "version": "1.36.1",
-  "tagName": "v1.36.1",
-  "name": "v1.36.1",
-  "body": "朗读改为顶栏迷你条；读完可自动下一章；按钮不再弹出系统复制菜单。",
+  "version": "1.36.2",
+  "tagName": "v1.36.2",
+  "name": "v1.36.2",
+  "body": "手机顶栏去掉搜索（底栏已有）；口令按住显示听着…/识别中；经文菜单第一层只留收藏高亮批注复制。",
   "publishedAt": "2026-09-14",
   "apk": {
-    "name": "local-bible-reader-offline-1.36.1-release.apk",
-    "size": 63448968,
-    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.1/local-bible-reader-offline-1.36.1-release.apk",
+    "name": "local-bible-reader-offline-1.36.2-release.apk",
+    "size": 63449104,
+    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.2/local-bible-reader-offline-1.36.2-release.apk",
     "mirrors": []
   },
   "packages": {

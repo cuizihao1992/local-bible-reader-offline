@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.36.1";
+const APP_VERSION = "1.36.2";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -1926,10 +1926,12 @@ function setVoiceButtons(mode) {
   document.querySelectorAll("#voiceBtn, #voiceBtnDesktop").forEach((button) => {
     button.classList.toggle("active", mode === "record" || mode === "upload");
     button.classList.toggle("uploading", mode === "upload");
+    button.setAttribute("aria-label", mode === "record" ? "听着，松开结束" : mode === "upload" ? "正在识别" : "按住口令");
+    button.title = mode === "record" ? "听着…" : mode === "upload" ? "识别中" : "按住口令";
     if (button.id === "voiceBtn") {
       const label = button.childNodes[button.childNodes.length - 1];
       if (label && label.nodeType === Node.TEXT_NODE) {
-        label.textContent = mode === "record" ? "松手" : mode === "upload" ? "处理中" : "口令";
+        label.textContent = mode === "record" ? "听着…" : mode === "upload" ? "识别中" : "口令";
       }
     }
   });

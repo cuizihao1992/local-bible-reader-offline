@@ -205,6 +205,8 @@ body.showDesktop .desktop-frame { display: grid; }
   background: transparent;
   border-bottom: 0;
 }
+.topbar .iconBtn[aria-label="搜索"] { display: none; }
+.verseMenuMore { padding-top: 4px; border-top: 1px solid var(--line); margin-top: 4px; }
 .ttsBar {
   display: none;
   padding: 6px 10px 10px;

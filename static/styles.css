@@ -1060,7 +1060,7 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
   .ttsBarMain { flex-wrap: wrap; }
   .ttsBarMain > button:not(.iconBtn) { flex: 1 1 auto; }
   .topbar .navBtn { display: none; }
-  .searchToggleBtn { display: grid; place-items: center; }
+  .searchToggleBtn { display: none; }
   .readerSettingsPanel, .content {
     width: calc(100vw - 28px);
   }
