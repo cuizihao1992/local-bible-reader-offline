@@ -30,6 +30,7 @@ final class WebViewController: UIViewController, WKScriptMessageHandler, WKUIDel
         webView = WKWebView(frame: view.bounds, configuration: config)
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         webView.scrollView.bounces = false
+        webView.allowsLinkPreview = false
         webView.allowsBackForwardNavigationGestures = false
         webView.uiDelegate = self
         if #available(iOS 16.4, *) { webView.isInspectable = true }

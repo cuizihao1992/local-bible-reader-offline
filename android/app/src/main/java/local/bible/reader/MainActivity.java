@@ -101,6 +101,9 @@ public class MainActivity extends Activity {
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
+        webView.setOnCreateContextMenuListener((menu, v, menuInfo) -> {
+            if (menu != null) menu.clear();
+        });
         webView.addJavascriptInterface(new AndroidBridge(offlineApi), "AndroidBibleApi");
         webView.addJavascriptInterface(new UpdateBridge(this), "AndroidUpdateApi");
         webView.addJavascriptInterface(new ShareBridge(this), "AndroidShareApi");

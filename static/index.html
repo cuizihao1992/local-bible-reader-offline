@@ -16,7 +16,7 @@
           <img class="markImg" src="icon.png" alt="" />
           <div>
             <h1>设置</h1>
-            <p>1.35.0 · 助手、辞典和系统</p>
+            <p id="sidebarVersionHint">助手、辞典和系统</p>
           </div>
         </div>
         <button id="closeSidebarBtn" class="textBtn sidebarSheetClose" type="button">关闭</button>
@@ -79,11 +79,7 @@
       <div class="dictionaryPanel">
         <div class="panelTitle">辞典 / 百科</div>
         <select id="dictionarySelect" aria-label="辞典来源"></select>
-        <div class="dictionarySearch">
-          <input id="dictionaryInput" type="search" placeholder="搜索词条" />
-          <button id="dictionaryBtn" type="button">查</button>
-        </div>
-        <div id="dictionaryHint" class="panelHint">词条结果会在下方面板打开。</div>
+        <div id="dictionaryHint" class="panelHint">查词请打开辞典面板。这里只选默认来源。</div>
         <button id="openDictionarySheetBtn" type="button">打开辞典面板</button>
       </div>
       </div>
@@ -93,7 +89,7 @@
         <button id="diagnosticsBtn" type="button">检查数据目录</button>
         <div id="diagnosticsHint" class="panelHint"></div>
       </div>
-      <div class="panelHint">主题、字号、Strong 编号在右上角阅读设置。译本在顶栏译本名。收藏和高亮在「我的」。</div>
+      <div class="panelHint">主题、字号、Strong 编号在右上角阅读设置。译本在顶栏译本名。收藏和高亮在「我的」（手机底栏，电脑顶栏人形图标）。</div>
       </div>
       <select id="versionSelect" hidden></select>
       <select id="commentarySelect" hidden></select>
@@ -101,6 +97,7 @@
     </aside>
 
     <main class="reader">
+      <div class="readerChrome">
       <header class="topbar">
         <button id="menuBtn" class="iconBtn" aria-label="设置" title="设置">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -121,11 +118,42 @@
         <button id="searchToggleBtn" class="iconBtn searchToggleBtn" type="button" aria-label="搜索">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/></svg>
         </button>
+        <button id="desktopMyBtn" class="iconBtn desktopMyBtn" type="button" aria-label="我的" title="我的">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M6 19c1.4-3 3.4-4.5 6-4.5S16.6 16 18 19"/></svg>
+        </button>
         <button id="readerSettingsBtn" class="iconBtn" aria-label="阅读设置">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17V7M5 17l3 3M5 7l3-3M12 20V4M19 17V7M19 17l-3 3M19 7l-3-3"/></svg>
         </button>
         <button id="nextBtn" class="navBtn">下一章</button>
       </header>
+      <section id="audioPanel" class="ttsBar" hidden>
+        <div class="ttsBarMain">
+          <div class="ttsBarInfo">
+            <div class="ttsBarTitle">朗读</div>
+            <div id="ttsStatus" class="ttsBarStatus">点喇叭开始，再点停止。</div>
+          </div>
+          <button id="ttsPlayBtn" type="button">朗读</button>
+          <button id="ttsFromHereBtn" type="button">从本节</button>
+          <label class="ttsBarRate">
+            <span>语速</span>
+            <select id="ttsRateSelect" aria-label="语速">
+              <option value="0.8">较慢</option>
+              <option value="1">正常</option>
+              <option value="1.25">较快</option>
+              <option value="1.5">更快</option>
+            </select>
+          </label>
+          <button id="closeAudioBtn" class="iconBtn" type="button" aria-label="关闭朗读条">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
+        </div>
+        <label class="toggleField ttsBarToggle">
+          <input id="audioAutoNextSheet" type="checkbox" />
+          <span>读完自动下一章</span>
+        </label>
+        <div id="audioFileList" class="audioFileList" hidden></div>
+      </section>
+      </div>
       <button id="prevEdge" class="chapterEdge prev" type="button" aria-label="上一章"></button>
       <button id="nextEdge" class="chapterEdge next" type="button" aria-label="下一章"></button>
 
@@ -296,35 +324,6 @@
         </div>
         <div class="sheetBody">
           <div id="strongContent" class="strongContent"></div>
-        </div>
-      </section>
-
-      <section id="audioPanel" class="sheetPanel panel audioPanel" hidden>
-        <div class="sheetHeader panelHeader">
-          <div class="sheetTitle">朗读</div>
-          <button id="closeAudioBtn" class="textBtn" type="button">关闭</button>
-        </div>
-        <div class="sheetBody">
-          <div id="ttsStatus" class="panelHint">用手机系统朗读本章。点喇叭或下面的按钮开始。小米请尽量装 Google 语音或讯飞。</div>
-          <div class="dataButtons">
-            <button id="ttsPlayBtn" type="button">朗读本章</button>
-            <button id="ttsFromHereBtn" type="button">从本节朗读</button>
-            <button id="ttsStopBtn" type="button">停止</button>
-          </div>
-          <label class="field compactField">
-            <span>语速</span>
-            <select id="ttsRateSelect">
-              <option value="0.8">较慢</option>
-              <option value="1">正常</option>
-              <option value="1.25">较快</option>
-              <option value="1.5">更快</option>
-            </select>
-          </label>
-          <label class="toggleField">
-            <input id="audioAutoNextSheet" type="checkbox" />
-            <span>读完自动下一章</span>
-          </label>
-          <div id="audioFileList" class="audioFileList"></div>
         </div>
       </section>
 
@@ -520,7 +519,7 @@
             </div>
             <div class="downloadProgressTrack"><span id="packageProgressBar"></span></div>
           </div>
-          <div id="packageHint" class="panelHint">可下载更多译本和注释库</div>
+          <div id="packageHint" class="panelHint">可下载更多译本和注释库。以后本机小模型也从这里下载。</div>
         </div>
         <div class="sheetSection settingsPanel">
           <div class="panelTitle">个人数据</div>
@@ -535,7 +534,7 @@
         <div id="myTabUpdates" class="myTabPane" data-my-pane="updates" hidden>
         <div class="settingsPanel">
           <div class="panelTitle">版本更新</div>
-          <div id="updateStatus" class="panelHint">当前版本 1.35.0</div>
+          <div id="updateStatus" class="panelHint">当前版本</div>
           <div class="dataButtons">
             <button id="checkUpdateBtn" type="button">检查更新</button>
             <button id="downloadUpdateBtn" type="button" disabled>下载更新</button>

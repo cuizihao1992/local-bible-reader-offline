@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>本地圣经 · 可点击原型</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside class="catalog">
+      <h1>本地圣经</h1>
+      <p class="meta">1.36.1 重构原型 · 390×844 手机框<br />文案对齐现网，无后端。点击即切换画面。</p>
+      <div class="catalog-actions">
+        <button type="button" id="toggleDark">夜间预览</button>
+        <button type="button" id="toggleDesktop">桌面示意</button>
+      </div>
+      <nav>
+        <div class="group">阅读</div>
+        <a href="#reader">阅读页 <small>唯一全屏</small></a>
+        <a href="#books">书卷选择</a>
+        <a href="#chapters">章节选择</a>
+        <a href="#verses">经节选择</a>
+        <a href="#versions">译本选择</a>
+        <a href="#reader-settings">阅读设置</a>
+        <a href="#audio">朗读 <small>顶栏迷你条</small></a>
+        <div class="group">底栏入口</div>
+        <a href="#search">搜索</a>
+        <a href="#ai">助手</a>
+        <a href="#confirm">口令确认</a>
+        <a href="#peek">peek 返回条</a>
+        <a href="#toast">状态提示</a>
+        <div class="group">经文操作</div>
+        <a href="#verse-menu">经文菜单</a>
+        <a href="#multi">多选</a>
+        <a href="#note">批注</a>
+        <a href="#compare">对照</a>
+        <a href="#commentary">本节注释</a>
+        <a href="#share">金句分享</a>
+        <a href="#strong">Strong</a>
+        <a href="#dictionary">辞典</a>
+        <div class="group">我的 / 设置</div>
+        <a href="#my-marks">我的 · 标注</a>
+        <a href="#my-library">我的 · 经文库</a>
+        <a href="#my-resources">我的 · 资源</a>
+        <a href="#my-updates">我的 · 更新</a>
+        <a href="#settings">设置 · 助手/辞典/系统</a>
+      </nav>
+    </aside>
+
+    <main class="stage">
+      <p class="stage-caption">
+        当前画面：<b id="currentScreenLabel">阅读页</b><br />
+        手机优先。朗读是顶栏下迷你条，不挡经文。桌面 ≥981px 时左侧常驻「设置」侧栏、无底栏。本原型是文档，不是生产代码。
+      </p>
+
+      <div class="phone" aria-label="手机预览">
+        <div class="phone-screen" id="phoneScreen" data-view="reader">
+          <div class="readerChrome">
+          <header class="topbar">
+            <button class="iconBtn" type="button" data-go="settings" aria-label="设置" title="设置">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            </button>
+            <button class="titleBlock" type="button" data-go="books">
+              <div class="chapterTitle">约翰福音 3</div>
+            </button>
+            <button class="versionChip" type="button" data-go="versions">和合本</button>
+            <button class="iconBtn" type="button" data-go="audio" aria-label="朗读本章" title="短按朗读或停止，长按打开朗读条">
+              <svg viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10H4zM16 9a4 4 0 010 6M18.5 7a7 7 0 010 10"/></svg>
+            </button>
+            <button class="iconBtn" type="button" data-go="search" aria-label="搜索">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/></svg>
+            </button>
+            <button class="iconBtn" type="button" data-go="reader-settings" aria-label="阅读设置">
+              <svg viewBox="0 0 24 24"><path d="M5 17V7M5 17l3 3M5 7l3-3M12 20V4M19 17V7M19 17l-3 3M19 7l-3-3"/></svg>
+            </button>
+          </header>
+          <section class="ttsBar" id="ttsBar">
+            <div class="ttsBarMain">
+              <div class="ttsBarInfo">
+                <div class="ttsBarTitle">朗读</div>
+                <div class="ttsBarStatus">「系统语音」朗读 · 约翰福音 3章</div>
+              </div>
+              <button type="button" class="ttsPlay">停止</button>
+              <button type="button">从本节</button>
+              <label class="ttsBarRate"><span>语速</span>
+                <select aria-label="语速"><option>较慢</option><option selected>正常</option><option>较快</option><option>更快</option></select>
+              </label>
+              <button class="iconBtn" type="button" data-go="reader" aria-label="关闭朗读条">×</button>
+            </div>
+            <label class="toggleField ttsBarToggle"><input type="checkbox" /> <span>读完自动下一章</span></label>
+          </section>
+          </div>
+
+          <section class="reader">
+            <div class="heading">耶稣与尼哥底母谈重生</div>
+            <p class="verse" data-v="1"><span class="n">1</span>有一个法利赛人，名叫尼哥底母，是犹太人的官。</p>
+            <p class="verse" data-v="2"><span class="n">2</span>这人夜里来见耶稣，说：「拉比，我们知道你是由神那里来作师傅的；因为你所行的神迹，若没有神同在，无人能行。」</p>
+            <p class="verse" data-v="3"><span class="n">3</span>耶稣回答说：「我实实在在地告诉你，人若不重生，就不能见神的国。」</p>
+            <p class="verse" data-v="14"><span class="n">14</span>摩西在旷野怎样举蛇，人子也必照样被举起来，</p>
+            <p class="verse" data-v="15"><span class="n">15</span>叫一切信他的都得永生。</p>
+            <p class="verse active hl-gold fav" data-v="16" data-go="verse-menu"><span class="n">16</span>神爱世人，甚至将他的独生子赐给他们，叫一切信他的，不至灭亡，反得永生。</p>
+            <p class="compareLine">KJV · For God so loved the world, that he gave his only begotten Son…</p>
+            <p class="verse" data-v="17"><span class="n">17</span>因为神差他的儿子降世，不是要定世人的罪，乃是要叫世人因他得救。</p>
+            <p class="verse" data-v="18"><span class="n">18</span>信他的人，不被定罪；不信的人，罪已经定了，因为他不信神独生子的名。</p>
+            <p class="verse" data-v="19"><span class="n">19</span>光来到世间，世人因自己的行为是恶的，不爱光，倒爱黑暗，定他们的罪就是在此。</p>
+            <p class="notePreview">批注 · 本节是福音的核心句。可点开看完整批注。</p>
+          </section>
+
+          <nav class="mobileNav" aria-label="移动端导航">
+            <button type="button" data-go="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/></svg>
+              搜索
+            </button>
+            <button type="button" data-go="books">
+              <svg viewBox="0 0 24 24"><path d="M6 6h12M6 12h12M6 18h8"/></svg>
+              目录
+            </button>
+            <button class="voice" type="button" data-go="confirm" aria-label="按住口令">
+              <svg viewBox="0 0 24 24"><path d="M12 4a3 3 0 00-3 3v5a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M6 11a6 6 0 0012 0M12 17v3"/></svg>
+              口令
+            </button>
+            <button type="button" data-go="ai">
+              <svg viewBox="0 0 24 24"><path d="M6 6h12a2 2 0 012 2v7a2 2 0 01-2 2h-5l-4 3v-3H6a2 2 0 01-2-2V8a2 2 0 012-2z"/></svg>
+              助手
+            </button>
+            <button type="button" data-go="my-marks">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M6 19c1.4-3 3.4-4.5 6-4.5S16.6 16 18 19"/></svg>
+              我的
+            </button>
+          </nav>
+
+          <div class="overlay" data-go="reader"></div>
+
+          <!-- 书卷 / 章 / 节 -->
+          <section class="sheet" id="sheet-books">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">选择书卷</div>
+                <div class="panelHint">点书卷即读 · 长按选章</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="step-books">
+              <input type="search" placeholder="搜索书卷" value="" />
+              <div class="chipRow">
+                <button type="button" class="active">全部</button>
+                <button type="button">最近</button>
+                <button type="button">旧约</button>
+                <button type="button">新约</button>
+              </div>
+              <div class="bookGrid">
+                <button type="button" data-go="chapters">创</button>
+                <button type="button" data-go="chapters">出</button>
+                <button type="button" data-go="chapters">利</button>
+                <button type="button" data-go="chapters">民</button>
+                <button type="button" data-go="chapters">申</button>
+                <button type="button" data-go="chapters">诗</button>
+                <button type="button" data-go="chapters">赛</button>
+                <button type="button" class="current" data-go="chapters">约</button>
+                <button type="button" data-go="chapters">徒</button>
+                <button type="button" data-go="chapters">罗</button>
+                <button type="button" data-go="chapters">来</button>
+                <button type="button" data-go="chapters">启</button>
+              </div>
+            </div>
+            <div class="step-chapters">
+              <div class="sheetHeader">
+                <button class="textBtn" type="button" data-go="books">返回书卷</button>
+                <div>
+                  <div class="sheetTitle">章节</div>
+                  <div class="panelHint">约翰福音 · 21 章</div>
+                </div>
+                <button class="textBtn" type="button" data-go="reader">进入本书</button>
+              </div>
+              <div class="chapterGrid">
+                <button type="button" data-go="verses">1</button>
+                <button type="button" data-go="verses">2</button>
+                <button type="button" class="current" data-go="verses">3</button>
+                <button type="button" data-go="verses">4</button>
+                <button type="button" data-go="verses">5</button>
+                <button type="button" data-go="verses">6</button>
+                <button type="button" data-go="verses">7</button>
+                <button type="button" data-go="verses">8</button>
+                <button type="button" data-go="verses">9</button>
+                <button type="button" data-go="verses">10</button>
+                <button type="button" data-go="verses">11</button>
+                <button type="button" data-go="verses">12</button>
+                <button type="button" data-go="verses">13</button>
+                <button type="button" data-go="verses">14</button>
+                <button type="button" data-go="verses">15</button>
+                <button type="button" data-go="verses">16</button>
+                <button type="button" data-go="verses">17</button>
+                <button type="button" data-go="verses">18</button>
+                <button type="button" data-go="verses">19</button>
+                <button type="button" data-go="verses">20</button>
+                <button type="button" data-go="verses">21</button>
+              </div>
+            </div>
+            <div class="step-verses">
+              <div class="sheetHeader">
+                <button class="textBtn" type="button" data-go="chapters">返回章节</button>
+                <div>
+                  <div class="sheetTitle">经节</div>
+                  <div class="panelHint">约翰福音 3 · 36 节</div>
+                </div>
+                <button class="textBtn" type="button" data-go="reader">从第 1 节读</button>
+              </div>
+              <div class="chapterGrid">
+                <button type="button" data-go="reader">1</button>
+                <button type="button" data-go="reader">2</button>
+                <button type="button" data-go="reader">3</button>
+                <button type="button" data-go="reader">14</button>
+                <button type="button" data-go="reader">15</button>
+                <button type="button" class="current" data-go="reader">16</button>
+                <button type="button" data-go="reader">17</button>
+                <button type="button" data-go="reader">18</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 译本 -->
+          <section class="sheet" id="sheet-versions">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">选择译本</div>
+                <div class="panelHint">点译本切换阅读；下面勾选后，每节底下对照显示。</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="versionItem current">和合本 <span>当前</span></div>
+            <div class="versionItem">和合本修订版</div>
+            <div class="versionItem">KJV</div>
+            <div class="versionItem">WEB</div>
+            <div class="sheetTitle" style="margin-top:16px;font-size:14px">阅读时对照</div>
+            <div class="chipRow">
+              <button type="button" class="active">KJV</button>
+              <button type="button">WEB</button>
+              <button type="button">和合本修订版</button>
+            </div>
+            <p class="panelHint">最多对照 3 个译本。经文仍只从本机 SQLite 取。</p>
+          </section>
+
+          <!-- 阅读设置 -->
+          <section class="sheet" id="sheet-reader-settings">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">阅读设置</div>
+                <div class="panelHint">只改阅读外观。对话模型在设置里的「助手」。</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <label class="field compactField"><span>主题</span>
+              <select><option>跟随系统</option><option selected>日间</option><option>夜间</option></select>
+            </label>
+            <label class="field compactField"><span>配色</span>
+              <select><option selected>经典纸张</option><option>清润青绿</option><option>安静蓝灰</option><option>柔和玫瑰</option><option>简洁墨白</option></select>
+            </label>
+            <label class="rangeField"><span>字号 <b>20px</b></span><input type="range" min="16" max="28" value="20" /></label>
+            <label class="rangeField"><span>行距 <b>2.05</b></span><input type="range" min="16" max="25" value="20" /></label>
+            <label class="field compactField"><span>正文字体</span>
+              <select><option selected>衬线（书卷感）</option><option>无衬线（更清晰）</option></select>
+            </label>
+            <label class="rangeField"><span>页边距 <b>22</b></span><input type="range" min="12" max="40" value="22" /></label>
+            <label class="field compactField"><span>复制格式</span>
+              <select><option selected>出处 + 经文</option><option>只要经文</option><option>带节号</option></select>
+            </label>
+            <label class="toggleField"><input type="checkbox" /> <span>阅读时保持屏幕常亮</span></label>
+            <label class="toggleField"><input type="checkbox" /> <span>显示 Strong 编号</span></label>
+          </section>
+
+          <!-- 搜索 -->
+          <section class="sheet" id="sheet-search">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">搜索</div>
+                <div class="panelHint">可输入约3:16 或关键词。智能查经走助手，经文仍从本机取。</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <form class="searchForm" action="#" onsubmit="return false">
+              <input type="search" placeholder="约3:16 或 关键词" value="永生" />
+              <button class="primaryBtn" type="button">搜</button>
+            </form>
+            <select aria-label="搜索范围">
+              <option>全本</option><option>旧约</option><option>新约</option><option>本书</option>
+            </select>
+            <label class="toggleField"><input type="checkbox" /> <span>模糊搜索</span></label>
+            <button class="primaryBtn" type="button" data-go="ai">智能查经</button>
+            <div class="chipRow">
+              <button type="button">约3:16</button>
+              <button type="button">永生</button>
+              <button type="button">抬葡萄</button>
+            </div>
+            <div class="panelHint">3 条结果 · 和合本</div>
+            <div class="resultItem" data-go="reader">
+              <div class="ref">约翰福音 3:16</div>
+              <p>神爱世人，甚至将他的独生子赐给他们，叫一切信他的，不至灭亡，反得<strong>永生</strong>。</p>
+            </div>
+            <div class="resultItem">
+              <div class="ref">约翰福音 3:15</div>
+              <p>叫一切信他的都得<strong>永生</strong>。</p>
+            </div>
+            <div class="resultItem">
+              <div class="ref">约翰福音 17:3</div>
+              <p>认识你独一的真神，并且认识你所差来的耶稣基督，这就是<strong>永生</strong>。</p>
+            </div>
+          </section>
+
+          <!-- 助手 -->
+          <section class="sheet" id="sheet-ai">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">助手</div>
+                <div class="panelHint">小米 MiMo · mimo-v2.5 · 经文只从本机译本取</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="chipRow">
+              <button type="button">讲解本节</button>
+              <button type="button">概括本章</button>
+              <button type="button">智能查经</button>
+            </div>
+            <div class="chipRow">
+              <button type="button">新对话</button>
+              <button type="button">整理成查经记录</button>
+              <button type="button">清空本轮</button>
+              <button type="button" data-go="my-marks">查经记录</button>
+            </div>
+            <div class="aiChat">
+              <div class="bubble user">帮我搜一下约书亚记中抬葡萄的经文</div>
+              <div class="toolStep">搜索「葡萄」 · 约书亚记 → 全本</div>
+              <div class="toolStep">取经文 民数记 13:23</div>
+              <div class="bubble bot">约书亚记里没有「抬葡萄」。探子从以实各谷抬回葡萄，记载在民数记 13:23。点下面经文可跳转。</div>
+              <div class="resultItem" data-go="reader">
+                <div class="ref">民数记 13:23</div>
+                <p>他们到了以实各谷，从那里砍了葡萄树的一枝，上头有一挂葡萄，两个人用杠抬着……</p>
+              </div>
+            </div>
+            <form class="searchForm" action="#" onsubmit="return false">
+              <input type="search" placeholder="接着问，或查经：约书亚记抬葡萄" />
+              <button class="primaryBtn" type="button">发送</button>
+            </form>
+          </section>
+
+          <!-- 辞典 -->
+          <section class="sheet" id="sheet-dictionary">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">辞典</div>
+                <div class="panelHint">选来源，输入词条。</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <form class="searchForm" action="#" onsubmit="return false">
+              <select aria-label="辞典来源"><option>证主圣经百科全书</option></select>
+            </form>
+            <form class="searchForm" action="#" onsubmit="return false">
+              <input type="search" placeholder="搜索词条" value="永生" />
+              <button class="primaryBtn" type="button">查</button>
+            </form>
+            <div class="resultItem">
+              <div class="ref">永生</div>
+              <p>新约中指认识独一真神并认识耶稣基督的生命（约 17:3），不是单纯无限的时间。</p>
+            </div>
+          </section>
+
+          <!-- Strong -->
+          <section class="sheet" id="sheet-strong">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">G25 ἀγαπάω</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="strongBlock">
+              <h3>爱</h3>
+              <p class="panelHint">希腊文 · 动词 · 约翰福音 3:16「爱」世人</p>
+              <p>指主动、舍己的爱。本节与约 3:16 的「爱」对应。点编号可从阅读页打开本面板。</p>
+            </div>
+          </section>
+
+          <!-- 注释 -->
+          <section class="sheet" id="sheet-commentary">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">本节注释</div>
+                <div class="panelHint">约翰福音 3:16</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="chipRow">
+              <button type="button" class="active">基础注释库</button>
+            </div>
+            <div class="panelHint">加密注释包没有密码，不会出现在列表里。</div>
+            <div class="resultItem">
+              <div class="ref">3:16</div>
+              <p>「神爱世人」是整本约翰福音的枢纽。独生子、信、不灭亡、得永生四层递进。</p>
+            </div>
+          </section>
+
+          <!-- 批注 -->
+          <section class="sheet" id="sheet-note">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">批注</div>
+                <div class="panelHint">约翰福音 3:16 · 挂在这一节上</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <textarea>本节是福音的核心句。神主动爱，独生子被赐下，条件是信，结果是永生。
+
+可对照 约翰福音 17:3。</textarea>
+            <input type="text" placeholder="标签，用逗号分隔" value="福音, 约翰" />
+            <div class="dataButtons">
+              <button type="button">插入本节引用</button>
+              <button type="button" class="primaryBtn">保存</button>
+            </div>
+            <p class="panelHint">支持 Markdown。可写 约翰福音 3:16，保存后能点着跳转。查经记录是对话整理，和批注分开。</p>
+          </section>
+
+          <!-- 分享 -->
+          <section class="sheet" id="sheet-share">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">金句分享</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="chipRow">
+              <button type="button" class="active">纸绿</button>
+              <button type="button">夜间</button>
+              <button type="button">简洁</button>
+            </div>
+            <div class="sharePreview">
+              神爱世人，甚至将他的独生子赐给他们，叫一切信他的，不至灭亡，反得永生。
+              <div class="ref">约翰福音 3:16 · 和合本</div>
+            </div>
+            <div class="dataButtons">
+              <button type="button" class="primaryBtn">分享图片</button>
+              <button type="button">保存图片</button>
+            </div>
+          </section>
+
+          <!-- 我的 -->
+          <section class="sheet" id="sheet-my">
+            <div class="sheetHeader">
+              <div class="sheetTitle">我的</div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="tabs">
+              <button type="button" data-go="my-marks" class="active">标注</button>
+              <button type="button" data-go="my-library">经文库</button>
+              <button type="button" data-go="my-resources">资源</button>
+              <button type="button" data-go="my-updates">更新</button>
+            </div>
+
+            <div class="pane" data-pane="marks">
+              <div class="card">
+                <div class="kicker">今日经文 · 9 月 5 日</div>
+                <div class="quote">神爱世人，甚至将他的独生子赐给他们……</div>
+                <div class="panelHint">约翰福音 3:16 · 点卡片跳到本章</div>
+              </div>
+              <div class="card">
+                <div class="kicker">阅读进度 · 和合本</div>
+                <div>已读 142 / 1189 章 · 12%</div>
+                <div class="progressBar"><span></span></div>
+              </div>
+              <div class="chipRow">
+                <button type="button" class="active">全部</button>
+                <button type="button">收藏</button>
+                <button type="button">高亮</button>
+                <button type="button">批注</button>
+                <button type="button">查经记录</button>
+              </div>
+              <input type="search" placeholder="按标签或内容筛选" />
+              <div class="panelHint">批注挂在某一节上；查经记录是一次对话的整理，可继续问。都支持 Markdown，可导入导出。</div>
+              <div class="dataButtons">
+                <button type="button">导出 Markdown</button>
+                <button type="button">导入 Markdown</button>
+                <button type="button">粘贴 Markdown</button>
+                <button type="button">导入链接</button>
+              </div>
+              <div class="resultItem" data-go="note">
+                <div class="ref">约翰福音 3:16 · 收藏 · 金色高亮</div>
+                <p>本节是福音的核心句。</p>
+              </div>
+              <div class="resultItem" data-go="ai">
+                <div class="ref">查经记录 · 抬葡萄</div>
+                <p>用户说约书亚记，实际在民数记 13:23。已纠正并记下。</p>
+              </div>
+            </div>
+
+            <div class="pane" data-pane="library">
+              <div class="card">
+                <div class="kicker">今日这一节按日期从库里轮换，正文跟当前译本。</div>
+                <div class="quote">神爱世人，甚至将他的独生子赐给他们，叫一切信他的，不至灭亡，反得永生。</div>
+                <div class="panelHint">约翰福音 3:16 · 和合本</div>
+              </div>
+              <div class="panelHint">下面是全部经文库。点经文跳到本章。</div>
+              <div class="chipRow">
+                <button type="button" class="active">全部</button>
+                <button type="button">福音</button>
+                <button type="button">安慰</button>
+                <button type="button">智慧</button>
+              </div>
+              <input type="search" placeholder="搜索引用或经文" />
+              <div class="resultItem" data-go="reader">
+                <div class="ref">约翰福音 3:16</div>
+                <p>神爱世人，甚至将他的独生子赐给他们……</p>
+              </div>
+              <div class="resultItem">
+                <div class="ref">诗篇 23:1</div>
+                <p>耶和华是我的牧者，我必不至缺乏。</p>
+              </div>
+            </div>
+
+            <div class="pane" data-pane="resources">
+              <div class="sheetTitle" style="font-size:15px">离线资源</div>
+              <div class="card">
+                <b>更多译本</b>
+                <p class="panelHint">下载补充经文译本 · bibles-extra-v1.3.0.zip</p>
+                <button class="primaryBtn" type="button">下载</button>
+              </div>
+              <div class="card">
+                <b>基础注释库</b>
+                <p class="panelHint">下载常用注释 · commentaries-v1.3.0.zip</p>
+                <button class="primaryBtn" type="button">下载</button>
+              </div>
+              <div class="panelHint">可下载更多译本和注释库。以后本机小模型也从这里下载，不打进 APK。现在没有下载按钮。</div>
+              <div class="sheetTitle" style="font-size:15px;margin-top:12px">个人数据</div>
+              <div class="dataButtons">
+                <button type="button">导出</button>
+                <button type="button">导入</button>
+              </div>
+              <div class="panelHint">导出 JSON，含收藏、高亮、批注、阅读进度。不含 API Key。</div>
+            </div>
+
+            <div class="pane" data-pane="updates">
+              <div class="sheetTitle" style="font-size:15px">版本更新</div>
+              <div class="panelHint">当前版本 1.36.1</div>
+              <div class="dataButtons">
+                <button type="button" class="primaryBtn">检查更新</button>
+                <button type="button" disabled>下载更新</button>
+                <button type="button">清除下载</button>
+              </div>
+              <div class="panelHint">下载走系统代理。Clash 用规则模式时，把 github.com 和 githubusercontent.com 加进代理。国内失败时回退 latest.json。</div>
+              <div class="panelHint">iOS 请通过 TestFlight 或 App Store 更新应用。译本和注释可在「资源」里下载。</div>
+            </div>
+          </section>
+
+          <!-- 设置 -->
+          <section class="sheet sidebar-sheet" id="sheet-settings">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">设置</div>
+                <div class="panelHint">1.36.1 · 助手、辞典和系统</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="tabs">
+              <button type="button" data-settings-tab="assistant" class="active">助手</button>
+              <button type="button" data-settings-tab="dictionary">辞典</button>
+              <button type="button" data-settings-tab="system">系统</button>
+            </div>
+            <div data-settings-pane="assistant">
+              <div class="sheetTitle" style="font-size:14px">对话模型</div>
+              <label class="field compactField"><span>供应商</span>
+                <select>
+                  <option selected>小米 MiMo</option>
+                  <option>DeepSeek</option>
+                  <option>xAI Grok</option>
+                  <option>OpenAI GPT</option>
+                  <option>Anthropic Claude</option>
+                  <option>自定义（OpenAI 兼容）</option>
+                </select>
+              </label>
+              <label class="field compactField"><span>模型</span>
+                <select><option>MiMo 2.5</option></select>
+              </label>
+              <label class="field compactField"><span>API Key</span>
+                <input type="password" placeholder="sk- …" value="••••••••" />
+              </label>
+              <label class="field compactField"><span>Key 类型</span>
+                <select><option>普通 Key（sk-）</option><option selected>Code Plan / Token Plan（tp-）</option></select>
+              </label>
+              <label class="field compactField"><span>Base URL</span>
+                <input type="url" value="https://token-plan-cn.xiaomimimo.com/v1" />
+              </label>
+              <label class="toggleField"><input type="checkbox" /> <span>智能口令（大模型理解，稍慢）</span></label>
+              <div class="panelHint">已内置小米普通 Key 和 Token Plan，默认用 Token Plan。查经和讲解用所选模型，经文仍只从本机译本取。口令识别继续用小米。</div>
+              <button class="primaryBtn" type="button" data-go="ai">打开助手</button>
+            </div>
+            <div class="hidden" data-settings-pane="dictionary">
+              <div class="sheetTitle" style="font-size:14px">辞典 / 百科</div>
+              <select aria-label="辞典来源"><option>证主圣经百科全书</option></select>
+              <div class="panelHint">查词在辞典面板里做。这里只选默认来源。</div>
+              <button class="primaryBtn" type="button" data-go="dictionary">打开辞典面板</button>
+            </div>
+            <div class="hidden" data-settings-pane="system">
+              <div class="sheetTitle" style="font-size:14px">本地诊断</div>
+              <button type="button">检查数据目录</button>
+              <div class="panelHint">主题、字号、Strong 编号在右上角阅读设置。译本在顶栏译本名。收藏和高亮在「我的」。</div>
+            </div>
+          </section>
+
+          <!-- 口令确认 -->
+          <section class="sheet" id="sheet-confirm">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">听得不太准</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">取消</button>
+            </div>
+            <div class="panelHint">听到的是「以斯……记」。请选一本：</div>
+            <div class="resultItem" data-go="reader">
+              <div class="ref">以斯拉记</div>
+              <p>旧约历史书 · 10 章</p>
+            </div>
+            <div class="resultItem" data-go="reader">
+              <div class="ref">以斯帖记</div>
+              <p>旧约历史书 · 10 章</p>
+            </div>
+          </section>
+
+          <!-- 对照 -->
+          <section class="sheet" id="sheet-compare">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">经文对照</div>
+                <div class="panelHint">约翰福音 3:16</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="chipRow">
+              <button type="button" class="active">和合本</button>
+              <button type="button" class="active">KJV</button>
+              <button type="button">WEB</button>
+              <button type="button">和合本修订版</button>
+            </div>
+            <div class="resultItem">
+              <div class="ref">和合本</div>
+              <p>神爱世人，甚至将他的独生子赐给他们，叫一切信他的，不至灭亡，反得永生。</p>
+            </div>
+            <div class="resultItem">
+              <div class="ref">KJV</div>
+              <p>For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.</p>
+            </div>
+          </section>
+
+          <div id="verseMenu" class="verseMenu">
+            <div class="verseMenuTitle">约翰福音 3:16</div>
+            <button type="button">收藏</button>
+            <button type="button">高亮</button>
+            <div class="highlightColors">
+              <button class="hl-gold" type="button" title="金色"></button>
+              <button class="hl-green" type="button" title="绿色"></button>
+              <button class="hl-blue" type="button" title="蓝色"></button>
+              <button class="hl-rose" type="button" title="玫红"></button>
+            </div>
+            <button type="button" data-go="note">批注</button>
+            <button type="button">复制</button>
+            <button type="button" data-go="ai">讲解</button>
+            <button type="button">更多</button>
+            <button type="button" data-go="compare">对照</button>
+            <button type="button" data-go="commentary">注释</button>
+            <button type="button" data-go="ai">提问</button>
+            <button type="button" data-go="share">分享</button>
+            <button type="button" data-go="dictionary">查词</button>
+            <button type="button" data-go="audio">从本节朗读</button>
+            <button type="button" data-go="multi">多选</button>
+          </div>
+
+          <div id="selectionBar" class="selectionBar">
+            <span>已选择 2 节 · 约翰福音 3:16–17</span>
+            <div class="actions">
+              <button type="button">收藏</button>
+              <button type="button">高亮</button>
+              <button type="button" data-go="note">批注</button>
+              <button type="button" data-go="ai">讲解</button>
+              <button type="button">复制</button>
+              <button type="button" data-go="reader">取消</button>
+            </div>
+          </div>
+
+          <div id="peekBar" class="peekBar">
+            <button type="button" data-go="search">返回搜索</button>
+            <button type="button" data-go="reader" aria-label="关闭返回条">×</button>
+          </div>
+          <div id="statusToast" class="statusToast">已跳到约翰福音 3:16</div>
+        </div>
+      </div>
+
+      <div class="desktop-frame" aria-label="桌面示意">
+        <aside class="desk-side">
+          <div class="sheetTitle">设置</div>
+          <p class="panelHint">1.36.1 · 助手、辞典和系统</p>
+          <div class="tabs">
+            <button type="button" class="active">助手</button>
+            <button type="button">辞典</button>
+            <button type="button">系统</button>
+          </div>
+          <label class="field compactField"><span>供应商</span>
+            <select><option>小米 MiMo</option></select>
+          </label>
+          <label class="toggleField"><input type="checkbox" /> <span>智能口令（大模型理解，稍慢）</span></label>
+          <p class="panelHint">桌面无底栏。口令、搜索、「我的」在顶栏。阅读页仍是唯一全屏内容。</p>
+        </aside>
+        <div class="desk-main">
+          <header class="topbar">
+            <button class="navBtn" type="button">上一章</button>
+            <button class="titleBlock" type="button"><div class="chapterTitle">约翰福音 3</div></button>
+            <button class="versionChip" type="button">和合本</button>
+            <button class="iconBtn" type="button" aria-label="朗读本章"><svg viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10H4zM16 9a4 4 0 010 6"/></svg></button>
+            <button class="iconBtn" type="button" aria-label="按住口令"><svg viewBox="0 0 24 24"><path d="M12 4a3 3 0 00-3 3v5a3 3 0 006 0V7a3 3 0 00-3-3z"/><path d="M6 11a6 6 0 0012 0M12 17v3"/></svg></button>
+            <button class="iconBtn" type="button" aria-label="搜索"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/></svg></button>
+            <button class="iconBtn" type="button" data-go="my-marks" aria-label="我的" title="我的">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M6 19c1.4-3 3.4-4.5 6-4.5S16.6 16 18 19"/></svg>
+            </button>
+            <button class="navBtn" type="button">下一章</button>
+          </header>
+          <section class="reader">
+            <div class="heading">耶稣与尼哥底母谈重生</div>
+            <p class="verse active hl-gold fav"><span class="n">16</span>神爱世人，甚至将他的独生子赐给他们，叫一切信他的，不至灭亡，反得永生。</p>
+            <p class="verse"><span class="n">17</span>因为神差他的儿子降世，不是要定世人的罪，乃是要叫世人因他得救。</p>
+          </section>
+        </div>
+      </div>
+    </main>
+    <script src="nav.js"></script>
+  </body>
+</html>

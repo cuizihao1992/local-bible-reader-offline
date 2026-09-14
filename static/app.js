@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bibleReaderState.v1";
-const APP_VERSION = "1.36.0";
+const APP_VERSION = "1.36.1";
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
 const HIGHLIGHT_COLORS = ["gold", "green", "blue", "rose"];
@@ -65,6 +65,8 @@ const audioAutoNext = $("#audioAutoNext");
 const dictionarySelect = $("#dictionarySelect");
 const dictionaryInput = $("#dictionaryInput");
 const dictionaryBtn = $("#dictionaryBtn");
+const desktopMyBtn = $("#desktopMyBtn");
+const sidebarVersionHint = $("#sidebarVersionHint");
 const dictionaryHint = $("#dictionaryHint");
 const dictionarySheetSelect = $("#dictionarySheetSelect");
 const dictionarySheetInput = $("#dictionarySheetInput");
@@ -602,7 +604,6 @@ function closeContentPanels() {
   if (noteSheet) noteSheet.hidden = true;
   if (aiSheet) aiSheet.hidden = true;
   if (confirmSheet) confirmSheet.hidden = true;
-  if (audioPanel) audioPanel.hidden = true;
   if (highlightColors) highlightColors.hidden = true;
   closeVerseMenu();
   closeSelectionBar();
@@ -696,7 +697,7 @@ function rememberReadingPosition(verse = state.activeVerse || state.targetVerse)
 function visibleVerseNumber() {
   const verses = [...content.querySelectorAll(".verse[data-verse]")];
   if (!verses.length) return null;
-  const top = (document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0) + 28;
+  const top = (document.querySelector(".readerChrome")?.getBoundingClientRect().bottom || document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0) + 28;
   let current = Number(verses[0].dataset.verse);
   for (const el of verses) {
     if (el.getBoundingClientRect().top <= top) current = Number(el.dataset.verse);
@@ -708,7 +709,7 @@ let lastScrollY = window.scrollY || 0;
 
 function onReaderScroll() {
   const y = window.scrollY || 0;
-  if (!chapterLoading && !jumpBusy && Date.now() >= chromePinnedUntil && !hasBlockingOverlayOpen()) {
+  if (!chapterLoading && !jumpBusy && !speaking && !(audioPanel && !audioPanel.hidden) && Date.now() >= chromePinnedUntil && !hasBlockingOverlayOpen()) {
     if (y > lastScrollY + 10 && y > 48) document.body.classList.add("chromeHidden");
     else if (y < lastScrollY - 10) document.body.classList.remove("chromeHidden");
   }
@@ -747,6 +748,24 @@ function setDictionarySource(id) {
   if (dictionarySelect && dictionarySelect.value !== id) dictionarySelect.value = id;
   if (dictionarySheetSelect && dictionarySheetSelect.value !== id) dictionarySheetSelect.value = id;
   saveState();
+}
+
+function isIosShell() {
+  return !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.native);
+}
+
+function isAndroidShell() {
+  return !!(window.AndroidBibleApi && window.AndroidBibleApi.getJson);
+}
+
+function applyShellChrome() {
+  document.body.classList.toggle("iosApp", isIosShell());
+  document.body.classList.toggle("androidApp", isAndroidShell());
+  if (sidebarVersionHint) sidebarVersionHint.textContent = `${APP_VERSION} · 助手、辞典和系统`;
+  if (updateStatus) updateStatus.textContent = `当前版本 ${APP_VERSION}`;
+  if (isIosShell() && updateNetworkHint) {
+    updateNetworkHint.textContent = "iOS 请通过 TestFlight 或 App Store 更新应用。译本和注释仍可在「资源」里下载。";
+  }
 }
 
 function setDictionaryQuery(query) {
@@ -1177,18 +1196,16 @@ function setTtsStatus(text) {
 
 function describeTtsEngine() {
   if (!window.AndroidTtsApi || !window.AndroidTtsApi.getStatus) {
-    return window.speechSynthesis ? "用浏览器朗读本章。" : "当前环境不支持朗读。";
+    return window.speechSynthesis ? "浏览器朗读。点喇叭开始。" : "当前环境不支持朗读。";
   }
   try {
     const status = JSON.parse(window.AndroidTtsApi.getStatus());
     const engine = status.engineLabel || status.engine || "系统语音";
-    if (!status.ready) return "正在启动朗读引擎…小米请稍等，或到系统设置安装 Google 语音 / 讯飞。";
-    if (status.languageOk === false) {
-      return `当前是「${engine}」，中文语音包可能不全。仍会尝试朗读；不行请到系统设置安装 Google 语音或讯飞。`;
-    }
-    return `用手机「${engine}」朗读本章。点喇叭或下面的按钮开始。`;
+    if (!status.ready) return "正在启动朗读引擎…";
+    if (status.languageOk === false) return `「${engine}」中文语音可能不全`;
+    return `「${engine}」朗读 · 点喇叭开始或停止`;
   } catch {
-    return "用手机系统朗读本章。";
+    return "系统朗读 · 点喇叭开始或停止";
   }
 }
 
@@ -1197,9 +1214,11 @@ function renderAudioSheet() {
   if (audioAutoNextSheet) audioAutoNextSheet.checked = !!state.audioAutoNext;
   if (!audioFileList) return;
   if (!chapterAudioFiles.length) {
-    audioFileList.innerHTML = `<div class="panelHint">手机版用系统朗读。本章若有 MP3（电脑 D:\\bibleDownload\\ld），会显示在这里。APK 里不内置音频包。</div>`;
+    audioFileList.hidden = true;
+    audioFileList.innerHTML = "";
     return;
   }
+  audioFileList.hidden = false;
   audioFileList.innerHTML = chapterAudioFiles
     .map(
       (item) => `
@@ -1218,17 +1237,23 @@ function renderAudioSheet() {
 }
 
 function openAudioSheet() {
-  closeContentPanels();
   if (audioPanel) audioPanel.hidden = false;
   renderAudioSheet();
-  syncSheetOverlay();
+  keepReadingChromeVisible();
+  document.body.classList.remove("chromeHidden");
+}
+
+function closeAudioBar() {
+  if (speaking) stopSpeaking();
+  if (audioPanel) audioPanel.hidden = true;
 }
 
 async function loadChapter(options = {}) {
   const token = ++chapterLoadToken;
   const snapshot = { version: state.version, book: state.book, chapter: state.chapter };
+  const resumeSpeak = !!options.resumeSpeak;
   chapterLoading = true;
-  if (speaking) stopSpeaking();
+  if (speaking) stopSpeaking({ silent: resumeSpeak });
   resetSwipeVisual();
   renderChrome();
   if (!content.querySelector(".verse")) content.innerHTML = `<div class="loading">正在读取经文...</div>`;
@@ -1252,6 +1277,7 @@ async function loadChapter(options = {}) {
     if (options.scrollTop) scrollReaderToTop();
     else if (state.targetVerse) focusTargetVerse();
     await loadAudio(snapshot, token);
+    if (resumeSpeak && state.audioAutoNext && token === chapterLoadToken) speakChapter({ autoContinue: true });
   } catch (error) {
     if (token !== chapterLoadToken) return;
     setChapterError(error, snapshot);
@@ -1263,7 +1289,7 @@ async function loadChapter(options = {}) {
   }
 }
 
-function moveChapter(delta) {
+function moveChapter(delta, options = {}) {
   if (chapterLoading) {
     showStatus("正在读取经文，请稍候");
     return;
@@ -1295,7 +1321,7 @@ function moveChapter(delta) {
   resetVerseInteraction();
   const nextInfo = state.books.find((item) => item.id === nextBook) || currentBook();
   showStatus(`${nextInfo.longName} ${nextChapter}`);
-  loadChapter({ scrollTop: true });
+  loadChapter({ scrollTop: true, resumeSpeak: !!options.resumeSpeak });
 }
 
 function bookAliases() {
@@ -3561,7 +3587,7 @@ async function openStrong(code) {
 }
 
 async function searchDictionary(query) {
-  const value = String(query || dictionarySheetInput?.value || dictionaryInput?.value || "").trim();
+  const value = String(query || dictionarySheetInput?.value || "").trim();
   if (!value || !state.dictionary) {
     showStatus(!state.dictionary ? "请先选择辞典" : "请输入词条");
     if (dictionaryPanel?.hidden) openDictionarySheet();
@@ -4221,7 +4247,7 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
   }
   if (action === "dictionary") {
     setDictionaryQuery(verseTextForNumber(verseNo).slice(0, 12));
-    await searchDictionary(dictionaryInput?.value || dictionarySheetInput?.value);
+    await searchDictionary(dictionarySheetInput?.value);
   }
 }
 
@@ -4955,7 +4981,8 @@ function setSpeaking(on) {
     speakToggleBtn.setAttribute("aria-pressed", speaking ? "true" : "false");
     speakToggleBtn.setAttribute("aria-label", speaking ? "停止朗读" : "朗读本章");
   }
-  if (ttsPlayBtn) ttsPlayBtn.textContent = speaking ? "停止朗读" : "朗读本章";
+  if (ttsPlayBtn) ttsPlayBtn.textContent = speaking ? "停止" : "朗读";
+  if (speaking) document.body.classList.remove("chromeHidden");
 }
 
 function clearSpeakingVerse() {
@@ -5001,11 +5028,11 @@ function syncTtsSession(result) {
 
 function speakChapter(options = {}) {
   const fromVerse = Number(options.fromVerse) || 0;
-  if (speaking && !fromVerse) {
+  if (speaking && !fromVerse && !options.autoContinue) {
     stopSpeaking();
     return;
   }
-  if (speaking) stopSpeaking();
+  if (speaking) stopSpeaking({ silent: !!options.autoContinue });
   openAudioSheet();
   const book = currentBook();
   const items = chapterSpeakItems(fromVerse);
@@ -5060,7 +5087,7 @@ function speakChapter(options = {}) {
     if (index >= items.length) {
       setSpeaking(false);
       setTtsStatus("朗读结束");
-      if (state.audioAutoNext) moveChapter(1);
+      if (state.audioAutoNext) moveChapter(1, { resumeSpeak: true });
       return;
     }
     setSpeakingVerse(items[index].id);
@@ -5084,7 +5111,7 @@ function speakChapter(options = {}) {
   speakNext(0);
 }
 
-function stopSpeaking() {
+function stopSpeaking(options = {}) {
   ttsSession += 1;
   if (window.AndroidTtsApi && window.AndroidTtsApi.stop) {
     try {
@@ -5096,6 +5123,7 @@ function stopSpeaking() {
   }
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   setSpeaking(false);
+  if (options.silent) return;
   setTtsStatus("已停止朗读");
   showStatus("已停止朗读");
 }
@@ -5120,7 +5148,7 @@ window.handleAndroidTts = function handleAndroidTts(type, text, gen) {
   if (type === "done") {
     setSpeaking(false);
     setTtsStatus("朗读结束");
-    if (state.audioAutoNext) moveChapter(1);
+    if (state.audioAutoNext) moveChapter(1, { resumeSpeak: true });
     return;
   }
   if (type === "error") {
@@ -5256,7 +5284,6 @@ function hasBlockingOverlayOpen() {
     (noteSheet && !noteSheet.hidden) ||
     (aiSheet && !aiSheet.hidden) ||
     (confirmSheet && !confirmSheet.hidden) ||
-    (audioPanel && !audioPanel.hidden) ||
     !verseMenu.hidden ||
     !selectionBar.hidden
   );
@@ -5278,7 +5305,7 @@ function handleBackIntent() {
     keepReadingChromeVisible();
     return true;
   }
-  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden) || (commentarySheet && !commentarySheet.hidden) || (shareSheet && !shareSheet.hidden) || (noteSheet && !noteSheet.hidden) || (aiSheet && !aiSheet.hidden) || (audioPanel && !audioPanel.hidden)) {
+  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden) || (commentarySheet && !commentarySheet.hidden) || (shareSheet && !shareSheet.hidden) || (noteSheet && !noteSheet.hidden) || (aiSheet && !aiSheet.hidden)) {
     closeTopPanels();
     keepReadingChromeVisible();
     return true;
@@ -5343,6 +5370,7 @@ function toggleVersionPicker(show = versionPickerPanel.hidden) {
 
 function toggleReadingChrome() {
   if (Date.now() < chromePinnedUntil) return;
+  if (speaking || (audioPanel && !audioPanel.hidden)) return;
   if (hasBlockingOverlayOpen()) return;
   document.body.classList.toggle("chromeHidden");
 }
@@ -5594,7 +5622,7 @@ function verseFromEvent(event) {
 }
 
 function swipeIgnoreTarget(target) {
-  return !!target.closest(".sheetPanel, .readerSettingsPanel, .sidebar, .verseMenu, .selectionBar, .mobileNav, .topbar, .closeSidebarBtn, .chapterEdge, button, a, input, select, textarea, audio");
+  return !!target.closest(".sheetPanel, .readerSettingsPanel, .sidebar, .verseMenu, .selectionBar, .mobileNav, .readerChrome, .ttsBar, .topbar, .closeSidebarBtn, .chapterEdge, button, a, input, select, textarea, audio");
 }
 
 function resetSwipeVisual() {
@@ -5704,7 +5732,7 @@ async function init() {
   restoreState();
   loadAgentMemory();
   applySettings();
-  if (updateStatus) updateStatus.textContent = `当前版本 ${APP_VERSION}`;
+  applyShellChrome();
   loadPackages();
   document.querySelectorAll(".sheetPanel, .readerSettingsPanel").forEach((el) => {
     new MutationObserver(syncSheetOverlay).observe(el, { attributes: true, attributeFilter: ["hidden"] });
@@ -5946,7 +5974,29 @@ searchToggleBtn.addEventListener("click", () => {
     keepReadingChromeVisible();
   } else toggleSearch(true);
 });
-speakToggleBtn?.addEventListener("click", speakChapter);
+let speakHoldTimer = 0;
+let speakHoldOpened = false;
+speakToggleBtn?.addEventListener("pointerdown", (event) => {
+  if (event.button != null && event.button !== 0) return;
+  speakHoldOpened = false;
+  clearTimeout(speakHoldTimer);
+  speakHoldTimer = window.setTimeout(() => {
+    speakHoldOpened = true;
+    openAudioSheet();
+  }, 420);
+});
+["pointerup", "pointercancel", "pointerleave"].forEach((type) => {
+  speakToggleBtn?.addEventListener(type, () => clearTimeout(speakHoldTimer));
+});
+speakToggleBtn?.addEventListener("click", (event) => {
+  if (speakHoldOpened) {
+    event.preventDefault();
+    speakHoldOpened = false;
+    return;
+  }
+  speakChapter();
+});
+speakToggleBtn?.setAttribute("title", "短按朗读或停止，长按打开朗读条");
 closeSidebarBtn?.addEventListener("click", closeSidebar);
 overlay.addEventListener("click", () => handleBackIntent());
 prevBtn.addEventListener("click", () => moveChapter(-1));
@@ -5961,14 +6011,16 @@ mobileAiBtn?.addEventListener("click", () => {
   }
   openAiSheet("助手", state.activeVerse || state.lastVerse, true);
 });
-mobileMyBtn.addEventListener("click", () => {
+function toggleMyPanel() {
   if (!myPanel.hidden) {
     closeTopPanels();
     keepReadingChromeVisible();
     return;
   }
   openMyPanel("all");
-});
+}
+mobileMyBtn?.addEventListener("click", toggleMyPanel);
+desktopMyBtn?.addEventListener("click", toggleMyPanel);
 versionChipBtn.addEventListener("click", () => toggleVersionPicker());
 function dismissSheet() {
   closeTopPanels();
@@ -6072,7 +6124,7 @@ aiMemoryBar?.addEventListener("click", (event) => {
   renderAgentChat();
   showStatus("已忘掉这条", "info");
 });
-closeAudioBtn?.addEventListener("click", dismissSheet);
+closeAudioBtn?.addEventListener("click", closeAudioBar);
 ttsPlayBtn?.addEventListener("click", () => {
   if (speaking) stopSpeaking();
   else speakChapter();
@@ -6690,6 +6742,19 @@ versionPickerList.addEventListener("click", async (event) => {
   }
   versionPickerPanel.hidden = true;
   await switchVersion(nextVersion);
+});
+
+document.addEventListener("contextmenu", (event) => {
+  if (event.target.closest("textarea, input, select, .noteEditor, #noteSheetText")) return;
+  if (event.target.closest("button, .mobileNav, .topbar, .readerChrome, .ttsBar, .sidebar, .sheetHeader, .panelTabs, .sidebarTabs, .chipRow, .selectionBar, .peekBar, .verseMenu, .actionBarButtons")) {
+    event.preventDefault();
+  }
+});
+document.addEventListener("selectstart", (event) => {
+  if (event.target.closest("textarea, input, select, .noteEditor, #noteSheetText")) return;
+  if (event.target.closest("button, .mobileNav, .topbar, .readerChrome, .ttsBar, .sidebarTabs, .panelTabs, .chipRow, .selectionBar, .peekBar, .verseMenu")) {
+    event.preventDefault();
+  }
 });
 
 init().catch((error) => {

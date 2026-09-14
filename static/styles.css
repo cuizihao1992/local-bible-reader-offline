@@ -93,6 +93,18 @@ button, select, input { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: 0.62; }
 
+button, .iconBtn, .navBtn, .textBtn, .mobileNav, .topbar, .readerChrome, .ttsBar,
+.sidebarTabs, .panelTabs, .chipRow, .selectionBar, .peekBar, .verseMenu, .sidebarHeader {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+textarea, input, select, .noteEditor, #noteSheetText {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 .sidebar {
   height: 100vh;
   position: sticky;
@@ -191,18 +203,75 @@ select, input[type="search"], input[type="text"] {
 .closeSidebarBtn, .sidebarSheetClose { display: none; }
 .reader { min-width: 0; min-height: 100vh; }
 
-.topbar {
+.readerChrome {
   position: sticky;
   top: 0;
   z-index: 6;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
   background: var(--topbar);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line);
 }
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: transparent;
+  border-bottom: 0;
+}
+.ttsBar {
+  padding: 6px 12px 10px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+.ttsBarMain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ttsBarInfo {
+  min-width: 0;
+  flex: 1;
+}
+.ttsBarTitle { font-size: 12px; font-weight: 600; }
+.ttsBarStatus {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ttsBarMain > button:not(.iconBtn) {
+  flex: 0 0 auto;
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--soft);
+  color: var(--ink);
+  font-weight: 500;
+  padding: 0 8px;
+  font-size: 12px;
+}
+#ttsPlayBtn { background: var(--accent); color: #fff; }
+.ttsBarRate {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+.ttsBarRate select {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--control);
+  color: var(--ink);
+}
+.ttsBarToggle { margin: 6px 0 0; }
+.ttsBar .audioFileList { margin-top: 8px; }
 
 .iconBtn, .navBtn, .textBtn {
   min-height: 36px;
@@ -222,6 +291,7 @@ select, input[type="search"], input[type="text"] {
 }
 .iconBtn.active, .iconBtn[aria-pressed="true"] { color: var(--accent); }
 .voiceBtnTop { touch-action: none; }
+.desktopMyBtn { display: grid; }
 .iconBtn svg, .mobileNav svg, .actionBarButtons svg {
   width: 20px;
   height: 20px;
@@ -929,12 +999,14 @@ body[data-read-font="sans"] { --read-font: var(--ui-font); }
 body.sidebarOpen .overlay,
 body.sheetOpen .overlay { display: block; }
 body.sheetOpen .overlay { z-index: 11; }
+body.iosApp #downloadUpdateBtn,
+body.iosApp #clearDownloadsBtn { display: none; }
 @media (min-width: 981px) {
   body.sidebarOpen .overlay { display: none; }
 }
-body.chromeHidden .topbar { transform: translateY(-120%); }
+body.chromeHidden .readerChrome { transform: translateY(-120%); }
 body.chromeHidden .mobileNav { transform: translateY(120%); }
-.topbar, .mobileNav { transition: transform 0.22s ease; }
+.readerChrome, .mobileNav { transition: transform 0.22s ease; }
 .content { -webkit-user-select: none; user-select: none; }
 .reader, .content, .bookPickerPanel { touch-action: pan-y; }
 .chapterEdge { display: none; }
@@ -985,6 +1057,8 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
   .sidebarHeader { align-items: center; margin-bottom: 10px; }
   .sidebarSection.active { flex: 1 1 auto; min-height: 0; overflow: auto; }
   .topbar { padding-top: calc(8px + env(safe-area-inset-top)); gap: 2px; }
+  .ttsBarMain { flex-wrap: wrap; }
+  .ttsBarMain > button:not(.iconBtn) { flex: 1 1 auto; }
   .topbar .navBtn { display: none; }
   .searchToggleBtn { display: grid; place-items: center; }
   .readerSettingsPanel, .content {
@@ -1042,6 +1116,7 @@ body.chromeHidden .mobileNav { transform: translateY(120%); }
   .panelTabs { padding: 0 0 2px; }
   .readerSettingsGrid { grid-template-columns: 1fr; }
   .voiceBtnTop { display: none; }
+  .desktopMyBtn { display: none; }
   .mobileNav {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
