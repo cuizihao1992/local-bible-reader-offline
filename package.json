@@ -7,14 +7,15 @@
   "type": "module",
   "main": "desktop/electron-main.cjs",
   "scripts": {
-    "check": "node --check server.js && node --check static/app.js && node --check desktop/electron-main.cjs",
+    "check": "node --check server.js && node --check static/app.js && node --check desktop/electron-main.cjs && node scripts/check-static-js.js && node scripts/check-api-parity.js",
+    "check:api": "node scripts/check-api-parity.js",
     "desktop": "electron .",
     "dist:android": "powershell -ExecutionPolicy Bypass -File scripts/build-android.ps1",
     "dist:android:packages": "powershell -ExecutionPolicy Bypass -File scripts/build-android-packages.ps1",
     "dist:android:debug": "powershell -ExecutionPolicy Bypass -File scripts/build-android.ps1 -BuildType debug",
     "dist:win": "electron-builder --win portable",
     "start": "node --no-warnings server.js",
-    "test": "node --no-warnings scripts/smoke-test.js"
+    "test": "node --no-warnings scripts/smoke-test.js && node scripts/check-api-parity.js"
   },
   "devDependencies": {
     "@babel/cli": "^8.0.4",

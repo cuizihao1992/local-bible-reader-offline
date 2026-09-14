@@ -1,0 +1,284 @@
+{
+  "title": "本地圣经 /api 契约",
+  "schema": {
+    "method": "GET | POST | GET,POST",
+    "path": "/api/...",
+    "query": "query 参数名",
+    "body": "JSON 字段，仅 POST",
+    "response": "主要 JSON 形状或 MIME",
+    "platforms": ["node", "android", "ios"],
+    "transport": "json | binary | native",
+    "notes": "已知差异"
+  },
+  "search": {
+    "defaultLimit": 40,
+    "maxLimit": 80
+  },
+  "importUrlAllowlist": {
+    "protocols": ["http:", "https:"],
+    "rejectHosts": ["localhost", "*.localhost", "*.local", "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "::1"],
+    "maxBytes": 2097152,
+    "implementedOn": ["node", "android"],
+    "missingOn": ["ios"]
+  },
+  "notes": [
+    "经文与用户数据只走本表。JS 云端 AI / 小米 ASR 不走 /api/。",
+    "Android 图片由 MainActivity.shouldInterceptRequest 提供，不在 OfflineApi.handle。",
+    "Android/iOS GET /api/audio 返回空数组；MP3 仅 Node /api/audio/file。",
+    "Node GET /api/packages 的 installed 恒为 false，并带 androidOnly（手机实际可装）。",
+    "iOS 无 /api/import/url，见 PR14。",
+    "资源包安装主路径是 AndroidBibleApi.installPackage / iOS native 消息，HTTP POST /api/package/install 仅 Android 备用。"
+  ],
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "query": [],
+      "response": "{ ok, app, version, versionCount, ... }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/versions",
+      "query": [],
+      "response": "{ versions: [{ id, name, ... }] }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/books",
+      "query": ["version"],
+      "response": "{ books: [{ id, shortName, longName, chapterCount }] }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chapter",
+      "query": ["version", "book", "chapter"],
+      "response": "{ version, book, chapter, verses, titles, ... }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chapters",
+      "query": ["version (repeatable)", "book", "chapter"],
+      "response": "{ chapters: [chapter] }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/search",
+      "query": ["version", "q", "scope", "book", "fuzzy", "limit", "offset"],
+      "response": "{ results, limit, offset, nextOffset, hasMore, fuzzy }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json",
+      "notes": "limit 默认 40，上限 80"
+    },
+    {
+      "method": "GET",
+      "path": "/api/packages",
+      "query": [],
+      "response": "{ packages: [{ id, title, url, installed, ... }] }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json",
+      "notes": "Node 带 androidOnly 且 installed=false"
+    },
+    {
+      "method": "POST",
+      "path": "/api/package/install",
+      "body": ["id", "url"],
+      "response": "{ started|error }",
+      "platforms": ["android"],
+      "transport": "json",
+      "notes": "备用 HTTP；主路径是 native installPackage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/commentaries",
+      "query": [],
+      "response": "{ commentaries: [...] }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/commentary",
+      "query": ["source", "book", "chapter"],
+      "response": "{ entries, images: [{ name, url }] }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/commentary/image",
+      "query": ["source", "name"],
+      "response": "image bytes",
+      "platforms": ["node", "android", "ios"],
+      "transport": "binary",
+      "notes": "Android 在 MainActivity intercept，不在 OfflineApi.handle"
+    },
+    {
+      "method": "GET",
+      "path": "/api/strong",
+      "query": ["code"],
+      "response": "{ definition, occurrences }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user/marks",
+      "query": ["version", "book", "chapter"],
+      "response": "{ marks }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user/marks/all",
+      "query": ["kind", "tag", "limit"],
+      "response": "{ marks }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user/history",
+      "query": [],
+      "response": "{ history }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user/progress",
+      "query": ["version"],
+      "response": "{ total, read, ... }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET,POST",
+      "path": "/api/user/export",
+      "query": [],
+      "body": [],
+      "response": "{ marks, history, progress, ... }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/user/mark",
+      "body": ["version", "book", "chapter", "verse", "favorite", "highlighted", "note", "tags", "highlightColor"],
+      "response": "{ mark }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/user/history",
+      "body": ["version", "book", "chapter", "verse"],
+      "response": "{ history }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/user/progress",
+      "body": ["version", "book", "chapter", "read"],
+      "response": "progress object",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/user/import",
+      "body": ["marks", "history", "progress"],
+      "response": "{ ok }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET,POST",
+      "path": "/api/import/url",
+      "query": ["url"],
+      "body": ["url"],
+      "response": "{ title, text, ... }",
+      "platforms": ["node", "android"],
+      "transport": "json",
+      "allowlist": "importUrlAllowlist",
+      "notes": "iOS 缺失，PR14"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audio",
+      "query": ["book", "chapter"],
+      "response": "{ audio: [{ id, url, ... }] }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json",
+      "notes": "Android/iOS 返回 audio: []"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audio/file",
+      "query": ["id"],
+      "response": "audio/mpeg",
+      "platforms": ["node"],
+      "transport": "binary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dictionaries",
+      "query": [],
+      "response": "{ dictionaries }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dictionary/search",
+      "query": ["source", "q", "limit"],
+      "response": "{ results, images }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dictionary/image",
+      "query": ["source", "name"],
+      "response": "image bytes",
+      "platforms": ["node", "android", "ios"],
+      "transport": "binary",
+      "notes": "Android 在 MainActivity intercept"
+    },
+    {
+      "method": "GET",
+      "path": "/api/verse-library",
+      "query": ["version", "theme", "q"],
+      "response": "{ items, themes }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics",
+      "query": [],
+      "response": "{ ok, checks }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    }
+  ],
+  "native": [
+    {
+      "name": "AndroidBibleApi.installPackage",
+      "platforms": ["android", "ios"],
+      "transport": "native",
+      "notes": "与 /api/package/install 同等语义；iOS 走 WK 消息"
+    }
+  ]
+}
