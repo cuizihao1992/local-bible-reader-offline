@@ -10,8 +10,8 @@ android {
         applicationId "local.bible.reader.next"
         minSdk 26
         targetSdk 35
-        versionCode 50
-        versionName "1.36.2"
+        versionCode 51
+        versionName "1.36.3"
     }
 
     signingConfigs {
@@ -72,6 +72,7 @@ tasks.register("syncOfflineAssets") {
         copy {
             from(webSource)
             into("$buildDir/generated/offlineAssets/static")
+            exclude "ai-defaults.js"
         }
         def babelCandidates = [
                 new File(projectRoot, "node_modules/@babel/cli/bin/babel.js"),
@@ -81,14 +82,17 @@ tasks.register("syncOfflineAssets") {
         if (babelCli == null) {
             throw new GradleException("Babel CLI not found. Run npm install before building Android assets.")
         }
-        def appJs = file("$buildDir/generated/offlineAssets/static/app.js")
-        def appJsTranspiled = file("$buildDir/generated/offlineAssets/static/app.android.js")
-        exec {
-            workingDir projectRoot
-            commandLine "node", "--max-old-space-size=1024", babelCli.absolutePath, appJs.absolutePath, "--out-file", appJsTranspiled.absolutePath, "--config-file", "./babel.android.json"
-        }
-        if (!appJs.delete() || !appJsTranspiled.renameTo(appJs)) {
-            throw new GradleException("Failed to replace Android app.js with transpiled output.")
+        def staticDir = file("$buildDir/generated/offlineAssets/static")
+        staticDir.eachFileRecurse { jsFile ->
+            if (!jsFile.isFile() || !jsFile.name.endsWith(".js")) return
+            def tmp = new File(jsFile.parentFile, jsFile.name + ".babeltmp")
+            exec {
+                workingDir projectRoot
+                commandLine "node", "--max-old-space-size=1024", babelCli.absolutePath, jsFile.absolutePath, "--out-file", tmp.absolutePath, "--config-file", "./babel.android.json"
+            }
+            if (!jsFile.delete() || !tmp.renameTo(jsFile)) {
+                throw new GradleException("Failed to replace ${jsFile.name} with transpiled output.")
+            }
         }
         copy {
             from(sourceDir)

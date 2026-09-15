@@ -1,0 +1,16 @@
+window.Bible = window.Bible || {
+  state: {},
+  dom: {},
+  bus: null,
+  sheets: {},
+  reader: {},
+  picker: {},
+  search: {},
+  marks: {},
+  voice: {},
+  ai: {},
+  tts: {},
+  my: {},
+  native: {},
+  api: null,
+};

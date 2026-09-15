@@ -1,13 +1,13 @@
 {
-  "version": "1.36.2",
-  "tagName": "v1.36.2",
-  "name": "v1.36.2",
-  "body": "手机顶栏去掉搜索（底栏已有）；口令按住显示听着…/识别中；经文菜单第一层只留收藏高亮批注复制。",
-  "publishedAt": "2026-09-14",
+  "version": "1.36.3",
+  "tagName": "v1.36.3",
+  "name": "v1.36.3",
+  "body": "抽出 api/postJson 与 window.APP_VERSION；Android Babel 转全部 JS。界面与 1.36.2 相同。",
+  "publishedAt": "2026-09-15",
   "apk": {
-    "name": "local-bible-reader-offline-1.36.2-release.apk",
-    "size": 63449104,
-    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.2/local-bible-reader-offline-1.36.2-release.apk",
+    "name": "local-bible-reader-offline-1.36.3-release.apk",
+    "size": 63452178,
+    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.3/local-bible-reader-offline-1.36.3-release.apk",
     "mirrors": []
   },
   "packages": {
