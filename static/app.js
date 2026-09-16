@@ -268,14 +268,14 @@ let justSwiped = false;
 let statusTimer = null;
 let lastUpdateInfo = null;
 let pendingConfirm = null;
-let peekState = null;
+
 let lastShareVerses = [];
 let shareTheme = "light";
 let scrollSaveTimer = null;
 let updateCheckBusy = false;
 let apkDownloadBusy = false;
 let apkPollTimer = null;
-let chromePinnedUntil = 0;
+
 const markSavingKeys = new Set();
 const searchState = { query: "", scope: "all", book: 1, results: [], nextOffset: 0, hasMore: false };
 
@@ -286,10 +286,6 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-
-window.handleAndroidBack = function handleAndroidBack() {
-  return handleBackIntent();
-};
 
 function currentBook() {
   return state.books.find((book) => book.id === state.book) || state.books[0] || { id: 1, shortName: "创", longName: "创世记", chapterCount: 50 };
@@ -383,41 +379,6 @@ function setMyTab(name) {
   });
 }
 
-function keepReadingChromeVisible(ms = 1600) {
-  chromePinnedUntil = Date.now() + ms;
-  document.body.classList.remove("chromeHidden");
-}
-
-function closeContentPanels() {
-  searchPanel.hidden = true;
-  strongPanel.hidden = true;
-  dictionaryPanel.hidden = true;
-  myPanel.hidden = true;
-  if (compareSheet) compareSheet.hidden = true;
-  if (commentarySheet) commentarySheet.hidden = true;
-  if (shareSheet) shareSheet.hidden = true;
-  if (noteSheet) noteSheet.hidden = true;
-  if (aiSheet) aiSheet.hidden = true;
-  if (confirmSheet) confirmSheet.hidden = true;
-  if (highlightColors) highlightColors.hidden = true;
-  closeVerseMenu();
-  closeSelectionBar();
-  setNav(null);
-}
-
-function syncSheetOverlay() {
-  const open = [...document.querySelectorAll(".sheetPanel, .readerSettingsPanel")].some((el) => el && !el.hidden);
-  document.body.classList.toggle("sheetOpen", open);
-}
-
-function closeTopPanels(includeSettings = true) {
-  bookPickerPanel.hidden = true;
-  if (versionPickerPanel) versionPickerPanel.hidden = true;
-  if (includeSettings) readerSettingsPanel.hidden = true;
-  closeContentPanels();
-  syncSheetOverlay();
-}
-
 function resetVerseInteraction(targetVerse = null) {
   state.activeVerse = null;
   state.targetVerse = targetVerse;
@@ -504,7 +465,7 @@ let lastScrollY = window.scrollY || 0;
 
 function onReaderScroll() {
   const y = window.scrollY || 0;
-  if (!chapterLoading && !jumpBusy && !speaking && !(audioPanel && !audioPanel.hidden) && Date.now() >= chromePinnedUntil && !hasBlockingOverlayOpen()) {
+  if (!chapterLoading && !jumpBusy && !speaking && !(audioPanel && !audioPanel.hidden) && Date.now() >= Bible.sheets.chromePinnedUntil && !hasBlockingOverlayOpen()) {
     if (y > lastScrollY + 10 && y > 48) document.body.classList.add("chromeHidden");
     else if (y < lastScrollY - 10) document.body.classList.remove("chromeHidden");
   }
@@ -1518,19 +1479,19 @@ async function jumpToReference(ref, token = jobToken) {
 }
 
 function setPeek(kind, title, restore) {
-  peekState = { kind, title, restore };
+  Bible.sheets.peekState = { kind, title, restore };
   if (!peekBar || !peekBackBtn) return;
   peekBackBtn.textContent = title;
   peekBar.hidden = false;
 }
 
 function clearPeek() {
-  peekState = null;
+  Bible.sheets.peekState = null;
   if (peekBar) peekBar.hidden = true;
 }
 
 function restorePeek() {
-  const peek = peekState;
+  const peek = Bible.sheets.peekState;
   clearPeek();
   if (peek?.restore) peek.restore();
 }
@@ -1538,7 +1499,7 @@ function restorePeek() {
 async function jumpFromPeek(ref, peek) {
   if (peek) setPeek(peek.kind, peek.title, peek.restore);
   await jumpToReference(ref);
-  if (peekBar && peekState) peekBar.hidden = false;
+  if (peekBar && Bible.sheets.peekState) peekBar.hidden = false;
 }
 
 function isCodePlanKey(key = state.mimoKey) {
@@ -5066,60 +5027,6 @@ async function runDiagnostics() {
   }
 }
 
-function hasBlockingOverlayOpen() {
-  return (
-    document.body.classList.contains("sidebarOpen") ||
-    !bookPickerPanel.hidden ||
-    (versionPickerPanel && !versionPickerPanel.hidden) ||
-    !readerSettingsPanel.hidden ||
-    !searchPanel.hidden ||
-    !strongPanel.hidden ||
-    !dictionaryPanel.hidden ||
-    !myPanel.hidden ||
-    (compareSheet && !compareSheet.hidden) ||
-    (commentarySheet && !commentarySheet.hidden) ||
-    (shareSheet && !shareSheet.hidden) ||
-    (noteSheet && !noteSheet.hidden) ||
-    (aiSheet && !aiSheet.hidden) ||
-    (confirmSheet && !confirmSheet.hidden) ||
-    !verseMenu.hidden ||
-    !selectionBar.hidden
-  );
-}
-
-function handleBackIntent() {
-  if (!verseMenu.hidden) {
-    closeVerseMenu();
-    keepReadingChromeVisible();
-    return true;
-  }
-  if (!selectionBar.hidden) {
-    closeSelectionBar();
-    keepReadingChromeVisible();
-    return true;
-  }
-  if (confirmSheet && !confirmSheet.hidden) {
-    closeConfirmSheet(true);
-    keepReadingChromeVisible();
-    return true;
-  }
-  if (!bookPickerPanel.hidden || (versionPickerPanel && !versionPickerPanel.hidden) || !readerSettingsPanel.hidden || !searchPanel.hidden || !strongPanel.hidden || !dictionaryPanel.hidden || !myPanel.hidden || (compareSheet && !compareSheet.hidden) || (commentarySheet && !commentarySheet.hidden) || (shareSheet && !shareSheet.hidden) || (noteSheet && !noteSheet.hidden) || (aiSheet && !aiSheet.hidden)) {
-    closeTopPanels();
-    keepReadingChromeVisible();
-    return true;
-  }
-  if (document.body.classList.contains("sidebarOpen")) {
-    closeSidebar();
-    keepReadingChromeVisible();
-    return true;
-  }
-  if (peekState && peekBar && !peekBar.hidden) {
-    restorePeek();
-    return true;
-  }
-  return false;
-}
-
 function setNav(name) {
   document.querySelectorAll(".mobileNav button").forEach((button) => {
     if (button.id === "voiceBtn") return;
@@ -5167,7 +5074,7 @@ function toggleVersionPicker(show = versionPickerPanel.hidden) {
 }
 
 function toggleReadingChrome() {
-  if (Date.now() < chromePinnedUntil) return;
+  if (Date.now() < Bible.sheets.chromePinnedUntil) return;
   if (speaking || (audioPanel && !audioPanel.hidden)) return;
   if (hasBlockingOverlayOpen()) return;
   document.body.classList.toggle("chromeHidden");
@@ -5468,29 +5375,6 @@ function enablePickerChapterSwipe(el) {
     closeTopPanels();
     keepReadingChromeVisible();
     moveChapter(dx < 0 ? 1 : -1);
-  });
-  el.addEventListener("pointercancel", () => {
-    tracking = false;
-  });
-}
-
-function enableSheetDismiss(el) {
-  let startY = 0;
-  let tracking = false;
-  el.addEventListener("pointerdown", (event) => {
-    if (el.hidden) return;
-    const header = event.target.closest(".panelHeader, .bookPickerHeader, .readerSettingsHeader");
-    if (!header && event.clientY - el.getBoundingClientRect().top > 56) return;
-    startY = event.clientY;
-    tracking = true;
-  });
-  el.addEventListener("pointerup", (event) => {
-    if (!tracking) return;
-    tracking = false;
-    if (event.clientY - startY > 72) {
-      closeTopPanels();
-      keepReadingChromeVisible();
-    }
   });
   el.addEventListener("pointercancel", () => {
     tracking = false;
@@ -5820,11 +5704,6 @@ function toggleMyPanel() {
 mobileMyBtn?.addEventListener("click", toggleMyPanel);
 desktopMyBtn?.addEventListener("click", toggleMyPanel);
 versionChipBtn.addEventListener("click", () => toggleVersionPicker());
-function dismissSheet() {
-  closeTopPanels();
-  keepReadingChromeVisible();
-}
-
 closeVersionPickerBtn.addEventListener("click", dismissSheet);
 closeCompareSheetBtn.addEventListener("click", dismissSheet);
 closeCommentarySheetBtn?.addEventListener("click", dismissSheet);
