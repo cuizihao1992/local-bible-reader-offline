@@ -1,13 +1,13 @@
 {
-  "version": "1.36.6",
-  "tagName": "v1.36.6",
-  "name": "v1.36.6",
-  "body": "抽出面板开关与返回键顺序。朗读条不参与返回栈。界面与 1.36.5 相同。",
+  "version": "1.36.7",
+  "tagName": "v1.36.7",
+  "name": "v1.36.7",
+  "body": "抽出翻章、经文渲染和左右滑。经文 DOM 未改。界面与 1.36.6 相同。",
   "publishedAt": "2026-09-16",
   "apk": {
-    "name": "local-bible-reader-offline-1.36.6-release.apk",
-    "size": 63458653,
-    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.6/local-bible-reader-offline-1.36.6-release.apk",
+    "name": "local-bible-reader-offline-1.36.7-release.apk",
+    "size": 63463306,
+    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.7/local-bible-reader-offline-1.36.7-release.apk",
     "mirrors": []
   },
   "packages": {

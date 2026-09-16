@@ -99,6 +99,12 @@ assert(indexHtml.includes("src=\"js/core/state.js\""), "state.js script missing"
 assert(indexHtml.includes("src=\"js/core/dom.js\""), "dom.js script missing");
 assert(indexHtml.includes("src=\"js/core/bus.js\""), "bus.js script missing");
 assert(indexHtml.includes("src=\"js/chrome/sheets.js\""), "sheets.js script missing");
+assert(indexHtml.includes("src=\"js/reader/chapter.js\""), "chapter.js script missing");
+assert(indexHtml.includes("src=\"js/reader/verses.js\""), "verses.js script missing");
+assert(indexHtml.includes("src=\"js/reader/swipe.js\""), "swipe.js script missing");
+assert(staticJs.includes("async function loadChapter"), "loadChapter missing");
+assert(staticJs.includes("function moveChapter"), "moveChapter missing");
+assert(staticJs.includes("function renderVerses"), "renderVerses missing");
 assert(staticJs.includes("function handleBackIntent"), "handleBackIntent missing");
 assert(staticJs.includes("restorePeek"), "peek restore missing from back stack");
 assert(staticJs.includes("closeConfirmSheet"), "confirm sheet back step missing");

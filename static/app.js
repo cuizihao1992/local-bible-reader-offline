@@ -237,9 +237,6 @@ let noteSheetMode = "verse";
 let noteSheetTarget = null;
 let editingStudyNoteId = "";
 let noteSheetReturnToMy = false;
-let speaking = false;
-let ttsSession = 0;
-let chapterLongPress = false;
 let voiceInputActive = false;
 let voiceStopPending = false;
 let browserRecorder = null;
@@ -249,9 +246,6 @@ let browserAudio = null;
 let bookFilter = "all";
 let bookPickerStep = "books";
 let bookLongPress = false;
-let chapterLoadToken = 0;
-let chapterLoading = false;
-let jumpBusy = false;
 let progressSaving = false;
 let exportBusy = false;
 let importBusy = false;
@@ -263,15 +257,12 @@ let myPanelRequestToken = 0;
 let selectedVerseNumbers = [];
 let verseSelectionMode = false;
 let longPressTimer = null;
-let swipeState = null;
-let justSwiped = false;
 let statusTimer = null;
 let lastUpdateInfo = null;
 let pendingConfirm = null;
 
 let lastShareVerses = [];
 let shareTheme = "light";
-let scrollSaveTimer = null;
 let updateCheckBusy = false;
 let apkDownloadBusy = false;
 let apkPollTimer = null;
@@ -285,19 +276,6 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function currentBook() {
-  return state.books.find((book) => book.id === state.book) || state.books[0] || { id: 1, shortName: "创", longName: "创世记", chapterCount: 50 };
-}
-
-function currentVersion() {
-  return state.versions.find((item) => item.id === state.version);
-}
-
-function versionLabel(versionId) {
-  const version = state.versions.find((item) => item.id === versionId);
-  return version?.shortName || version?.name || versionId;
 }
 
 function mimoDefaults() {
@@ -387,24 +365,6 @@ function resetVerseInteraction(targetVerse = null) {
   closeSelectionBar();
 }
 
-function atFirstChapter() {
-  return state.book <= 1 && state.chapter <= 1;
-}
-
-function atLastChapter() {
-  const last = state.books[state.books.length - 1];
-  return last && state.book === last.id && state.chapter >= last.chapterCount;
-}
-
-function renderChrome() {
-  const book = currentBook();
-  chapterTitle.textContent = book ? `${book.longName} ${state.chapter}` : "加载中";
-  const version = currentVersion();
-  versionTitle.textContent = version ? version.shortName || version.name : "译本";
-  prevBtn.disabled = chapterLoading || atFirstChapter();
-  nextBtn.disabled = chapterLoading || atLastChapter();
-}
-
 function isCurrentChapterRead() {
   return !!state.progress?.readChapters?.some((item) => item.book === state.book && item.chapter === state.chapter);
 }
@@ -442,40 +402,6 @@ function renderCompareVersions() {
     });
   if (compareVersionsEl) compareVersionsEl.innerHTML = html.map((item) => item.box).join("");
   if (inlineCompareList) inlineCompareList.innerHTML = html.map((item) => item.chip).join("") || `<div class="panelHint">没有可对照的译本</div>`;
-}
-
-function rememberReadingPosition(verse = state.activeVerse || state.targetVerse) {
-  const n = Number(verse);
-  if (Number.isFinite(n) && n >= 1) state.lastVerse = n;
-  saveState();
-}
-
-function visibleVerseNumber() {
-  const verses = [...content.querySelectorAll(".verse[data-verse]")];
-  if (!verses.length) return null;
-  const top = (document.querySelector(".readerChrome")?.getBoundingClientRect().bottom || document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0) + 28;
-  let current = Number(verses[0].dataset.verse);
-  for (const el of verses) {
-    if (el.getBoundingClientRect().top <= top) current = Number(el.dataset.verse);
-  }
-  return current;
-}
-
-let lastScrollY = window.scrollY || 0;
-
-function onReaderScroll() {
-  const y = window.scrollY || 0;
-  if (!chapterLoading && !jumpBusy && !speaking && !(audioPanel && !audioPanel.hidden) && Date.now() >= Bible.sheets.chromePinnedUntil && !hasBlockingOverlayOpen()) {
-    if (y > lastScrollY + 10 && y > 48) document.body.classList.add("chromeHidden");
-    else if (y < lastScrollY - 10) document.body.classList.remove("chromeHidden");
-  }
-  lastScrollY = y;
-  if (chapterLoading || jumpBusy || !content.querySelector(".verse")) return;
-  const verse = visibleVerseNumber();
-  if (!verse) return;
-  state.lastVerse = verse;
-  clearTimeout(scrollSaveTimer);
-  scrollSaveTimer = setTimeout(saveState, 400);
 }
 
 function renderCommentaries() {
@@ -661,160 +587,6 @@ function renderMyProgress() {
   `;
 }
 
-function markForVerse(verse) {
-  return (
-    state.marks.get(Number(verse)) || {
-      version: state.version,
-      book: state.book,
-      chapter: state.chapter,
-      verse: Number(verse),
-      favorite: false,
-      highlighted: false,
-      highlightColor: "",
-      note: "",
-      tags: "",
-    }
-  );
-}
-
-function verseMarkClasses(mark) {
-  const color = mark.highlightColor || (mark.highlighted ? "gold" : "");
-  return [
-    mark.favorite ? "favoriteVerse" : "",
-    color ? `highlightedVerse hl-${color}` : "",
-    mark.note || mark.tags ? "notedVerse" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
-function renderNoteEditor(verse) {
-  const mark = markForVerse(verse);
-  if (!mark.note && !mark.tags) return "";
-  return `<div class="notePreview">${mark.tags ? `<div class="noteTags">${escapeHtml(mark.tags)}</div>` : ""}<div class="noteText">${formatNoteMarkdown(mark.note)}</div></div>`;
-}
-
-function renderStrongList(strongs) {
-  if (!state.showStrong || !strongs?.length) return "";
-  return `<div class="strongList">${strongs.map((item) => `<button class="strongBtn" type="button" data-strong="${escapeHtml(item.code)}">${escapeHtml(item.code)}</button>`).join("")}</div>`;
-}
-
-function renderCompareList(verseNo, compareByVersion) {
-  const items = compareByVersion
-    .map((item) => {
-      const text = item.verses.get(verseNo);
-      if (!text) return "";
-      return `<div class="compareText"><div class="compareName">${escapeHtml(item.name)}</div><div class="compareVerse">${escapeHtml(text)}</div></div>`;
-    })
-    .filter(Boolean);
-  return items.length ? `<div class="compareList">${items.join("")}</div>` : "";
-}
-
-function renderVerses(data) {
-  const mainChapter = data.chapters?.[0] || data;
-  const compareChapters = data.chapters?.slice(1) || [];
-  if (!mainChapter.verses.length) {
-    content.innerHTML = `<div class="empty">这个版本没有当前章节的经文。可以换一个译本，或选择别的章节。</div>`;
-    return;
-  }
-  const compareByVersion = compareChapters.map((chapter) => ({
-    version: chapter.version,
-    name: chapter.shortName || chapter.versionName || versionLabel(chapter.version),
-    verses: new Map(chapter.verses.map((verse) => [verse.verse, verse.text])),
-  }));
-  const headings = Object.fromEntries((mainChapter.titles || []).map((item) => [item.verse, item.text]));
-  const sourceLabel =
-    mainChapter.titleSource === "db"
-      ? "真实小标题"
-      : mainChapter.titleSource === "reference"
-        ? `参考小标题 · ${mainChapter.titleSourceName || ""}`
-        : "当前无小标题";
-  const titleLinks = (mainChapter.titles || [])
-    .map((item) => `<button type="button" data-jump-verse="${item.verse}">${item.verse}. ${escapeHtml(item.text)}</button>`)
-    .join(" · ");
-  content.innerHTML =
-    `<div class="titleSummary">${escapeHtml(sourceLabel)}${titleLinks ? `<div>${titleLinks}</div>` : ""}</div>` +
-    mainChapter.verses
-      .map((verse) => {
-        const mark = markForVerse(verse.verse);
-        return `
-          ${headings[verse.verse] ? `<div class="sectionHeading" data-section-verse="${verse.verse}"><span class="sectionHeadingNo">${verse.verse}</span><span>${escapeHtml(headings[verse.verse])}</span></div>` : ""}
-          <article class="verse ${verseMarkClasses(mark)}" data-verse="${verse.verse}">
-            <div class="verseBody" data-verse="${verse.verse}">
-              <span class="verseNo" id="v${verse.verse}">${verse.verse}</span>
-              <span class="verseText">${escapeHtml(verse.text)}</span>
-              ${renderStrongList(verse.strongs || [])}
-              ${renderCompareList(verse.verse, compareByVersion)}
-              ${renderNoteEditor(verse.verse)}
-            </div>
-          </article>
-        `;
-      })
-      .join("");
-  renderVerseSelectionState();
-  focusTargetVerse();
-}
-
-function focusTargetVerse() {
-  if (!state.targetVerse) return;
-  const el = content.querySelector(`.verse[data-verse="${state.targetVerse}"]`);
-  if (!el) return;
-  el.classList.add("targetVerse");
-  el.scrollIntoView({ block: "center", behavior: "smooth" });
-}
-
-function scrollReaderToTop() {
-  const top = document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
-  const target = Math.max(0, window.scrollY + content.getBoundingClientRect().top - top - 8);
-  window.scrollTo({ top: target, behavior: "auto" });
-}
-
-function setChapterError(error, snapshot) {
-  const message = error.message || String(error);
-  const book = state.books.find((item) => item.id === snapshot.book);
-  const reference = book ? `${book.longName} ${snapshot.chapter}` : `第 ${snapshot.chapter} 章`;
-  content.innerHTML = `
-    <div class="error">
-      无法读取 ${escapeHtml(reference)}<br />${escapeHtml(message)}
-      <div><button class="retryBtn" type="button" data-retry-chapter>重试</button></div>
-    </div>
-  `;
-  showStatus(message, "error");
-}
-
-async function loadBooks() {
-  const data = await api(`/api/books?version=${encodeURIComponent(state.version)}`);
-  state.books = data.books;
-  if (!state.books.some((book) => book.id === state.book)) {
-    state.book = state.books[0]?.id || 1;
-    state.chapter = 1;
-  }
-  const book = currentBook();
-  if (state.chapter > book.chapterCount) state.chapter = 1;
-  renderBookGrid();
-  renderChapterGrid();
-}
-
-async function loadMarks(snapshot = {}, token = null) {
-  const data = await api(`/api/user/marks?version=${encodeURIComponent(snapshot.version || state.version)}&book=${snapshot.book || state.book}&chapter=${snapshot.chapter || state.chapter}`);
-  if (token != null && token !== chapterLoadToken) return;
-  state.marks = new Map(data.marks.map((mark) => [Number(mark.verse), mark]));
-}
-
-async function loadProgress(version = state.version, token = null) {
-  const data = await api(`/api/user/progress?version=${encodeURIComponent(version)}`);
-  if (token != null && token !== chapterLoadToken) return;
-  state.progress = data;
-}
-
-function saveReadingHistory(snapshot = {}) {
-  postJson("/api/user/history", {
-    version: snapshot.version || state.version,
-    book: snapshot.book || state.book,
-    chapter: snapshot.chapter || state.chapter,
-  }).catch(() => {});
-}
-
 async function loadCommentary(snapshot = {}, token = null) {
   if (!state.commentary) {
     commentaryContent.innerHTML = "";
@@ -931,21 +703,6 @@ function renderCommentary(data) {
   `;
 }
 
-let chapterAudioFiles = [];
-
-async function loadAudio(snapshot = {}, token = null) {
-  try {
-    const data = await api(`/api/audio?book=${snapshot.book || state.book}&chapter=${snapshot.chapter || state.chapter}`);
-    if (token != null && token !== chapterLoadToken) return;
-    chapterAudioFiles = data.audio || [];
-    if (audioPanel && !audioPanel.hidden) renderAudioSheet();
-  } catch {
-    if (token != null && token !== chapterLoadToken) return;
-    chapterAudioFiles = [];
-    if (audioPanel && !audioPanel.hidden) renderAudioSheet();
-  }
-}
-
 function setTtsStatus(text) {
   if (ttsStatus) ttsStatus.textContent = text;
 }
@@ -1002,82 +759,6 @@ function openAudioSheet() {
 function closeAudioBar() {
   if (speaking) stopSpeaking();
   if (audioPanel) audioPanel.hidden = true;
-}
-
-async function loadChapter(options = {}) {
-  const token = ++chapterLoadToken;
-  const snapshot = { version: state.version, book: state.book, chapter: state.chapter };
-  const resumeSpeak = !!options.resumeSpeak;
-  chapterLoading = true;
-  if (speaking) stopSpeaking({ silent: resumeSpeak });
-  resetSwipeVisual();
-  renderChrome();
-  if (!content.querySelector(".verse")) content.innerHTML = `<div class="loading">正在读取经文...</div>`;
-  try {
-    const versions = [state.version, ...state.compareVersions.filter((id) => id && id !== state.version)].slice(0, 4);
-    const query = versions.map((id) => `version=${encodeURIComponent(id)}`).join("&");
-    const [chapterData] = await Promise.all([
-      api(`/api/chapters?${query}&book=${snapshot.book}&chapter=${snapshot.chapter}`),
-      loadMarks(snapshot, token),
-      loadProgress(snapshot.version, token),
-    ]);
-    if (token !== chapterLoadToken) return;
-    renderVerses(chapterData);
-    renderChrome();
-    renderMyProgress();
-    renderBookGrid();
-    renderChapterGrid();
-    saveReadingHistory(snapshot);
-    if (state.targetVerse) rememberReadingPosition(state.targetVerse);
-    else saveState();
-    if (options.scrollTop) scrollReaderToTop();
-    else if (state.targetVerse) focusTargetVerse();
-    await loadAudio(snapshot, token);
-    if (resumeSpeak && state.audioAutoNext && token === chapterLoadToken) speakChapter({ autoContinue: true });
-  } catch (error) {
-    if (token !== chapterLoadToken) return;
-    setChapterError(error, snapshot);
-  } finally {
-    if (token === chapterLoadToken) {
-      chapterLoading = false;
-      renderChrome();
-    }
-  }
-}
-
-function moveChapter(delta, options = {}) {
-  if (chapterLoading) {
-    showStatus("正在读取经文，请稍候");
-    return;
-  }
-  const book = currentBook();
-  let nextBook = state.book;
-  let nextChapter = state.chapter + delta;
-  if (nextChapter < 1) {
-    const prev = state.books.find((item) => item.id === state.book - 1);
-    if (!prev) {
-      showStatus("已经是第一章");
-      return;
-    }
-    nextBook = prev.id;
-    nextChapter = prev.chapterCount;
-  } else if (nextChapter > book.chapterCount) {
-    const next = state.books.find((item) => item.id === state.book + 1);
-    if (!next) {
-      showStatus("已经是最后一章");
-      return;
-    }
-    nextBook = next.id;
-    nextChapter = 1;
-  }
-  state.book = nextBook;
-  state.chapter = nextChapter;
-  state.lastVerse = 1;
-  rememberCurrentBook();
-  resetVerseInteraction();
-  const nextInfo = state.books.find((item) => item.id === nextBook) || currentBook();
-  showStatus(`${nextInfo.longName} ${nextChapter}`);
-  loadChapter({ scrollTop: true, resumeSpeak: !!options.resumeSpeak });
 }
 
 function bookAliases() {
@@ -5326,90 +5007,6 @@ function verseFromEvent(event) {
   return Number(event.target.closest("[data-verse]")?.dataset.verse || 0);
 }
 
-function swipeIgnoreTarget(target) {
-  return !!target.closest(".sheetPanel, .readerSettingsPanel, .sidebar, .verseMenu, .selectionBar, .mobileNav, .readerChrome, .ttsBar, .topbar, .closeSidebarBtn, .chapterEdge, button, a, input, select, textarea, audio");
-}
-
-function resetSwipeVisual() {
-  if (!content) return;
-  content.style.transform = "";
-  content.style.opacity = "";
-  content.style.transition = "";
-}
-
-function applySwipeVisual(dx) {
-  if (!content) return;
-  content.style.transition = "none";
-  content.style.transform = `translateX(${Math.round(dx * 0.38)}px)`;
-  content.style.opacity = String(Math.max(0.58, 1 - Math.abs(dx) / 460));
-}
-
-function startSwipeGesture(x, y, target) {
-  if (swipeIgnoreTarget(target)) return;
-  swipeState = { x, y, lastX: x, lastY: y, fromPicker: !!target.closest("#bookPickerPanel") };
-}
-
-function enablePickerChapterSwipe(el) {
-  let startX = 0;
-  let startY = 0;
-  let tracking = false;
-  el.addEventListener("pointerdown", (event) => {
-    if (el.hidden) return;
-    if (event.target.closest("input, textarea, select, a")) return;
-    startX = event.clientX;
-    startY = event.clientY;
-    tracking = true;
-  });
-  el.addEventListener("pointerup", (event) => {
-    if (!tracking) return;
-    tracking = false;
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
-    if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy) * 1.1) return;
-    justSwiped = true;
-    chapterLongPress = true;
-    setTimeout(() => {
-      justSwiped = false;
-      chapterLongPress = false;
-    }, 280);
-    closeTopPanels();
-    keepReadingChromeVisible();
-    moveChapter(dx < 0 ? 1 : -1);
-  });
-  el.addEventListener("pointercancel", () => {
-    tracking = false;
-  });
-}
-
-function finishSwipeGesture(x, y) {
-  if (!swipeState) return;
-  const dx = x - swipeState.x;
-  const dy = y - swipeState.y;
-  swipeState = null;
-  if (Math.abs(dx) >= 46 && Math.abs(dx) > Math.abs(dy) * 1.05) {
-    if (hasBlockingOverlayOpen()) {
-      resetSwipeVisual();
-      return;
-    }
-    justSwiped = true;
-    setTimeout(() => {
-      justSwiped = false;
-    }, 280);
-    if (content) {
-      content.style.transition = "transform 0.16s ease, opacity 0.16s ease";
-      content.style.transform = `translateX(${dx < 0 ? -48 : 48}px)`;
-      content.style.opacity = "0.72";
-    }
-    moveChapter(dx < 0 ? 1 : -1);
-    return;
-  }
-  if (content) {
-    content.style.transition = "transform 0.16s ease, opacity 0.16s ease";
-    content.style.transform = "";
-    content.style.opacity = "";
-  }
-}
-
 async function init() {
   restoreState();
   loadAgentMemory();
@@ -5448,23 +5045,6 @@ async function init() {
   if (state.lastVerse) state.targetVerse = state.lastVerse;
   await loadChapter({ scrollTop: !state.targetVerse });
 }
-
-async function switchVersion(nextVersion) {
-  if (!nextVersion || nextVersion === state.version) return;
-  const verse = state.lastVerse || state.activeVerse || 1;
-  state.version = nextVersion;
-  if (versionSelect) versionSelect.value = nextVersion;
-  state.compareVersions = state.compareVersions.filter((id) => id !== state.version);
-  renderCompareVersions();
-  resetVerseInteraction(verse);
-  await loadBooks();
-  state.targetVerse = verse;
-  await loadChapter({ scrollTop: false });
-}
-
-versionSelect.addEventListener("change", async () => {
-  await switchVersion(versionSelect.value);
-});
 
 compareVersionsEl?.addEventListener("change", (event) => {
   const input = event.target.closest("[data-compare]");
@@ -5681,10 +5261,6 @@ speakToggleBtn?.addEventListener("click", (event) => {
 speakToggleBtn?.setAttribute("title", "短按朗读或停止，长按打开朗读条");
 closeSidebarBtn?.addEventListener("click", closeSidebar);
 overlay.addEventListener("click", () => handleBackIntent());
-prevBtn.addEventListener("click", () => moveChapter(-1));
-nextBtn.addEventListener("click", () => moveChapter(1));
-prevEdge?.addEventListener("click", () => moveChapter(-1));
-nextEdge?.addEventListener("click", () => moveChapter(1));
 mobileAiBtn?.addEventListener("click", () => {
   if (aiSheet && !aiSheet.hidden) {
     closeTopPanels();
@@ -5833,7 +5409,7 @@ inlineCompareList?.addEventListener("click", async (event) => {
   state.targetVerse = state.lastVerse || visibleVerseNumber();
   await loadChapter({ scrollTop: false });
 });
-window.addEventListener("scroll", onReaderScroll, { passive: true });
+
 smartVoiceToggle?.addEventListener("change", saveAiSettings);
 aiActionRow?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-ai-action]");
@@ -6335,32 +5911,16 @@ content.addEventListener("touchend", () => {
 const swipeRoot = readerEl || content;
 swipeRoot.addEventListener("pointerdown", (event) => {
   if (pinchState) return;
-  startSwipeGesture(event.clientX, event.clientY, event.target);
   const verseNo = verseFromEvent(event);
   if (!verseNo || event.pointerType === "mouse") return;
   clearTimeout(longPressTimer);
   longPressTimer = setTimeout(() => openVerseMenu(verseNo, event.clientX, event.clientY), 420);
 });
-swipeRoot.addEventListener("pointermove", (event) => {
-  if (!swipeState) return;
-  swipeState.lastX = event.clientX;
-  swipeState.lastY = event.clientY;
-  const dx = event.clientX - swipeState.x;
-  const dy = event.clientY - swipeState.y;
-  if (Math.hypot(dx, dy) > 12) clearTimeout(longPressTimer);
-  if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) && !hasBlockingOverlayOpen()) {
-    applySwipeVisual(dx);
-  }
+swipeRoot.addEventListener("pointermove", () => {
+  if (swipeState) clearTimeout(longPressTimer);
 });
-swipeRoot.addEventListener("pointerup", (event) => {
-  clearTimeout(longPressTimer);
-  finishSwipeGesture(event.clientX, event.clientY);
-});
-swipeRoot.addEventListener("pointercancel", () => {
-  clearTimeout(longPressTimer);
-  if (swipeState) finishSwipeGesture(swipeState.lastX, swipeState.lastY);
-  else resetSwipeVisual();
-});
+swipeRoot.addEventListener("pointerup", () => clearTimeout(longPressTimer));
+swipeRoot.addEventListener("pointercancel", () => clearTimeout(longPressTimer));
 
 verseMenu.addEventListener("click", (event) => {
   const button = event.target.closest("[data-menu-action]");

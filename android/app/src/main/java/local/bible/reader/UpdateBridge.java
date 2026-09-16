@@ -17,7 +17,7 @@ import java.net.HttpURLConnection;
 import java.util.List;
 
 public class UpdateBridge {
-    private static final String CURRENT_VERSION = "1.36.6";
+    private static final String CURRENT_VERSION = "1.36.7";
     private final Activity activity;
     private volatile JSONObject downloadStatus = new JSONObject();
 
