@@ -14,222 +14,224 @@ const LATEST_JSON_URLS = [
 const state = Bible.state;
 
 const $ = (id) => document.querySelector(id);
-const versionSelect = $("#versionSelect");
-const compareVersionsEl = $("#compareVersions");
-const commentarySelect = $("#commentarySelect");
-const commentaryHint = $("#commentaryHint");
-const commentaryContent = $("#commentaryContent");
-const strongToggle = $("#strongToggle");
-const audioAutoNext = $("#audioAutoNext");
-const dictionarySelect = $("#dictionarySelect");
-const dictionaryInput = $("#dictionaryInput");
-const dictionaryBtn = $("#dictionaryBtn");
-const desktopMyBtn = $("#desktopMyBtn");
-const sidebarVersionHint = $("#sidebarVersionHint");
-const dictionaryHint = $("#dictionaryHint");
-const dictionarySheetSelect = $("#dictionarySheetSelect");
-const dictionarySheetInput = $("#dictionarySheetInput");
-const dictionarySheetBtn = $("#dictionarySheetBtn");
-const dictionarySheetForm = $("#dictionarySheetForm");
-const openDictionarySheetBtn = $("#openDictionarySheetBtn");
-const exportDataBtn = $("#exportDataBtn");
-const importDataBtn = $("#importDataBtn");
-const importDataFile = $("#importDataFile");
-const userDataHint = $("#userDataHint");
-const diagnosticsBtn = $("#diagnosticsBtn");
-const diagnosticsHint = $("#diagnosticsHint");
-const closeSidebarBtn = $("#closeSidebarBtn");
-const menuBtn = $("#menuBtn");
-const prevBtn = $("#prevBtn");
-const nextBtn = $("#nextBtn");
-const chapterTitleBtn = $("#chapterTitleBtn");
-const chapterTitle = $("#chapterTitle");
-const versionTitle = $("#versionTitle");
-const quickForm = $("#quickForm");
-const quickInput = $("#quickInput");
-const searchScope = $("#searchScope");
-const fuzzySearchToggle = $("#fuzzySearchToggle");
-const readerSettingsBtn = $("#readerSettingsBtn");
-const readerSettingsPanel = $("#readerSettingsPanel");
-const closeReaderSettingsBtn = $("#closeReaderSettingsBtn");
-const themeSelect = $("#themeSelect");
-const paletteSelect = $("#paletteSelect");
-const fontSizeRange = $("#fontSizeRange");
-const lineHeightRange = $("#lineHeightRange");
-const fontSizeValue = $("#fontSizeValue");
-const lineHeightValue = $("#lineHeightValue");
-const bookPickerPanel = $("#bookPickerPanel");
-const bookPickerTitle = $("#bookPickerTitle");
-const bookPickerCurrent = $("#bookPickerCurrent");
-const closeBookPickerBtn = $("#closeBookPickerBtn");
-const backToBooksBtn = $("#backToBooksBtn");
-const enterBookBtn = $("#enterBookBtn");
-const backToChaptersBtn = $("#backToChaptersBtn");
-const bookSearchInput = $("#bookSearchInput");
-const bookFilterTabs = $("#bookFilterTabs");
-const bookGrid = $("#bookGrid");
-const chapterGrid = $("#chapterGrid");
-const chapterPanelTitle = $("#chapterPanelTitle");
-const chapterPanelMeta = $("#chapterPanelMeta");
-const searchPanel = $("#searchPanel");
-const searchSummary = $("#searchSummary");
-const searchResults = $("#searchResults");
-const closeSearchBtn = $("#closeSearchBtn");
-const strongPanel = $("#strongPanel");
-const strongTitle = $("#strongTitle");
-const strongContent = $("#strongContent");
-const closeStrongBtn = $("#closeStrongBtn");
-const audioPanel = $("#audioPanel");
-const audioFileList = $("#audioFileList");
-const ttsStatus = $("#ttsStatus");
-const ttsPlayBtn = $("#ttsPlayBtn");
-const ttsFromHereBtn = $("#ttsFromHereBtn");
-const ttsStopBtn = $("#ttsStopBtn");
-const closeAudioBtn = $("#closeAudioBtn");
-const audioAutoNextSheet = $("#audioAutoNextSheet");
-const dictionaryPanel = $("#dictionaryPanel");
-const dictionarySummary = $("#dictionarySummary");
-const dictionaryResults = $("#dictionaryResults");
-const closeDictionaryBtn = $("#closeDictionaryBtn");
-const statusPanel = $("#statusPanel");
-const myPanel = $("#myPanel");
-const myResults = $("#myResults");
-const myAgentNotesEl = $("#myAgentNotes");
-const myNotesHint = $("#myNotesHint");
-const myTagFilter = $("#myTagFilter");
-const verseLibraryThemes = $("#verseLibraryThemes");
-const verseLibrarySearch = $("#verseLibrarySearch");
-const verseLibraryHint = $("#verseLibraryHint");
-const verseLibraryList = $("#verseLibraryList");
-const todayVerseCard = $("#todayVerseCard");
-const todayVersePeek = $("#todayVersePeek");
-const closeMyPanelBtn = $("#closeMyPanelBtn");
-const content = $("#content");
-const verseMenu = $("#verseMenu");
-const verseMenuTitle = $("#verseMenuTitle");
-const selectionBar = $("#selectionBar");
-const selectionSummary = $("#selectionSummary");
-const cancelSelectionBtn = $("#cancelSelectionBtn");
-const mobileSearchBtn = $("#mobileSearchBtn");
-const mobileMenuBtn = $("#mobileMenuBtn");
-const mobileAiBtn = $("#mobileAiBtn");
-const mobileMyBtn = $("#mobileMyBtn");
-const searchToggleBtn = $("#searchToggleBtn");
-const versionChipBtn = $("#versionChipBtn");
-const versionPickerPanel = $("#versionPickerPanel");
-const versionPickerList = $("#versionPickerList");
-const closeVersionPickerBtn = $("#closeVersionPickerBtn");
-const inlineCompareList = $("#inlineCompareList");
-const confirmSheet = $("#confirmSheet");
-const confirmSheetHint = $("#confirmSheetHint");
-const confirmSheetChoices = $("#confirmSheetChoices");
-const closeConfirmSheetBtn = $("#closeConfirmSheetBtn");
-const compareSheet = $("#compareSheet");
-const compareSheetTitle = $("#compareSheetTitle");
-const compareSheetContent = $("#compareSheetContent");
-const closeCompareSheetBtn = $("#closeCompareSheetBtn");
-const myProgressCard = $("#myProgressCard");
-const checkUpdateBtn = $("#checkUpdateBtn");
-const downloadUpdateBtn = $("#downloadUpdateBtn");
-const clearDownloadsBtn = $("#clearDownloadsBtn");
-const updateStatus = $("#updateStatus");
-const updateNetworkHint = $("#updateNetworkHint");
-const updateProgress = $("#updateProgress");
-const updateProgressText = $("#updateProgressText");
-const updateProgressBar = $("#updateProgressBar");
-const updateProgressValue = $("#updateProgressValue");
-const keepScreenOnToggle = $("#keepScreenOnToggle");
-const readFontSelect = $("#readFontSelect");
-const pageMarginRange = $("#pageMarginRange");
-const pageMarginValue = $("#pageMarginValue");
-const copyFormatSelect = $("#copyFormatSelect");
-const strongToggleReader = $("#strongToggleReader");
-const ttsRateSelect = $("#ttsRateSelect");
-const verseMenuMore = $("#verseMenuMore");
-const verseMenuMoreBtn = $("#verseMenuMoreBtn");
-const peekBar = $("#peekBar");
-const peekBackBtn = $("#peekBackBtn");
-const peekCloseBtn = $("#peekCloseBtn");
-const shareThemeRow = $("#shareThemeRow");
-const verseStepPanel = $("#verseStepPanel");
-const verseGrid = $("#verseGrid");
-const versePanelTitle = $("#versePanelTitle");
-const versePanelMeta = $("#versePanelMeta");
-const readChapterStartBtn = $("#readChapterStartBtn");
-const commentarySheet = $("#commentarySheet");
-const commentarySheetTitle = $("#commentarySheetTitle");
-const commentarySheetContent = $("#commentarySheetContent");
-const closeCommentarySheetBtn = $("#closeCommentarySheetBtn");
-const shareSheet = $("#shareSheet");
-const shareCanvas = $("#shareCanvas");
-const closeShareSheetBtn = $("#closeShareSheetBtn");
-const shareImageBtn = $("#shareImageBtn");
-const saveShareBtn = $("#saveShareBtn");
-const highlightColors = $("#highlightColors");
-const verseHighlightColors = $("#verseHighlightColors");
-const packageList = $("#packageList");
-const packageHint = $("#packageHint");
-const packageProgress = $("#packageProgress");
-const packageProgressText = $("#packageProgressText");
-const packageProgressBar = $("#packageProgressBar");
-const packageProgressValue = $("#packageProgressValue");
-const speakToggleBtn = $("#speakToggleBtn");
-const recentSearchesEl = $("#recentSearches");
-const compareSourceList = $("#compareSourceList");
-const commentarySourceList = $("#commentarySourceList");
-const noteSheet = $("#noteSheet");
-const noteSheetTitle = $("#noteSheetTitle");
-const noteSheetText = $("#noteSheetText");
-const noteSheetTags = $("#noteSheetTags");
-const noteSheetHeading = $("#noteSheetHeading");
-const noteSheetHeadingField = $("#noteSheetHeadingField");
-const noteSheetPasteActions = $("#noteSheetPasteActions");
-const closeNoteSheetBtn = $("#closeNoteSheetBtn");
-const saveNoteSheetBtn = $("#saveNoteSheetBtn");
-const exportNotesMdBtn = $("#exportNotesMdBtn");
-const importNotesMdBtn = $("#importNotesMdBtn");
-const pasteNotesMdBtn = $("#pasteNotesMdBtn");
-const importUrlBtn = $("#importUrlBtn");
-const importNotesMdFile = $("#importNotesMdFile");
-const noteSheetUrl = $("#noteSheetUrl");
-const noteSheetUrlField = $("#noteSheetUrlField");
-const extractUrlBtn = $("#extractUrlBtn");
-const overlay = $("#overlay");
-const voiceBtn = $("#voiceBtn");
-const voiceBtnDesktop = $("#voiceBtnDesktop");
-const aiProviderSelect = $("#aiProviderSelect");
-const aiModelSelect = $("#aiModelSelect");
-const aiCustomModelField = $("#aiCustomModelField");
-const aiCustomModelInput = $("#aiCustomModelInput");
-const aiKeyInput = $("#aiKeyInput");
-const aiKeyLabel = $("#aiKeyLabel");
-const mimoKeyTypeField = $("#mimoKeyTypeField");
-const mimoKeyTypeSelect = $("#mimoKeyTypeSelect");
-const aiBaseUrlField = $("#aiBaseUrlField");
-const aiBaseUrlLabel = $("#aiBaseUrlLabel");
-const aiBaseUrlInput = $("#aiBaseUrlInput");
-const mimoAsrKeyField = $("#mimoAsrKeyField");
-const mimoAsrKeyInput = $("#mimoAsrKeyInput");
-const smartVoiceToggle = $("#smartVoiceToggle");
-const studySearchBtn = $("#studySearchBtn");
-const aiSheet = $("#aiSheet");
-const aiSheetTitle = $("#aiSheetTitle");
-const aiSheetContent = $("#aiSheetContent");
-const aiNoteList = $("#aiNoteList");
-const aiMemoryBar = $("#aiMemoryBar");
-const saveAiNoteBtn = $("#saveAiNoteBtn");
-const newAiChatBtn = $("#newAiChatBtn");
-const toggleAiNotesBtn = $("#toggleAiNotesBtn");
-const aiNotePeek = $("#aiNotePeek");
-const insertNoteRefBtn = $("#insertNoteRefBtn");
-const aiAskForm = $("#aiAskForm");
-const aiAskInput = $("#aiAskInput");
-const closeAiSheetBtn = $("#closeAiSheetBtn");
-const clearAiMemoryBtn = $("#clearAiMemoryBtn");
-const aiActionRow = $("#aiActionRow");
-const readerEl = document.querySelector("main.reader");
-const prevEdge = $("#prevEdge");
-const nextEdge = $("#nextEdge");
+const {
+  versionSelect,
+  compareVersionsEl,
+  commentarySelect,
+  commentaryHint,
+  commentaryContent,
+  strongToggle,
+  audioAutoNext,
+  dictionarySelect,
+  dictionaryInput,
+  dictionaryBtn,
+  desktopMyBtn,
+  sidebarVersionHint,
+  dictionaryHint,
+  dictionarySheetSelect,
+  dictionarySheetInput,
+  dictionarySheetBtn,
+  dictionarySheetForm,
+  openDictionarySheetBtn,
+  exportDataBtn,
+  importDataBtn,
+  importDataFile,
+  userDataHint,
+  diagnosticsBtn,
+  diagnosticsHint,
+  closeSidebarBtn,
+  menuBtn,
+  prevBtn,
+  nextBtn,
+  chapterTitleBtn,
+  chapterTitle,
+  versionTitle,
+  quickForm,
+  quickInput,
+  searchScope,
+  fuzzySearchToggle,
+  readerSettingsBtn,
+  readerSettingsPanel,
+  closeReaderSettingsBtn,
+  themeSelect,
+  paletteSelect,
+  fontSizeRange,
+  lineHeightRange,
+  fontSizeValue,
+  lineHeightValue,
+  bookPickerPanel,
+  bookPickerTitle,
+  bookPickerCurrent,
+  closeBookPickerBtn,
+  backToBooksBtn,
+  enterBookBtn,
+  backToChaptersBtn,
+  bookSearchInput,
+  bookFilterTabs,
+  bookGrid,
+  chapterGrid,
+  chapterPanelTitle,
+  chapterPanelMeta,
+  searchPanel,
+  searchSummary,
+  searchResults,
+  closeSearchBtn,
+  strongPanel,
+  strongTitle,
+  strongContent,
+  closeStrongBtn,
+  audioPanel,
+  audioFileList,
+  ttsStatus,
+  ttsPlayBtn,
+  ttsFromHereBtn,
+  ttsStopBtn,
+  closeAudioBtn,
+  audioAutoNextSheet,
+  dictionaryPanel,
+  dictionarySummary,
+  dictionaryResults,
+  closeDictionaryBtn,
+  statusPanel,
+  myPanel,
+  myResults,
+  myAgentNotesEl,
+  myNotesHint,
+  myTagFilter,
+  verseLibraryThemes,
+  verseLibrarySearch,
+  verseLibraryHint,
+  verseLibraryList,
+  todayVerseCard,
+  todayVersePeek,
+  closeMyPanelBtn,
+  content,
+  verseMenu,
+  verseMenuTitle,
+  selectionBar,
+  selectionSummary,
+  cancelSelectionBtn,
+  mobileSearchBtn,
+  mobileMenuBtn,
+  mobileAiBtn,
+  mobileMyBtn,
+  searchToggleBtn,
+  versionChipBtn,
+  versionPickerPanel,
+  versionPickerList,
+  closeVersionPickerBtn,
+  inlineCompareList,
+  confirmSheet,
+  confirmSheetHint,
+  confirmSheetChoices,
+  closeConfirmSheetBtn,
+  compareSheet,
+  compareSheetTitle,
+  compareSheetContent,
+  closeCompareSheetBtn,
+  myProgressCard,
+  checkUpdateBtn,
+  downloadUpdateBtn,
+  clearDownloadsBtn,
+  updateStatus,
+  updateNetworkHint,
+  updateProgress,
+  updateProgressText,
+  updateProgressBar,
+  updateProgressValue,
+  keepScreenOnToggle,
+  readFontSelect,
+  pageMarginRange,
+  pageMarginValue,
+  copyFormatSelect,
+  strongToggleReader,
+  ttsRateSelect,
+  verseMenuMore,
+  verseMenuMoreBtn,
+  peekBar,
+  peekBackBtn,
+  peekCloseBtn,
+  shareThemeRow,
+  verseStepPanel,
+  verseGrid,
+  versePanelTitle,
+  versePanelMeta,
+  readChapterStartBtn,
+  commentarySheet,
+  commentarySheetTitle,
+  commentarySheetContent,
+  closeCommentarySheetBtn,
+  shareSheet,
+  shareCanvas,
+  closeShareSheetBtn,
+  shareImageBtn,
+  saveShareBtn,
+  highlightColors,
+  verseHighlightColors,
+  packageList,
+  packageHint,
+  packageProgress,
+  packageProgressText,
+  packageProgressBar,
+  packageProgressValue,
+  speakToggleBtn,
+  recentSearchesEl,
+  compareSourceList,
+  commentarySourceList,
+  noteSheet,
+  noteSheetTitle,
+  noteSheetText,
+  noteSheetTags,
+  noteSheetHeading,
+  noteSheetHeadingField,
+  noteSheetPasteActions,
+  closeNoteSheetBtn,
+  saveNoteSheetBtn,
+  exportNotesMdBtn,
+  importNotesMdBtn,
+  pasteNotesMdBtn,
+  importUrlBtn,
+  importNotesMdFile,
+  noteSheetUrl,
+  noteSheetUrlField,
+  extractUrlBtn,
+  overlay,
+  voiceBtn,
+  voiceBtnDesktop,
+  aiProviderSelect,
+  aiModelSelect,
+  aiCustomModelField,
+  aiCustomModelInput,
+  aiKeyInput,
+  aiKeyLabel,
+  mimoKeyTypeField,
+  mimoKeyTypeSelect,
+  aiBaseUrlField,
+  aiBaseUrlLabel,
+  aiBaseUrlInput,
+  mimoAsrKeyField,
+  mimoAsrKeyInput,
+  smartVoiceToggle,
+  studySearchBtn,
+  aiSheet,
+  aiSheetTitle,
+  aiSheetContent,
+  aiNoteList,
+  aiMemoryBar,
+  saveAiNoteBtn,
+  newAiChatBtn,
+  toggleAiNotesBtn,
+  aiNotePeek,
+  insertNoteRefBtn,
+  aiAskForm,
+  aiAskInput,
+  closeAiSheetBtn,
+  clearAiMemoryBtn,
+  aiActionRow,
+  readerEl,
+  prevEdge,
+  nextEdge,
+} = Bible.dom;
 let noteSheetVerse = null;
 let noteSheetMode = "verse";
 let noteSheetTarget = null;

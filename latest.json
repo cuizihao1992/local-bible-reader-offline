@@ -1,13 +1,13 @@
 {
-  "version": "1.36.4",
-  "tagName": "v1.36.4",
-  "name": "v1.36.4",
-  "body": "抽出 Bible.state / restoreState / saveState。阅读位置和设置的存储 key 不变。",
+  "version": "1.36.5",
+  "tagName": "v1.36.5",
+  "name": "v1.36.5",
+  "body": "抽出 Bible.dom 与可选总线。toast 仍走 showStatus。界面与 1.36.4 相同。",
   "publishedAt": "2026-09-16",
   "apk": {
-    "name": "local-bible-reader-offline-1.36.4-release.apk",
-    "size": 63453474,
-    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.4/local-bible-reader-offline-1.36.4-release.apk",
+    "name": "local-bible-reader-offline-1.36.5-release.apk",
+    "size": 63457566,
+    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.5/local-bible-reader-offline-1.36.5-release.apk",
     "mirrors": []
   },
   "packages": {
