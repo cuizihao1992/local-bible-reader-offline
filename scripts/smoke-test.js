@@ -95,6 +95,9 @@ assert(staticJs.includes("function parseReference"), "static JS glob empty or un
 assert(indexHtml.includes("src=\"version.js\""), "version.js script missing");
 assert(indexHtml.includes("src=\"js/core/namespace.js\""), "namespace.js script missing");
 assert(indexHtml.includes("src=\"js/core/api.js\""), "api.js script missing");
+assert(indexHtml.includes("src=\"js/core/state.js\""), "state.js script missing");
+assert(staticJs.includes("Bible.state"), "Bible.state missing");
+assert(staticJs.includes("bibleReaderState.v1"), "State storage key missing");
 assert(indexHtml.includes("本地圣经"), "Index title missing");
 assert(indexHtml.includes("id=\"fuzzySearchToggle\""), "Fuzzy search toggle missing");
 assert(staticJs.includes("function parseReference"), "Reference parser missing");

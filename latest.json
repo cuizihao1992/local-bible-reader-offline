@@ -1,13 +1,13 @@
 {
-  "version": "1.36.3",
-  "tagName": "v1.36.3",
-  "name": "v1.36.3",
-  "body": "抽出 api/postJson 与 window.APP_VERSION；Android Babel 转全部 JS。界面与 1.36.2 相同。",
-  "publishedAt": "2026-09-15",
+  "version": "1.36.4",
+  "tagName": "v1.36.4",
+  "name": "v1.36.4",
+  "body": "抽出 Bible.state / restoreState / saveState。阅读位置和设置的存储 key 不变。",
+  "publishedAt": "2026-09-16",
   "apk": {
-    "name": "local-bible-reader-offline-1.36.3-release.apk",
-    "size": 63452178,
-    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.3/local-bible-reader-offline-1.36.3-release.apk",
+    "name": "local-bible-reader-offline-1.36.4-release.apk",
+    "size": 63453474,
+    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.36.4/local-bible-reader-offline-1.36.4-release.apk",
     "mirrors": []
   },
   "packages": {

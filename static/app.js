@@ -1,4 +1,4 @@
-const STORAGE_KEY = "bibleReaderState.v1";
+const STORAGE_KEY = Bible.STORAGE_KEY;
 const APP_VERSION = window.APP_VERSION;
 const SEARCH_RECENTS_KEY = "bibleReaderSearches.v1";
 const MEMORY_KEY = "bibleReaderAgentMemory.v1";
@@ -11,48 +11,7 @@ const LATEST_JSON_URLS = [
   `https://raw.githubusercontent.com/${GITHUB_REPO}/main/latest.json`,
 ];
 
-const state = {
-  versions: [],
-  books: [],
-  commentaries: [],
-  dictionaries: [],
-  marks: new Map(),
-  progress: null,
-  version: "",
-  compareVersions: [],
-  commentary: "",
-  dictionary: "",
-  showStrong: false,
-  audioAutoNext: false,
-  theme: "auto",
-  palette: "classic",
-  fontSize: 20,
-  lineHeight: 2.05,
-  readFont: "serif",
-  pageMargin: 22,
-  copyFormat: "reference",
-  ttsRate: 1,
-  keepScreenOn: false,
-  fuzzySearch: false,
-  mimoKey: "",
-  mimoKeyType: "codeplan",
-  mimoBaseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
-  mimoStandardKey: "",
-  mimoCodeplanKey: "",
-  smartVoice: false,
-  aiProvider: "mimo",
-  aiModel: "mimo-v2.5",
-  aiCustomModel: "",
-  aiKeys: {},
-  aiBaseUrls: {},
-  book: 1,
-  chapter: 1,
-  targetVerse: null,
-  activeVerse: null,
-  lastVerse: null,
-  recentBooks: [],
-  recentSearches: [],
-};
+const state = Bible.state;
 
 const $ = (id) => document.querySelector(id);
 const versionSelect = $("#versionSelect");
@@ -373,137 +332,6 @@ function applyBuiltInMimoKeys(hadSavedKey) {
   state.mimoBaseUrl = defaultMimoCodeplanUrl();
   state.aiKeys = { ...(state.aiKeys || {}), mimo: state.mimoKey };
   state.aiBaseUrls = { ...(state.aiBaseUrls || {}), mimo: state.mimoBaseUrl };
-}
-
-function restoreState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    const hadSavedKey = !!(saved.mimoKey || (saved.aiKeys && saved.aiKeys.mimo));
-    Object.assign(state, {
-      version: saved.version || "",
-      compareVersions: Array.isArray(saved.compareVersions) ? saved.compareVersions.slice(0, 3) : [],
-      commentary: saved.commentary || "",
-      dictionary: saved.dictionary || "",
-      showStrong: !!saved.showStrong,
-      audioAutoNext: !!saved.audioAutoNext,
-      theme: saved.theme === "dark" || saved.theme === "light" || saved.theme === "auto" ? saved.theme : "auto",
-      palette: saved.palette || "classic",
-      fontSize: Number(saved.fontSize) || 20,
-      lineHeight: Number(saved.lineHeight) || 2.05,
-      readFont: saved.readFont === "sans" ? "sans" : "serif",
-      pageMargin: Number(saved.pageMargin) || 22,
-      copyFormat: saved.copyFormat === "plain" || saved.copyFormat === "numbered" ? saved.copyFormat : "reference",
-      ttsRate: [0.8, 1, 1.25, 1.5].includes(Number(saved.ttsRate)) ? Number(saved.ttsRate) : 1,
-      keepScreenOn: !!saved.keepScreenOn,
-      fuzzySearch: !!saved.fuzzySearch,
-      mimoKey: saved.mimoKey || (saved.aiKeys && saved.aiKeys.mimo) || "",
-      mimoKeyType: saved.mimoKeyType === "codeplan" || String(saved.mimoKey || "").trim().toLowerCase().startsWith("tp-") ? "codeplan" : "standard",
-      mimoBaseUrl: saved.mimoBaseUrl || (saved.aiBaseUrls && saved.aiBaseUrls.mimo) || "https://token-plan-cn.xiaomimimo.com/v1",
-      mimoStandardKey: saved.mimoStandardKey || "",
-      mimoCodeplanKey: saved.mimoCodeplanKey || "",
-      smartVoice: !!saved.smartVoice,
-      aiProvider: AI_PROVIDERS.some((item) => item.id === saved.aiProvider) ? saved.aiProvider : "mimo",
-      aiModel: saved.aiModel || "mimo-v2.5",
-      aiCustomModel: saved.aiCustomModel || "",
-      aiKeys: saved.aiKeys && typeof saved.aiKeys === "object" ? { ...saved.aiKeys } : {},
-      aiBaseUrls: saved.aiBaseUrls && typeof saved.aiBaseUrls === "object" ? { ...saved.aiBaseUrls } : {},
-      book: Number(saved.book) || 1,
-      chapter: Number(saved.chapter) || 1,
-      lastVerse: Number(saved.lastVerse) || null,
-      recentBooks: Array.isArray(saved.recentBooks) ? saved.recentBooks.slice(0, 8) : [],
-      recentSearches: Array.isArray(saved.recentSearches) ? saved.recentSearches.slice(0, 8) : [],
-    });
-    state.aiKeys = { ...(state.aiKeys || {}), mimo: state.mimoKey };
-    state.aiBaseUrls = { ...(state.aiBaseUrls || {}), mimo: state.mimoBaseUrl };
-    applyBuiltInMimoKeys(hadSavedKey);
-  } catch {
-    applyBuiltInMimoKeys(false);
-  }
-}
-
-function saveState() {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      version: state.version,
-      compareVersions: state.compareVersions,
-      commentary: state.commentary,
-      dictionary: state.dictionary,
-      showStrong: state.showStrong,
-      audioAutoNext: state.audioAutoNext,
-      theme: state.theme,
-      palette: state.palette,
-      fontSize: state.fontSize,
-      lineHeight: state.lineHeight,
-      readFont: state.readFont,
-      pageMargin: state.pageMargin,
-      copyFormat: state.copyFormat,
-      ttsRate: state.ttsRate,
-      keepScreenOn: state.keepScreenOn,
-      fuzzySearch: !!state.fuzzySearch,
-      mimoKey: state.mimoKey,
-      mimoKeyType: state.mimoKeyType,
-      mimoBaseUrl: state.mimoBaseUrl,
-      mimoStandardKey: state.mimoStandardKey || "",
-      mimoCodeplanKey: state.mimoCodeplanKey || "",
-      smartVoice: !!state.smartVoice,
-      aiProvider: state.aiProvider || "mimo",
-      aiModel: state.aiModel || "mimo-v2.5",
-      aiCustomModel: state.aiCustomModel || "",
-      aiKeys: { ...(state.aiKeys || {}), mimo: state.mimoKey },
-      aiBaseUrls: { ...(state.aiBaseUrls || {}), mimo: state.mimoBaseUrl },
-      book: state.book,
-      chapter: state.chapter,
-      lastVerse: state.lastVerse,
-      recentBooks: state.recentBooks,
-      recentSearches: state.recentSearches,
-    }),
-  );
-}
-
-function resolvedTheme() {
-  if (state.theme === "auto") {
-    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-  return state.theme === "dark" ? "dark" : "light";
-}
-
-function applySettings() {
-  const night = resolvedTheme() === "dark";
-  document.body.classList.toggle("darkTheme", night);
-  document.body.dataset.palette = state.palette === "classic" ? "" : state.palette;
-  if (!document.body.dataset.palette) delete document.body.dataset.palette;
-  document.documentElement.style.setProperty("--reader-font-size", `${state.fontSize}px`);
-  document.documentElement.style.setProperty("--reader-line-height", String(state.lineHeight));
-  document.documentElement.style.setProperty("--reader-pad", `${state.pageMargin}px`);
-  document.body.dataset.readFont = state.readFont === "sans" ? "sans" : "serif";
-  const themeColor = night ? "#1b1815" : "#3d6b5c";
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
-  if (themeMeta) themeMeta.setAttribute("content", themeColor);
-  if (window.AndroidBibleApi && window.AndroidBibleApi.setNightMode) {
-    window.AndroidBibleApi.setNightMode(night);
-  }
-  themeSelect.value = state.theme;
-  paletteSelect.value = state.palette;
-  fontSizeRange.value = String(state.fontSize);
-  lineHeightRange.value = String(state.lineHeight);
-  fontSizeValue.textContent = `${state.fontSize}px`;
-  lineHeightValue.textContent = Number(state.lineHeight).toFixed(2);
-  if (pageMarginValue) pageMarginValue.textContent = String(state.pageMargin);
-  if (pageMarginRange) pageMarginRange.value = String(state.pageMargin);
-  if (readFontSelect) readFontSelect.value = state.readFont === "sans" ? "sans" : "serif";
-  if (copyFormatSelect) copyFormatSelect.value = state.copyFormat;
-  if (ttsRateSelect) ttsRateSelect.value = String(state.ttsRate);
-  if (strongToggle) strongToggle.checked = state.showStrong;
-  if (strongToggleReader) strongToggleReader.checked = state.showStrong;
-  if (audioAutoNext) audioAutoNext.checked = state.audioAutoNext;
-  if (audioAutoNextSheet) audioAutoNextSheet.checked = state.audioAutoNext;
-  if (keepScreenOnToggle) keepScreenOnToggle.checked = state.keepScreenOn;
-  if (fuzzySearchToggle) fuzzySearchToggle.checked = !!state.fuzzySearch;
-  if (window.AndroidBibleApi && window.AndroidBibleApi.setKeepScreenOn) {
-    window.AndroidBibleApi.setKeepScreenOn(!!state.keepScreenOn);
-  }
-  syncAiSettingsFields();
 }
 
 function showStatus(message, tone = "info", holdMs = 0) {
@@ -1792,6 +1620,7 @@ const AI_PROVIDERS = [
     models: [],
   },
 ];
+window.AI_PROVIDERS = AI_PROVIDERS;
 
 function aiSpec(id = state.aiProvider) {
   return AI_PROVIDERS.find((item) => item.id === id) || AI_PROVIDERS[0];
