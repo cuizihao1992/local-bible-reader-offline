@@ -1,0 +1,74 @@
+{
+  "journeys": [
+    {
+      "id": "jesus-ministry",
+      "name": "耶稣加利利与耶路撒冷事工",
+      "era": "jesus",
+      "distance": "约 160 km（示意）",
+      "mode": ["land"],
+      "desc": "从拿撒勒到迦百农，再到耶路撒冷——福音书中的核心地理。",
+      "stops": [
+        { "place": "nazareth", "note": "成长与公开传道的起点" },
+        { "place": "capernaum", "note": "「他自己的城」，呼召门徒" },
+        { "place": "jericho", "note": "经过时呼召撒该" },
+        { "place": "bethany", "note": "好友之家，橄榄山东麓" },
+        { "place": "jerusalem", "note": "受难、埋葬与复活" }
+      ]
+    },
+    {
+      "id": "paul-mission",
+      "name": "保罗宣教与押解往罗马",
+      "era": "paul",
+      "distance": "陆路 + 海路（示意）",
+      "mode": ["land", "sea"],
+      "desc": "从大马士革归信，到安提阿差派，再到该撒利亚受审。大数、安提阿在图外。",
+      "stops": [
+        { "place": "damascus", "note": "路上大光，生命转向" },
+        { "place": "tarsus", "note": "故乡（图外）" },
+        { "place": "antioch", "note": "外邦教会差派基地（图外）" },
+        { "place": "caesarea", "note": "受审、囚船" },
+        { "place": "joppa", "note": "沿岸港城" }
+      ]
+    },
+    {
+      "id": "abraham",
+      "name": "亚伯拉罕的迁徙",
+      "era": "patriarch",
+      "distance": "约 120 km（示意）",
+      "mode": ["land"],
+      "desc": "从示剑到别是巴，族长在应许之地走过的足迹。",
+      "stops": [
+        { "place": "shechem", "note": "进入迦南后的停驻" },
+        { "place": "bethlehem", "note": "以法他路旁的伯利恒" },
+        { "place": "beersheba", "note": "立约之井，南地枢纽" }
+      ]
+    },
+    {
+      "id": "exodus-jordan",
+      "name": "出埃及与进入应许",
+      "era": "exodus",
+      "distance": "示意路线",
+      "mode": ["land"],
+      "desc": "渡约旦、攻耶利哥——从旷野到应许之地的关键节点。",
+      "stops": [
+        { "place": "beersheba", "note": "南地旷野边缘" },
+        { "place": "jericho", "note": "渡河后的第一座坚城" },
+        { "place": "shechem", "note": "应许之地的心脏" },
+        { "place": "dan", "note": "「从但到别是巴」北界" }
+      ]
+    },
+    {
+      "id": "david-flight",
+      "name": "大卫的逃亡",
+      "era": "kingdom",
+      "distance": "约 100 km（示意）",
+      "mode": ["land"],
+      "desc": "从沿海到南地，大卫躲避扫罗的漂流之路。",
+      "stops": [
+        { "place": "joppa", "note": "西部沿海的通道" },
+        { "place": "jerusalem", "note": "后来的京城" },
+        { "place": "beersheba", "note": "南地旷野的避难" }
+      ]
+    }
+  ]
+}

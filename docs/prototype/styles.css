@@ -693,7 +693,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .phone-screen[data-view="my-updates"] #sheet-my,
 .phone-screen[data-view="settings"] #sheet-settings,
 .phone-screen[data-view="confirm"] #sheet-confirm,
-.phone-screen[data-view="compare"] #sheet-compare { display: block; }
+.phone-screen[data-view="compare"] #sheet-compare,
+.phone-screen[data-view="map"] #sheet-map,
+.phone-screen[data-view="map-journeys"] #sheet-map-journeys,
+.phone-screen[data-view="map-places"] #sheet-map-places,
+.phone-screen[data-view="map-place"] #sheet-map-place { display: block; }
 
 .phone-screen[data-view="books"] .overlay,
 .phone-screen[data-view="chapters"] .overlay,
@@ -713,7 +717,38 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .phone-screen[data-view="my-updates"] .overlay,
 .phone-screen[data-view="settings"] .overlay,
 .phone-screen[data-view="confirm"] .overlay,
-.phone-screen[data-view="compare"] .overlay { display: block; }
+.phone-screen[data-view="compare"] .overlay,
+.phone-screen[data-view="map"] .overlay,
+.phone-screen[data-view="map-journeys"] .overlay,
+.phone-screen[data-view="map-places"] .overlay,
+.phone-screen[data-view="map-place"] .overlay { display: block; }
+.chapterPlacesBar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.chapterPlacesBar button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--soft);
+}
+.phone-screen[data-view="reader"] .chapterPlacesBar,
+.phone-screen[data-view="verse-menu"] .chapterPlacesBar,
+.phone-screen[data-view="audio"] .chapterPlacesBar { display: flex; }
+.protoMap {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #e8dfcb;
+}
+.protoMap svg { display: block; width: 100%; height: auto; }
 
 .phone-screen[data-view="verse-menu"] #verseMenu { display: block; }
 .phone-screen[data-view="verse-menu"] .verse.active { background: rgba(61, 107, 92, 0.12); }

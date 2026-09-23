@@ -1,6 +1,6 @@
 {
   "name": "bible-reader",
-  "version": "1.36.7",
+  "version": "1.37.0",
   "description": "本地圣经阅读器（对照原 bible_reader_app 重写）",
   "author": "Local",
   "private": true,

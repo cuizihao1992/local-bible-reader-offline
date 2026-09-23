@@ -27,6 +27,8 @@ function closeContentPanels() {
   hide("aiSheet");
   hide("confirmSheet");
   hide("highlightColors");
+  hide("mapSheet");
+  hide("mapPlaceDetail");
   if (typeof closeVerseMenu === "function") closeVerseMenu();
   if (typeof closeSelectionBar === "function") closeSelectionBar();
   if (typeof setNav === "function") setNav(null);
@@ -67,6 +69,7 @@ function hasBlockingOverlayOpen() {
     open("shareSheet") ||
     open("noteSheet") ||
     open("aiSheet") ||
+    open("mapSheet") ||
     open("confirmSheet") ||
     open("verseMenu") ||
     open("selectionBar")
@@ -79,6 +82,7 @@ function visible(name) {
 }
 
 function handleBackIntent() {
+  if (typeof Bible.map?.handleBack === "function" && Bible.map.handleBack()) return true;
   if (visible("verseMenu")) {
     if (typeof closeVerseMenu === "function") closeVerseMenu();
     keepReadingChromeVisible();
@@ -106,7 +110,8 @@ function handleBackIntent() {
     visible("commentarySheet") ||
     visible("shareSheet") ||
     visible("noteSheet") ||
-    visible("aiSheet")
+    visible("aiSheet") ||
+    visible("mapSheet")
   ) {
     closeTopPanels();
     keepReadingChromeVisible();

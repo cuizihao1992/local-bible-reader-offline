@@ -478,6 +478,11 @@
         <div class="sheetBody">
         <div id="myTabMarks" class="myTabPane" data-my-pane="marks">
         <div id="todayVersePeek" class="todayVerseCard compact"></div>
+        <button id="openMapCard" class="todayVerseCard compact mapEntryCard" type="button">
+          <div class="todayVerseMeta">圣经地图 · 示意</div>
+          <div>15 处地名 · 5 条旅程 · 离线</div>
+          <div class="panelHint">不是精确比例。经文用当前译本。</div>
+        </button>
         <div id="myProgressCard" class="myProgressCard"></div>
         <div class="myFilters">
           <div class="chipRow myFilterChips">
@@ -553,6 +558,56 @@
         </div>
       </section>
 
+      <div id="chapterPlacesBar" class="chapterPlacesBar" hidden></div>
+      <section id="mapSheet" class="sheetPanel panel mapSheet" hidden>
+        <div class="sheetHeader panelHeader">
+          <div>
+            <div class="sheetTitle">圣经地图</div>
+            <div class="panelHint">示意，不是精确比例 · 离线</div>
+          </div>
+          <button id="closeMapSheetBtn" class="textBtn" type="button">关闭</button>
+        </div>
+        <div class="panelTabs" role="tablist" aria-label="地图分类">
+          <button type="button" data-map-tab="map" class="active">地图</button>
+          <button type="button" data-map-tab="journeys">旅程</button>
+          <button type="button" data-map-tab="places">地名</button>
+        </div>
+        <div class="sheetBody mapSheetBody">
+          <div data-map-pane="map">
+            <div class="chipRow" id="mapEraChips">
+              <button type="button" data-map-era="all" class="active">全部</button>
+              <button type="button" data-map-era="patriarch">族长</button>
+              <button type="button" data-map-era="exodus">出埃及</button>
+              <button type="button" data-map-era="kingdom">王国</button>
+              <button type="button" data-map-era="jesus">耶稣</button>
+              <button type="button" data-map-era="paul">保罗</button>
+            </div>
+            <div class="mapStage" id="mapStage">
+              <svg id="mapCanvas" viewBox="0 0 390 560" preserveAspectRatio="xMidYMid slice"></svg>
+              <div class="mapTools">
+                <button id="mapZoomIn" type="button" aria-label="放大">+</button>
+                <button id="mapZoomOut" type="button" aria-label="缩小">−</button>
+                <button id="mapZoomReset" type="button">复位</button>
+              </div>
+            </div>
+            <div class="panelHint">实心点＝确定 · 空心点＝推定 · 大数/安提阿在图外</div>
+          </div>
+          <div data-map-pane="journeys" hidden>
+            <div id="mapJourneyList" class="resultList"></div>
+          </div>
+          <div data-map-pane="places" hidden>
+            <input id="mapPlaceSearch" type="search" placeholder="搜索地名，如：耶路撒冷" />
+            <div id="mapPlaceList" class="resultList"></div>
+          </div>
+        </div>
+        <div id="mapPlaceDetail" class="mapPlaceDetail" hidden>
+          <div class="sheetHeader panelHeader">
+            <div class="sheetTitle">地点</div>
+            <button id="closeMapPlaceBtn" class="textBtn" type="button">返回</button>
+          </div>
+          <div id="mapPlaceBody" class="sheetBody"></div>
+        </div>
+      </section>
       <section id="content" class="content" aria-live="polite"></section>
       <section id="commentaryContent" class="commentaryContent"></section>
     </main>
@@ -579,6 +634,7 @@
         <button type="button" data-menu-action="copy-numbered">复制（带节号）</button>
         <button type="button" data-menu-action="compare">对照</button>
         <button type="button" data-menu-action="commentary">注释</button>
+        <button type="button" data-menu-action="map" hidden id="verseMenuMapBtn">地图</button>
         <button type="button" data-menu-action="share">分享</button>
         <button type="button" data-menu-action="dictionary">查词</button>
         <button type="button" data-menu-action="speak">从本节朗读</button>
@@ -647,6 +703,7 @@
     <script src="js/reader/verses.js"></script>
     <script src="js/reader/chapter.js"></script>
     <script src="js/reader/swipe.js"></script>
+    <script src="js/map/atlas.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

@@ -100,6 +100,8 @@ final class OfflineApi {
             return JsonUtil.data(try lookupStrong(JsonUtil.query(url, "code")))
         case "/api/verse-library":
             return JsonUtil.data(try verseLibrary(url))
+        case "/api/map":
+            return JsonUtil.data(try mapCatalog())
         default:
             return JsonUtil.error("iOS 离线版暂未支持此接口：\(path)")
         }
@@ -580,6 +582,22 @@ final class OfflineApi {
                 "verse": row["Verse"] as? Int ?? 0,
             ]
         }
+    }
+
+    private func mapCatalog() throws -> [String: Any] {
+        let placesURL = store.www.appendingPathComponent("map/places.json")
+        let journeysURL = store.www.appendingPathComponent("map/journeys.json")
+        let placesData = try Data(contentsOf: placesURL)
+        let journeysData = try Data(contentsOf: journeysURL)
+        guard let placesDoc = try JSONSerialization.jsonObject(with: placesData) as? [String: Any],
+              let journeysDoc = try JSONSerialization.jsonObject(with: journeysData) as? [String: Any] else {
+            throw NSError(domain: "api", code: 500, userInfo: [NSLocalizedDescriptionKey: "地图数据无效"])
+        }
+        return [
+            "disclaimer": placesDoc["disclaimer"] as? String ?? "",
+            "places": placesDoc["places"] as? [Any] ?? [],
+            "journeys": journeysDoc["journeys"] as? [Any] ?? [],
+        ]
     }
 
     private func verseLibrary(_ url: URL) throws -> [String: Any] {

@@ -3515,6 +3515,8 @@ function openVerseMenu(verseNo, x, y, expandMore = false) {
   verseMenu.querySelector('[data-menu-action="favorite"]').textContent = mark.favorite ? "取消收藏" : "收藏";
   verseMenu.querySelector('[data-menu-action="highlight"]').textContent = mark.highlighted || mark.highlightColor ? "取消高亮" : "高亮";
   if (verseHighlightColors) verseHighlightColors.hidden = true;
+  const mapHit = Bible.map && typeof Bible.map.placeForVerse === "function" ? Bible.map.placeForVerse(verseNo) : null;
+  if (Bible.dom.verseMenuMapBtn) Bible.dom.verseMenuMapBtn.hidden = !mapHit;
   verseMenu.hidden = false;
   setVerseMenuMore(expandMore);
   placeVerseMenu(x, y);
@@ -3636,6 +3638,11 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
   }
   if (action === "commentary") {
     await showCommentarySheet(verseNo);
+    return;
+  }
+  if (action === "map") {
+    const hit = Bible.map && typeof Bible.map.placeForVerse === "function" ? Bible.map.placeForVerse(verseNo) : null;
+    if (typeof Bible.map?.open === "function") await Bible.map.open({ placeId: hit?.id, pane: "map" });
     return;
   }
   if (action === "explain") {

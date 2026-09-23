@@ -71,7 +71,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, {
         ok: true,
         app: "bible-reader",
-        version: "1.36.7",
+        version: "1.37.0",
         dataRoot: ROOT,
         biblesDir: BIBLES_DIR,
         commentariesDir: COMMENTARIES_DIR,
@@ -276,6 +276,16 @@ const server = createServer(async (req, res) => {
           q: url.searchParams.get("q") || "",
         }),
       );
+      return;
+    }
+    if (url.pathname === "/api/map") {
+      const placesDoc = JSON.parse(await readFile(path.join(STATIC_DIR, "map", "places.json"), "utf8"));
+      const journeysDoc = JSON.parse(await readFile(path.join(STATIC_DIR, "map", "journeys.json"), "utf8"));
+      sendJson(res, {
+        disclaimer: placesDoc.disclaimer || "",
+        places: placesDoc.places || [],
+        journeys: journeysDoc.journeys || [],
+      });
       return;
     }
     if (url.pathname === "/api/diagnostics") {

@@ -93,6 +93,7 @@ function renderVerses(data) {
       .join("");
   if (typeof renderVerseSelectionState === "function") renderVerseSelectionState();
   focusTargetVerse();
+  if (Bible.map && typeof Bible.map.onChapterRendered === "function") Bible.map.onChapterRendered();
 }
 
 function focusTargetVerse() {

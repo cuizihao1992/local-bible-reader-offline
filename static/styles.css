@@ -442,6 +442,78 @@ select, input[type="search"], input[type="text"] {
   line-height: 1.7;
 }
 .todayVerseCard .dataButtons { margin-top: 10px; }
+.mapEntryCard {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  color: inherit;
+}
+.chapterPlacesBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px var(--reader-pad, 22px) 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.chapterPlacesBar button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--ink);
+}
+.mapSheet { z-index: 12; overflow: hidden; }
+.mapSheetBody { display: flex; flex-direction: column; min-height: 0; }
+.mapStage {
+  position: relative;
+  height: min(52vh, 420px);
+  overflow: hidden;
+  border-radius: 12px;
+  background: #e8dfcb;
+  touch-action: none;
+  margin-top: 8px;
+}
+#mapCanvas { width: 100%; height: 100%; display: block; transform-origin: center center; }
+.mapPin {
+  font-size: 11px;
+  fill: #2a2418;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(244,238,226,.85);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.mapRegion { font-size: 10px; fill: #8a8070; text-anchor: middle; }
+.mapPoi { cursor: pointer; }
+.mapTools {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mapTools button {
+  width: 36px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255,251,243,.95);
+}
+.mapPlaceDetail {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+}
 .todayVerseCard .dataButtons button { min-height: 34px; }
 .resultItem.todayVerseItem {
   outline: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));

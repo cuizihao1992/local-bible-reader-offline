@@ -40,6 +40,9 @@
         <a href="#dictionary">辞典</a>
         <div class="group">我的 / 设置</div>
         <a href="#my-marks">我的 · 标注</a>
+        <a href="#map">圣经地图 <small>示意</small></a>
+        <a href="#map-place">地点详情</a>
+        <a href="#map-journeys">旅程列表</a>
         <a href="#my-library">我的 · 经文库</a>
         <a href="#my-resources">我的 · 资源</a>
         <a href="#my-updates">我的 · 更新</a>
@@ -98,6 +101,11 @@
             <p class="verse" data-v="3"><span class="n">3</span>耶稣回答说：「我实实在在地告诉你，人若不重生，就不能见神的国。」</p>
             <p class="verse" data-v="14"><span class="n">14</span>摩西在旷野怎样举蛇，人子也必照样被举起来，</p>
             <p class="verse" data-v="15"><span class="n">15</span>叫一切信他的都得永生。</p>
+            <div class="chapterPlacesBar">
+              <span>本章地点</span>
+              <button type="button" data-go="map-place">耶路撒冷</button>
+              <button type="button" data-go="map">更多</button>
+            </div>
             <p class="verse active hl-gold fav" data-v="16" data-go="verse-menu"><span class="n">16</span>神爱世人，甚至将他的独生子赐给他们，叫一切信他的，不至灭亡，反得永生。</p>
             <p class="compareLine">KJV · For God so loved the world, that he gave his only begotten Son…</p>
             <p class="verse" data-v="17"><span class="n">17</span>因为神差他的儿子降世，不是要定世人的罪，乃是要叫世人因他得救。</p>
@@ -460,6 +468,11 @@
                 <div class="quote">神爱世人，甚至将他的独生子赐给他们……</div>
                 <div class="panelHint">约翰福音 3:16 · 点卡片跳到本章</div>
               </div>
+              <div class="card" data-go="map">
+                <div class="kicker">圣经地图 · 示意</div>
+                <div>15 处地名 · 5 条旅程 · 离线</div>
+                <div class="panelHint">不是精确比例。经文用当前译本。</div>
+              </div>
               <div class="card">
                 <div class="kicker">阅读进度 · 和合本</div>
                 <div>已读 142 / 1189 章 · 12%</div>
@@ -603,6 +616,114 @@
             </div>
           </section>
 
+          <!-- 圣经地图 -->
+          <section class="sheet" id="sheet-map">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">圣经地图</div>
+                <div class="panelHint">示意，不是精确比例 · 离线</div>
+              </div>
+              <button class="textBtn" type="button" data-go="reader">关闭</button>
+            </div>
+            <div class="tabs">
+              <button type="button" class="active" data-go="map">地图</button>
+              <button type="button" data-go="map-journeys">旅程</button>
+              <button type="button" data-go="map-places">地名</button>
+            </div>
+            <div class="chipRow">
+              <button type="button" class="active">全部</button>
+              <button type="button">族长</button>
+              <button type="button">出埃及</button>
+              <button type="button">王国</button>
+              <button type="button">耶稣</button>
+              <button type="button">保罗</button>
+            </div>
+            <div class="protoMap">
+              <svg viewBox="0 0 390 280" aria-label="示意地图">
+                <rect width="390" height="280" fill="#e8dfcb"/>
+                <path d="M0,0 L55,0 C40,70 28,140 40,280 L0,280 Z" fill="#7ba3b8"/>
+                <ellipse cx="198" cy="78" rx="22" ry="26" fill="#6e98ae"/>
+                <ellipse cx="190" cy="200" rx="12" ry="28" fill="#5e86a0"/>
+                <path d="M210,50 C200,110 188,160 175,230" fill="none" stroke="#6e98ae" stroke-width="4"/>
+                <circle cx="175" cy="165" r="6" fill="#2f4034" data-go="map-place"/>
+                <text x="175" y="155" text-anchor="middle" font-size="11">耶路撒冷</text>
+                <circle cx="155" cy="88" r="5" fill="#2f4034"/>
+                <text x="155" y="78" text-anchor="middle" font-size="11">拿撒勒</text>
+                <circle cx="195" cy="80" r="5" fill="#2f4034"/>
+                <text x="230" y="82" font-size="11">迦百农</text>
+              </svg>
+              <div class="panelHint">实心点＝位置确定 · 空心点＝推定 · 大数/安提阿标为图外</div>
+            </div>
+          </section>
+
+          <section class="sheet" id="sheet-map-journeys">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">旅程</div>
+                <div class="panelHint">5 条预置 · 陆路实线 / 海路虚线</div>
+              </div>
+              <button class="textBtn" type="button" data-go="map">返回地图</button>
+            </div>
+            <div class="tabs">
+              <button type="button" data-go="map">地图</button>
+              <button type="button" class="active" data-go="map-journeys">旅程</button>
+              <button type="button" data-go="map-places">地名</button>
+            </div>
+            <div class="resultItem" data-go="map">
+              <div class="ref">耶稣加利利与耶路撒冷事工</div>
+              <p>拿撒勒 → 迦百农 → 耶利哥 → 伯大尼 → 耶路撒冷</p>
+            </div>
+            <div class="resultItem" data-go="map">
+              <div class="ref">保罗宣教与押解</div>
+              <p>大马士革 → 大数（图外）→ 安提阿（图外）→ 该撒利亚 → 约帕</p>
+            </div>
+            <div class="resultItem" data-go="map">亚伯拉罕的迁徙</div>
+            <div class="resultItem" data-go="map">出埃及与进入应许</div>
+            <div class="resultItem" data-go="map">大卫的逃亡</div>
+          </section>
+
+          <section class="sheet" id="sheet-map-places">
+            <div class="sheetHeader">
+              <div class="sheetTitle">地名</div>
+              <button class="textBtn" type="button" data-go="map">返回地图</button>
+            </div>
+            <div class="tabs">
+              <button type="button" data-go="map">地图</button>
+              <button type="button" data-go="map-journeys">旅程</button>
+              <button type="button" class="active" data-go="map-places">地名</button>
+            </div>
+            <input type="search" placeholder="搜索地名，如：耶路撒冷" />
+            <div class="resultItem" data-go="map-place">
+              <div class="ref">耶路撒冷 · Jerusalem</div>
+              <p>今：耶路撒冷 · 位置确定</p>
+            </div>
+            <div class="resultItem" data-go="map-place">拿撒勒 · 今拿撒勒</div>
+            <div class="resultItem">大数 · 图外 · 今塔尔苏斯</div>
+          </section>
+
+          <section class="sheet" id="sheet-map-place">
+            <div class="sheetHeader">
+              <div>
+                <div class="sheetTitle">耶路撒冷</div>
+                <div class="panelHint">Jerusalem · 位置确定 · 今耶路撒冷</div>
+              </div>
+              <button class="textBtn" type="button" data-go="map">返回地图</button>
+            </div>
+            <p class="panelHint">以色列的圣城，大卫的京城与圣殿所在地。耶稣在此受难、埋葬并复活。</p>
+            <div class="dataButtons">
+              <button type="button" data-go="map">在地图上看</button>
+              <button type="button" data-go="reader">打开诗篇 122</button>
+            </div>
+            <div class="resultItem" data-go="reader">
+              <div class="ref">诗篇 122:1–3 · 当前译本</div>
+              <p>人对我说：我们往耶和华的殿去，我就欢喜。</p>
+            </div>
+            <div class="resultItem" data-go="reader">
+              <div class="ref">马太福音 27:33 · 当前译本</div>
+              <p>到了一个地方名叫各各他，意思就是髑髅地。</p>
+            </div>
+          </section>
+
           <!-- 口令确认 -->
           <section class="sheet" id="sheet-confirm">
             <div class="sheetHeader">
@@ -667,6 +788,7 @@
             <button type="button" data-go="commentary">注释</button>
             <button type="button" data-go="share">分享</button>
             <button type="button" data-go="dictionary">查词</button>
+            <button type="button" data-go="map">地图</button>
             <button type="button" data-go="audio">从本节朗读</button>
             <button type="button" data-go="multi">多选</button>
             </div>

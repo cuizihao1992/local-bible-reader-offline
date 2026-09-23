@@ -258,6 +258,14 @@
     },
     {
       "method": "GET",
+      "path": "/api/map",
+      "query": [],
+      "response": "{ disclaimer, places, journeys }",
+      "platforms": ["node", "android", "ios"],
+      "transport": "json"
+    },
+    {
+      "method": "GET",
       "path": "/api/verse-library",
       "query": ["version", "theme", "q"],
       "response": "{ items, themes }",

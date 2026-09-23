@@ -102,6 +102,9 @@ assert(indexHtml.includes("src=\"js/chrome/sheets.js\""), "sheets.js script miss
 assert(indexHtml.includes("src=\"js/reader/chapter.js\""), "chapter.js script missing");
 assert(indexHtml.includes("src=\"js/reader/verses.js\""), "verses.js script missing");
 assert(indexHtml.includes("src=\"js/reader/swipe.js\""), "swipe.js script missing");
+assert(indexHtml.includes("src=\"js/map/atlas.js\""), "atlas.js script missing");
+assert(indexHtml.includes("id=\"mapSheet\""), "map sheet missing");
+assert(indexHtml.includes("id=\"openMapCard\""), "map entry card missing");
 assert(staticJs.includes("async function loadChapter"), "loadChapter missing");
 assert(staticJs.includes("function moveChapter"), "moveChapter missing");
 assert(staticJs.includes("function renderVerses"), "renderVerses missing");
@@ -155,6 +158,10 @@ assert(staticJs.includes("/api/verse-library"), "Verse library client call missi
 assert(staticJs.includes("function pickTodayVerse"), "Today verse picker missing");
 assert(indexHtml.includes("id=\"todayVerseCard\""), "Today verse card missing");
 assert(indexHtml.includes("id=\"todayVersePeek\""), "Today verse peek missing");
+const mapData = await getJson("/api/map");
+assert(Array.isArray(mapData.places) && mapData.places.length >= 10, "Map places missing");
+assert(Array.isArray(mapData.journeys) && mapData.journeys.length >= 5, "Map journeys missing");
+assert(mapData.places.some((item) => item.id === "jerusalem"), "Jerusalem missing from map");
 const verseLibrary = await getJson("/api/verse-library?version=" + encodeURIComponent("和合本.db"));
 assert(Array.isArray(verseLibrary.items) && verseLibrary.items.length >= 120, "Verse library too small");
 assert(Array.isArray(verseLibrary.themes) && verseLibrary.themes.some((theme) => theme.id === "comfort"), "Verse library themes missing");

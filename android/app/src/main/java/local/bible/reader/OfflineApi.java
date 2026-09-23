@@ -90,6 +90,7 @@ public class OfflineApi {
             if ("/api/strong".equals(path)) return lookupStrong(query(uri, "code")).toString();
             if ("/api/import/url".equals(path)) return WebExtract.extract(context, query(uri, "url")).toString();
             if ("/api/verse-library".equals(path)) return verseLibrary(uri).toString();
+            if ("/api/map".equals(path)) return mapCatalog().toString();
             return new JSONObject().put("error", "Android 离线版暂未支持此接口：" + path).toString();
         } catch (Exception error) {
             return "{\"error\":\"" + escapeJson(error.getMessage()) + "\"}";
@@ -1010,7 +1011,7 @@ public class OfflineApi {
                 .put("ok", true)
                 .put("app", "bible-reader")
                 .put("platform", "android-offline")
-                .put("version", "1.36.7")
+                .put("version", "1.37.0")
                 .put("versionCount", versions().length());
     }
 
@@ -1139,6 +1140,25 @@ public class OfflineApi {
                 .put("total", rawItems.length())
                 .put("themes", themeList)
                 .put("items", items);
+    }
+
+    private JSONObject mapCatalog() throws Exception {
+        JSONObject placesDoc = readAssetJson("static/map/places.json");
+        JSONObject journeysDoc = readAssetJson("static/map/journeys.json");
+        return new JSONObject()
+                .put("disclaimer", placesDoc.optString("disclaimer"))
+                .put("places", placesDoc.optJSONArray("places"))
+                .put("journeys", journeysDoc.optJSONArray("journeys"));
+    }
+
+    private JSONObject readAssetJson(String assetPath) throws Exception {
+        try (InputStream in = context.getAssets().open(assetPath);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = in.read(buffer)) > 0) out.write(buffer, 0, read);
+            return new JSONObject(out.toString(StandardCharsets.UTF_8.name()));
+        }
     }
 
     private JSONObject loadVerseCatalog() throws Exception {
