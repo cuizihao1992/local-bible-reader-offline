@@ -18,7 +18,7 @@ Bible.state = {
   fontSize: 20,
   lineHeight: 2.05,
   readFont: "serif",
-  pageMargin: 22,
+  pageMargin: 14,
   copyFormat: "reference",
   ttsRate: 1,
   keepScreenOn: false,
@@ -61,7 +61,11 @@ function restoreState() {
       fontSize: Number(saved.fontSize) || 20,
       lineHeight: Number(saved.lineHeight) || 2.05,
       readFont: saved.readFont === "sans" ? "sans" : "serif",
-      pageMargin: Number(saved.pageMargin) || 22,
+      pageMargin: (() => {
+        const pad = Number(saved.pageMargin);
+        if (pad === 20 || pad === 22) return 14;
+        return pad || 14;
+      })(),
       copyFormat: saved.copyFormat === "plain" || saved.copyFormat === "numbered" ? saved.copyFormat : "reference",
       ttsRate: [0.8, 1, 1.25, 1.5].includes(Number(saved.ttsRate)) ? Number(saved.ttsRate) : 1,
       keepScreenOn: !!saved.keepScreenOn,

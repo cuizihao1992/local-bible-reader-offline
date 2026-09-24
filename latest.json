@@ -1,13 +1,13 @@
 {
-  "version": "1.37.1",
-  "tagName": "v1.37.1",
-  "name": "v1.37.1",
-  "body": "地图支持双指缩放、单指拖动；拖动不会误点地点。电脑可用滚轮缩放。",
+  "version": "1.37.2",
+  "tagName": "v1.37.2",
+  "name": "v1.37.2",
+  "body": "取消收藏/高亮改为轻量切换；「我的」去掉难看的二次确认（删批注仍确认）。经文左右边距收紧。",
   "publishedAt": "2026-09-24",
   "apk": {
-    "name": "local-bible-reader-offline-1.37.1-release.apk",
-    "size": 63476605,
-    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.37.1/local-bible-reader-offline-1.37.1-release.apk",
+    "name": "local-bible-reader-offline-1.37.2-release.apk",
+    "size": 63476781,
+    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.37.2/local-bible-reader-offline-1.37.2-release.apk",
     "mirrors": []
   },
   "packages": {
