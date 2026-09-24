@@ -186,7 +186,8 @@ function renderMapPois(highlightIds) {
     .map((place) => {
       const uncertain = place.certainty === "uncertain";
       const on = hi.has(place.id);
-      return `<g class="mapPoi" data-map-place="${place.id}">
+      const dim = hi.size && !on;
+      return `<g class="mapPoi" data-map-place="${place.id}" opacity="${dim ? ".28" : "1"}">
         <circle cx="${place.x}" cy="${place.y}" r="${on ? 8 : 6}" fill="${uncertain ? "none" : "#2F4034"}" stroke="${on ? "#C4A35A" : "#fff"}" stroke-width="${uncertain ? 2 : 2}" stroke-dasharray="${uncertain ? "3 2" : "0"}"/>
         <text class="mapPin" x="${place.x}" y="${place.y - 12}">${place.name}</text>
       </g>`;
@@ -347,12 +348,27 @@ async function openMapSheet(options = {}) {
   renderMapJourneys();
   setMapPane(options.pane || "map");
   if (options.placeId) await openMapPlace(options.placeId);
+  if (!options.fromVerse) {
+    Bible.map.verseNo = null;
+    Bible.map.scale = 1;
+    Bible.map.panX = 0;
+    Bible.map.panY = 0;
+    applyMapTransform();
+    const banner = Bible.dom.mapVerseBanner;
+    if (banner) banner.hidden = true;
+    if (Bible.dom.mapVerseAnalyzeBtn) Bible.dom.mapVerseAnalyzeBtn.hidden = true;
+    const title = Bible.dom.mapSheet?.querySelector(".sheetTitle");
+    if (title) title.textContent = "圣经地图";
+  }
 }
 
 function placesForText(text) {
   const hay = String(text || "");
   if (!hay) return [];
-  return Bible.map.places.filter((place) => (place.aliases || [place.name]).some((alias) => alias && hay.includes(alias)));
+  return Bible.map.places.filter((place) => {
+    const names = [place.name, ...(place.aliases || [])].filter((alias) => alias && alias.length >= 2);
+    return names.some((alias) => hay.includes(alias));
+  });
 }
 
 function renderChapterPlaceBar() {
@@ -382,6 +398,250 @@ function verseHasMapPlace(verseNo) {
   const el = Bible.dom.content?.querySelector(`.verse[data-verse="${verseNo}"]`);
   const hits = placesForText(el ? el.innerText : "");
   return hits[0] || null;
+}
+
+function verseWindowText(verseNo) {
+  const n = Number(verseNo) || 0;
+  return [n - 2, n - 1, n, n + 1, n + 2]
+    .filter((num) => num >= 1)
+    .map((num) => {
+      const el = Bible.dom.content?.querySelector(`.verse[data-verse="${num}"]`);
+      const text = el?.querySelector(".verseText")?.textContent || "";
+      return text ? `${num} ${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function localPlacesForVerse(verseNo) {
+  const el = Bible.dom.content?.querySelector(`.verse[data-verse="${verseNo}"]`);
+  const hits = placesForText(el ? el.innerText : "");
+  const seen = new Set(hits.map((item) => item.id));
+  placesForText(verseWindowText(verseNo)).forEach((item) => {
+    if (!seen.has(item.id)) {
+      seen.add(item.id);
+      hits.push(item);
+    }
+  });
+  return hits;
+}
+
+function mapCacheKey(verseNo) {
+  const state = Bible.state;
+  return `${state.version}:${state.book}:${state.chapter}:${verseNo}`;
+}
+
+function readVerseMapCache(key) {
+  try {
+    const all = JSON.parse(localStorage.getItem("bibleMapVerse.v1") || "{}");
+    return all[key] || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeVerseMapCache(key, value) {
+  try {
+    const all = JSON.parse(localStorage.getItem("bibleMapVerse.v1") || "{}");
+    all[key] = value;
+    const keys = Object.keys(all);
+    if (keys.length > 80) delete all[keys[0]];
+    localStorage.setItem("bibleMapVerse.v1", JSON.stringify(all));
+  } catch {}
+}
+
+function parseMapLlmJson(text) {
+  const raw = String(text || "");
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+function hasMapLlmKey() {
+  try {
+    const provider = typeof getAiProvider === "function" ? getAiProvider() : null;
+    return !!(provider && provider.key);
+  } catch {
+    return false;
+  }
+}
+
+function splitGeoIds(ids, extras) {
+  const inIds = [];
+  const extraItems = [];
+  const seen = new Set();
+  for (const item of extras || []) {
+    const name = String(item?.name || "").trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    extraItems.push({ name, note: item.note || "图外" });
+  }
+  for (const id of ids || []) {
+    const place = mapPlaceById(id);
+    if (!place) continue;
+    if (place.inFrame === false) {
+      if (!seen.has(place.name)) {
+        seen.add(place.name);
+        extraItems.push({ name: place.name, note: "图外" });
+      }
+    } else if (!inIds.includes(id)) {
+      inIds.push(id);
+    }
+  }
+  return { ids: inIds, extras: extraItems };
+}
+
+function focusMapOnIds(ids) {
+  const pts = (ids || []).map(mapPlaceById).filter((place) => place && place.inFrame !== false);
+  if (!pts.length) {
+    Bible.map.scale = 1;
+    Bible.map.panX = 0;
+    Bible.map.panY = 0;
+    applyMapTransform();
+    return;
+  }
+  const rect = Bible.dom.mapStage?.getBoundingClientRect();
+  const w = rect?.width || 390;
+  const h = rect?.height || 420;
+  const cx = pts.reduce((sum, place) => sum + place.x, 0) / pts.length;
+  const cy = pts.reduce((sum, place) => sum + place.y, 0) / pts.length;
+  const scale = pts.length === 1 ? 1.9 : clampMapScale(1.55);
+  Bible.map.scale = scale;
+  const px = (cx / 390) * w - w / 2;
+  const py = (cy / 560) * h - h / 2;
+  Bible.map.panX = -px * scale;
+  Bible.map.panY = -py * scale;
+  applyMapTransform();
+}
+
+async function llmPlacesForVerse(verseNo, localIds) {
+  if (typeof llmChat !== "function") return null;
+  if (!hasMapLlmKey()) return null;
+  const book = typeof currentBook === "function" ? currentBook() : { longName: "" };
+  const state = Bible.state;
+  const catalog = Bible.map.places
+    .map((place) => `${place.id}|${place.name}|${place.inFrame === false ? "图外" : "图内"}|${(place.aliases || []).join("/")}`)
+    .join("\n");
+  const sys = `你给离线圣经阅读器选地理点。只输出一个 JSON，不要 markdown。
+格式：{"ids":["jerusalem"],"route":["bethlehem","jerusalem"],"extras":[{"name":"罗马","note":"图外"}],"why":"一句话"}
+ids 和 route 只能用词表里标记为图内的 id。图外地点放 extras。没有移动就让 route 为空数组。没有把握就少选。不要经纬度，不要生成图片。本节没写地名时，可按书卷章节常见场景推断，并在 why 写明是背景推断。
+词表：
+${catalog}`;
+  const user = `出处：${book.longName || ""} ${state.chapter}:${verseNo}\n经文（含前后节）：\n${verseWindowText(verseNo)}\n本地已匹配：${localIds.join(",") || "无"}`;
+  const raw = await llmChat([
+    { role: "system", content: sys },
+    { role: "user", content: user },
+  ]);
+  return parseMapLlmJson(raw);
+}
+
+function applyVerseGeo(result, options = {}) {
+  const split = splitGeoIds(result.ids, result.extras);
+  const ids = split.ids;
+  const extras = split.extras;
+  const routeStops = (result.route || [])
+    .filter((id) => {
+      const place = mapPlaceById(id);
+      return place && place.inFrame !== false;
+    })
+    .map((id) => ({ place: id }));
+  const journey = routeStops.length >= 2 ? { mode: ["land"], stops: routeStops } : null;
+  Bible.map.era = "all";
+  Bible.map.activeJourney = journey;
+  document.querySelectorAll("[data-map-era]").forEach((btn) => btn.classList.toggle("active", btn.dataset.mapEra === "all"));
+  renderMapPois(ids);
+  renderMapRoute(journey);
+  focusMapOnIds(ids);
+  const banner = Bible.dom.mapVerseBanner;
+  const textEl = Bible.dom.mapVerseBannerText || banner;
+  const btn = Bible.dom.mapVerseAnalyzeBtn;
+  if (!banner || !textEl) return;
+  const names = ids.map((id) => mapPlaceById(id)?.name).filter(Boolean).join("、");
+  const extraText = extras.map((item) => item.name + (item.note ? `（${item.note}）` : "")).join("、");
+  const bits = [];
+  if (result.why) bits.push(result.why);
+  if (names) bits.push("图上：" + names);
+  if (extraText) bits.push("图外：" + extraText);
+  if (result.source === "llm") bits.push("助手补充");
+  else bits.push("本地词表");
+  textEl.textContent = bits.join(" · ");
+  banner.hidden = false;
+  if (btn) btn.hidden = options.showAnalyze === false || result.source === "llm";
+}
+
+async function enrichVerseGeo(verseNo, base) {
+  const btn = Bible.dom.mapVerseAnalyzeBtn;
+  if (!hasMapLlmKey()) {
+    if (typeof showStatus === "function") showStatus("请先在设置里填写助手 Key", "error");
+    applyVerseGeo(base, { showAnalyze: true });
+    return;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "正在分析…";
+  }
+  if (typeof showStatus === "function") showStatus("正在用助手分析本节地理…");
+  try {
+    const llm = await llmPlacesForVerse(verseNo, base.ids);
+    if (!llm) {
+      applyVerseGeo(base, { showAnalyze: true });
+      if (typeof showStatus === "function") showStatus("助手没有返回可用的地点", "error");
+      return;
+    }
+    const merged = {
+      ids: [...new Set([...(base.ids || []), ...(llm.ids || [])])],
+      route: llm.route || [],
+      extras: [...(base.extras || []), ...(llm.extras || [])],
+      why: llm.why || base.why,
+      source: "llm",
+    };
+    applyVerseGeo(merged, { showAnalyze: false });
+    writeVerseMapCache(mapCacheKey(verseNo), merged);
+    if (typeof showStatus === "function") showStatus("已标出本节相关地点", "success");
+  } catch (error) {
+    applyVerseGeo(base, { showAnalyze: true });
+    if (typeof showStatus === "function") showStatus(error.message || "助手分析失败，已用本地地名", "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "用助手分析背景";
+    }
+  }
+}
+
+async function openMapFromVerse(verseNo, options = {}) {
+  await loadMapCatalog();
+  Bible.map.verseNo = Number(verseNo) || 0;
+  const local = localPlacesForVerse(verseNo);
+  const key = mapCacheKey(verseNo);
+  const cached = options.forceLlm ? null : readVerseMapCache(key);
+  await openMapSheet({ pane: "map", fromVerse: true });
+  const book = typeof currentBook === "function" ? currentBook() : { longName: "本节" };
+  const title = Bible.dom.mapSheet?.querySelector(".sheetTitle");
+  if (title) title.textContent = `${book.longName} ${Bible.state.chapter}:${verseNo} 地理`;
+  const split = splitGeoIds(
+    local.map((item) => item.id),
+    [],
+  );
+  const base = {
+    ids: split.ids,
+    route: [],
+    extras: split.extras,
+    why: split.ids.length || split.extras.length ? "本节或邻近经文出现这些地名。" : "本节没有写出词表里的地名。",
+    source: "local",
+  };
+  applyVerseGeo(base, { showAnalyze: true });
+  if (cached && (Array.isArray(cached.ids) || Array.isArray(cached.extras))) {
+    applyVerseGeo({ ...cached, source: cached.source || "llm" }, { showAnalyze: false });
+    return;
+  }
+  const auto = options.forceLlm || (Bible.state.verseMapLlm !== false && hasMapLlmKey());
+  if (auto) await enrichVerseGeo(verseNo, base);
 }
 
 function initMapUi() {
@@ -468,6 +728,13 @@ function initMapUi() {
     keepReadingChromeVisible();
     syncSheetOverlay();
   });
+  Bible.dom.verseMapLlmToggle?.addEventListener("change", () => {
+    Bible.state.verseMapLlm = !!Bible.dom.verseMapLlmToggle.checked;
+    if (typeof saveState === "function") saveState();
+  });
+  Bible.dom.mapVerseAnalyzeBtn?.addEventListener("click", () => {
+    if (Bible.map.verseNo) openMapFromVerse(Bible.map.verseNo, { forceLlm: true });
+  });
   Bible.dom.openMapCard?.addEventListener("click", () => openMapSheet());
   Bible.dom.chapterPlacesBar?.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-map-open]");
@@ -477,6 +744,7 @@ function initMapUi() {
 }
 
 Bible.map.open = openMapSheet;
+Bible.map.openFromVerse = openMapFromVerse;
 Bible.map.closePlace = closeMapPlace;
 Bible.map.onChapterRendered = renderChapterPlaceBar;
 Bible.map.placeForVerse = verseHasMapPlace;

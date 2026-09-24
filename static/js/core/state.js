@@ -41,6 +41,7 @@ Bible.state = {
   lastVerse: null,
   recentBooks: [],
   recentSearches: [],
+  verseMapLlm: true,
 };
 
 function restoreState() {
@@ -86,6 +87,7 @@ function restoreState() {
       lastVerse: Number(saved.lastVerse) || null,
       recentBooks: Array.isArray(saved.recentBooks) ? saved.recentBooks.slice(0, 8) : [],
       recentSearches: Array.isArray(saved.recentSearches) ? saved.recentSearches.slice(0, 8) : [],
+      verseMapLlm: saved.verseMapLlm !== false,
     });
     if (providers.length && !providers.some((item) => item.id === state.aiProvider)) state.aiProvider = "mimo";
     state.aiKeys = { ...(state.aiKeys || {}), mimo: state.mimoKey };
@@ -133,6 +135,7 @@ function saveState() {
       lastVerse: state.lastVerse,
       recentBooks: state.recentBooks,
       recentSearches: state.recentSearches,
+      verseMapLlm: state.verseMapLlm !== false,
     }),
   );
 }
@@ -190,6 +193,7 @@ function applySettings() {
   setChecked("#audioAutoNextSheet", state.audioAutoNext);
   setChecked("#keepScreenOnToggle", state.keepScreenOn);
   setChecked("#fuzzySearchToggle", !!state.fuzzySearch);
+  setChecked("#verseMapLlmToggle", state.verseMapLlm !== false);
   if (window.AndroidBibleApi && window.AndroidBibleApi.setKeepScreenOn) {
     window.AndroidBibleApi.setKeepScreenOn(!!state.keepScreenOn);
   }

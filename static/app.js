@@ -3521,8 +3521,7 @@ function openVerseMenu(verseNo, x, y, expandMore = false) {
     hlBtn.classList.toggle("isOn", !!(mark.highlighted || mark.highlightColor));
   }
   if (verseHighlightColors) verseHighlightColors.hidden = true;
-  const mapHit = Bible.map && typeof Bible.map.placeForVerse === "function" ? Bible.map.placeForVerse(verseNo) : null;
-  if (Bible.dom.verseMenuMapBtn) Bible.dom.verseMenuMapBtn.hidden = !mapHit;
+  if (Bible.dom.verseMenuMapBtn) Bible.dom.verseMenuMapBtn.hidden = false;
   verseMenu.hidden = false;
   setVerseMenuMore(expandMore);
   placeVerseMenu(x, y);
@@ -3639,8 +3638,8 @@ async function runVerseAction(action, verseNo = state.activeVerse) {
     return;
   }
   if (action === "map") {
-    const hit = Bible.map && typeof Bible.map.placeForVerse === "function" ? Bible.map.placeForVerse(verseNo) : null;
-    if (typeof Bible.map?.open === "function") await Bible.map.open({ placeId: hit?.id, pane: "map" });
+    if (typeof Bible.map?.openFromVerse === "function") await Bible.map.openFromVerse(verseNo);
+    else if (typeof Bible.map?.open === "function") await Bible.map.open({ pane: "map" });
     return;
   }
   if (action === "explain") {

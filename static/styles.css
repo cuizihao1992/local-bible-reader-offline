@@ -470,6 +470,31 @@ select, input[type="search"], input[type="text"] {
 }
 .mapSheet { z-index: 12; overflow: hidden; }
 .mapSheetBody { display: flex; flex-direction: column; min-height: 0; }
+.mapVerseBanner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 0 0 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--soft));
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.mapVerseBanner[hidden] { display: none; }
+.mapVerseBanner button {
+  align-self: flex-start;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #2f4034;
+  color: #fff;
+  font-size: 12px;
+}
+.mapVerseBanner button[hidden] { display: none; }
+.mapVerseBanner button:disabled { opacity: .6; }
 .mapStage {
   position: relative;
   height: min(52vh, 420px);

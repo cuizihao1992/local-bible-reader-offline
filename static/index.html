@@ -216,6 +216,10 @@
             <span>阅读时保持屏幕常亮</span>
           </label>
           <label class="toggleField">
+            <input id="verseMapLlmToggle" type="checkbox" />
+            <span>经文地图用助手补充（要 Key）</span>
+          </label>
+          <label class="toggleField">
             <input id="strongToggleReader" type="checkbox" />
             <span>显示 Strong 编号</span>
           </label>
@@ -574,6 +578,10 @@
         </div>
         <div class="sheetBody mapSheetBody">
           <div data-map-pane="map">
+            <div id="mapVerseBanner" class="mapVerseBanner" hidden>
+              <div id="mapVerseBannerText"></div>
+              <button id="mapVerseAnalyzeBtn" type="button" hidden>用助手分析背景</button>
+            </div>
             <div class="chipRow" id="mapEraChips">
               <button type="button" data-map-era="all" class="active">全部</button>
               <button type="button" data-map-era="patriarch">族长</button>
@@ -625,6 +633,7 @@
       </div>
       <button type="button" data-menu-action="note">批注</button>
       <button type="button" data-menu-action="copy">复制</button>
+      <button type="button" data-menu-action="map" id="verseMenuMapBtn">地图</button>
       <button type="button" id="verseMenuMoreBtn" data-menu-action="more">更多</button>
       <div id="verseMenuMore" class="verseMenuMore" hidden>
         <button type="button" data-menu-action="explain">讲解</button>
@@ -634,7 +643,6 @@
         <button type="button" data-menu-action="copy-numbered">复制（带节号）</button>
         <button type="button" data-menu-action="compare">对照</button>
         <button type="button" data-menu-action="commentary">注释</button>
-        <button type="button" data-menu-action="map" hidden id="verseMenuMapBtn">地图</button>
         <button type="button" data-menu-action="share">分享</button>
         <button type="button" data-menu-action="dictionary">查词</button>
         <button type="button" data-menu-action="speak">从本节朗读</button>
