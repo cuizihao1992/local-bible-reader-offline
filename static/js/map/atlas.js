@@ -72,6 +72,111 @@ function applyMapTransform() {
   svg.style.transform = `translate(${Bible.map.panX}px, ${Bible.map.panY}px) scale(${Bible.map.scale})`;
 }
 
+function clampMapScale(value) {
+  return Math.min(3.2, Math.max(0.7, value));
+}
+
+function mapStageCenterOffset(clientX, clientY) {
+  const stage = Bible.dom.mapStage;
+  if (!stage) return { x: 0, y: 0 };
+  const rect = stage.getBoundingClientRect();
+  return { x: clientX - rect.left - rect.width / 2, y: clientY - rect.top - rect.height / 2 };
+}
+
+function zoomMapAt(clientX, clientY, nextScale) {
+  const old = Bible.map.scale || 1;
+  const scale = clampMapScale(nextScale);
+  if (old <= 0 || scale === old) {
+    Bible.map.scale = scale;
+    applyMapTransform();
+    return;
+  }
+  const point = mapStageCenterOffset(clientX, clientY);
+  const k = scale / old;
+  Bible.map.panX = point.x - (point.x - Bible.map.panX) * k;
+  Bible.map.panY = point.y - (point.y - Bible.map.panY) * k;
+  Bible.map.scale = scale;
+  applyMapTransform();
+}
+
+function bindMapGestures(stage) {
+  const pointers = new Map();
+  let pinchDist = 0;
+  let pinchMid = null;
+  Bible.map.gestureMoved = false;
+
+  const pointOf = (event) => ({ x: event.clientX, y: event.clientY });
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+  stage.addEventListener("pointerdown", (event) => {
+    if (event.target.closest(".mapTools")) return;
+    stage.setPointerCapture(event.pointerId);
+    pointers.set(event.pointerId, pointOf(event));
+    if (pointers.size === 1) Bible.map.gestureMoved = false;
+    if (pointers.size === 2) {
+      const pts = [...pointers.values()];
+      pinchDist = dist(pts[0], pts[1]);
+      pinchMid = mid(pts[0], pts[1]);
+      Bible.map.gestureMoved = true;
+    }
+  });
+  stage.addEventListener("pointermove", (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    const prev = pointers.get(event.pointerId);
+    const next = pointOf(event);
+    pointers.set(event.pointerId, next);
+    if (pointers.size >= 2) {
+      const pts = [...pointers.values()];
+      const d = dist(pts[0], pts[1]);
+      const c = mid(pts[0], pts[1]);
+      if (pinchDist > 8) {
+        zoomMapAt(c.x, c.y, Bible.map.scale * (d / pinchDist));
+        Bible.map.panX += c.x - pinchMid.x;
+        Bible.map.panY += c.y - pinchMid.y;
+        applyMapTransform();
+      }
+      pinchDist = d;
+      pinchMid = c;
+      Bible.map.gestureMoved = true;
+      return;
+    }
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    if (Math.hypot(dx, dy) > 3) Bible.map.gestureMoved = true;
+    Bible.map.panX += dx;
+    Bible.map.panY += dy;
+    applyMapTransform();
+  });
+  const endPointer = (event) => {
+    pointers.delete(event.pointerId);
+    if (pointers.size < 2) {
+      pinchDist = 0;
+      pinchMid = null;
+    }
+  };
+  stage.addEventListener("pointerup", endPointer);
+  stage.addEventListener("pointercancel", endPointer);
+  stage.addEventListener("pointerleave", (event) => {
+    if (pointers.has(event.pointerId)) endPointer(event);
+  });
+  stage.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      zoomMapAt(event.clientX, event.clientY, Bible.map.scale * (event.deltaY > 0 ? 0.9 : 1.11));
+    },
+    { passive: false },
+  );
+  stage.addEventListener(
+    "touchmove",
+    (event) => {
+      if (event.touches.length >= 1) event.preventDefault();
+    },
+    { passive: false },
+  );
+}
+
 function renderMapPois(highlightIds) {
   const layer = document.getElementById("mapPoiLayer");
   if (!layer) return;
@@ -283,33 +388,23 @@ function initMapUi() {
   const stage = Bible.dom.mapStage;
   if (stage && !stage.dataset.bound) {
     stage.dataset.bound = "1";
-    let dragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    stage.addEventListener("pointerdown", (event) => {
-      dragging = true;
-      lastX = event.clientX;
-      lastY = event.clientY;
-    });
-    window.addEventListener("pointermove", (event) => {
-      if (!dragging) return;
-      Bible.map.panX += event.clientX - lastX;
-      Bible.map.panY += event.clientY - lastY;
-      lastX = event.clientX;
-      lastY = event.clientY;
-      applyMapTransform();
-    });
-    window.addEventListener("pointerup", () => {
-      dragging = false;
-    });
+    bindMapGestures(stage);
   }
   Bible.dom.mapZoomIn?.addEventListener("click", () => {
-    Bible.map.scale = Math.min(2.4, Bible.map.scale + 0.25);
-    applyMapTransform();
+    const rect = stage?.getBoundingClientRect();
+    if (rect) zoomMapAt(rect.left + rect.width / 2, rect.top + rect.height / 2, Bible.map.scale + 0.25);
+    else {
+      Bible.map.scale = clampMapScale(Bible.map.scale + 0.25);
+      applyMapTransform();
+    }
   });
   Bible.dom.mapZoomOut?.addEventListener("click", () => {
-    Bible.map.scale = Math.max(0.8, Bible.map.scale - 0.25);
-    applyMapTransform();
+    const rect = stage?.getBoundingClientRect();
+    if (rect) zoomMapAt(rect.left + rect.width / 2, rect.top + rect.height / 2, Bible.map.scale - 0.25);
+    else {
+      Bible.map.scale = clampMapScale(Bible.map.scale - 0.25);
+      applyMapTransform();
+    }
   });
   Bible.dom.mapZoomReset?.addEventListener("click", () => {
     Bible.map.scale = 1;
@@ -340,6 +435,7 @@ function initMapUi() {
     if (btn) showJourneyOnMap(btn.dataset.mapJourney);
   });
   Bible.dom.mapCanvas?.addEventListener("click", (event) => {
+    if (Bible.map.gestureMoved) return;
     const poi = event.target.closest("[data-map-place]");
     if (poi) openMapPlace(poi.dataset.mapPlace);
   });

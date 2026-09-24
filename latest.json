@@ -1,13 +1,13 @@
 {
-  "version": "1.37.0",
-  "tagName": "v1.37.0",
-  "name": "v1.37.0",
-  "body": "离线示意圣经地图：我的入口、本章地点、旅程路线。经文用当前译本。",
-  "publishedAt": "2026-09-23",
+  "version": "1.37.1",
+  "tagName": "v1.37.1",
+  "name": "v1.37.1",
+  "body": "地图支持双指缩放、单指拖动；拖动不会误点地点。电脑可用滚轮缩放。",
+  "publishedAt": "2026-09-24",
   "apk": {
-    "name": "local-bible-reader-offline-1.37.0-release.apk",
-    "size": 63475365,
-    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.37.0/local-bible-reader-offline-1.37.0-release.apk",
+    "name": "local-bible-reader-offline-1.37.1-release.apk",
+    "size": 63476605,
+    "url": "https://github.com/cuizihao1992/local-bible-reader-offline/releases/download/v1.37.1/local-bible-reader-offline-1.37.1-release.apk",
     "mirrors": []
   },
   "packages": {
